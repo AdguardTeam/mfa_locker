@@ -1,0 +1,141 @@
+name: Windows Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: flavor
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+      pfxSecretVarName:
+        description: 'Name of the secret containing the base64-encoded PFX certificate'
+        required: false
+        type: string
+      pfxPasswordSecretVarName:
+        description: 'Name of the secret containing the password for the PFX certificate'
+        required: false
+        type: string
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+
+      # Step to decode PFX file and save it to the filesystem
+      - name: Decode PFX file
+        if: ${{ inputs.pfxSecretVarName != '' }}
+        shell: pwsh
+        run: |
+          $pfxSecretName = '${{ github.event.inputs.pfxSecretVarName }}'
+          $pfxBase64 = '${{ secrets[github.event.inputs.pfxSecretVarName] }}'
+          if ([string]::IsNullOrEmpty($pfxBase64)) {
+            Write-Error "Secret '$pfxSecretName' not found or empty."
+            exit 1
+          }
+          $pfxBytes = [System.Convert]::FromBase64String($pfxBase64)
+          [System.IO.File]::WriteAllBytes('msix-signing-cert.pfx', $pfxBytes)
+
+      - name: Extract Subject from PFX and update Publisher in pubspec.yaml
+        if: ${{ inputs.pfxSecretVarName != '' }}
+        shell: pwsh
+        run: |
+          # Set variables for PFX path and password
+          $pfxPath = "msix-signing-cert.pfx"
+          $pfxPassword = ConvertTo-SecureString -String "${{ secrets[github.event.inputs.pfxPasswordSecretVarName] }}" -AsPlainText -Force
+
+          # Load the certificate using the constructor
+          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfxPath, $pfxPassword, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
+
+          # Extract the Subject
+          $subject = $cert.Subject
+          Write-Host "Extracted Subject from certificate: $subject"
+
+          # Update pubspec.yaml with the correct Publisher value
+          $pubspecPath = "pubspec.yaml"  # Update this path if needed
+          $content = Get-Content -Path $pubspecPath -Raw
+          $content = $content -replace "(?<=Publisher:\s).*", "`"$subject`""
+          Set-Content -Path $pubspecPath -Value $content
+
+          Write-Host "Updated Publisher in pubspec.yaml to: $subject"
+
+      - name: Install Chocolatey
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force; `
+          [System.Net.ServicePointManager]::SecurityProtocol = `
+          [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; `
+          iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+
+      - name: Install make
+        run: choco install make --yes
+
+      - name: Verify make installation
+        run: make --version
+
+      - name: Read Flutter version from .ci-flutter-version
+        id: flutter_version
+        shell: pwsh
+        run: |
+          if (Test-Path '.ci-flutter-version') {
+            $version = Get-Content '.ci-flutter-version' -Raw
+            $version = $version.Trim()
+            Write-Host "Using Flutter version: $version"
+            echo "FLUTTER_VERSION=$version" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+          } else {
+            Write-Error "Error: .ci-flutter-version file not found in the repository root."
+            exit 1
+          }
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Initialize project
+        run: make init
+
+      - name: Build Windows
+        run: make ci-build-windows FLAVOR=${{ inputs.flavor }} BUILD_NUMBER=${{ github.run_number }}
+
+      - name: Build MSIX
+        run: make ci-build-msix FLAVOR=${{ inputs.flavor }} BUILD_NUMBER=${{ github.run_number }}
+
+      - name: Sign MSIX
+        if: ${{ inputs.pfxSecretVarName != '' }}
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $windowsKitsPath = 'C:\Program Files (x86)\Windows Kits\10\bin'
+          $signtoolPaths = Get-ChildItem -Path $windowsKitsPath -Directory |
+            Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } |
+            Sort-Object { [Version]$_.Name } -Descending |
+            ForEach-Object { Join-Path $_.FullName 'x64' } |
+            Get-ChildItem -Filter signtool.exe -File -Recurse |
+            Select-Object -ExpandProperty FullName
+          $signtoolPath = $signtoolPaths | Select-Object -First 1
+          if (-not $signtoolPath) {
+            Write-Error "signtool.exe not found in $windowsKitsPath"
+            exit 1
+          }
+          Write-Host "Using signtool.exe at $signtoolPath"
+          & $signtoolPath sign /debug /v /fd SHA256 /f 'msix-signing-cert.pfx' /p "${{ secrets[github.event.inputs.pfxPasswordSecretVarName] }}" /tr http://timestamp.digicert.com /td SHA256 "example/build/windows/x64/runner/msix/*.msix"
+
+
+      # Remove the certificate import step as per your instruction
+      # Use the certificate directly from the file system for signing
+
+      - name: Upload Release files as ZIP archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: MFADemo.archive
+          path: example/build/windows/x64/runner/Release/*
+
+      - name: Upload MSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MFADemo.msix
+          path: example/build/windows/x64/runner/msix/*

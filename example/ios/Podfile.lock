@@ -1,0 +1,35 @@
+PODS:
+  - Flutter (1.0.0)
+  - objective_c (0.0.1):
+    - Flutter
+  - package_info_plus (0.4.5):
+    - Flutter
+  - secure_mnemonic (0.0.1):
+    - Flutter
+    - FlutterMacOS
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - objective_c (from `.symlinks/plugins/objective_c/ios`)
+  - package_info_plus (from `.symlinks/plugins/package_info_plus/ios`)
+  - secure_mnemonic (from `.symlinks/plugins/secure_mnemonic/darwin`)
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  objective_c:
+    :path: ".symlinks/plugins/objective_c/ios"
+  package_info_plus:
+    :path: ".symlinks/plugins/package_info_plus/ios"
+  secure_mnemonic:
+    :path: ".symlinks/plugins/secure_mnemonic/darwin"
+
+SPEC CHECKSUMS:
+  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  objective_c: 89e720c30d716b036faf9c9684022048eee1eee2
+  package_info_plus: 40fe323c707fbe9980da318778268dc9a0238c46
+  secure_mnemonic: adcf8742d359488645e68e449db7640ec174746a
+
+PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e
+
+COCOAPODS: 1.16.2

@@ -1,0 +1,35 @@
+name: locker
+description: A secure storage library for Dart applications
+version: 1.0.0
+publish_to: none
+homepage: https://github.com/AdguardTeam/mfa_locker
+repository: https://github.com/AdguardTeam/mfa_locker
+issue_tracker: https://github.com/AdguardTeam/mfa_locker/issues
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.35.0 <4.0.0"
+
+
+dependencies:
+  collection: 1.19.1
+  cryptography: 2.7.0
+  meta: 1.16.0
+  path: 1.9.1
+  rxdart: 0.28.0  
+  synchronized: 3.4.0
+  uuid: 4.5.1
+
+  adguard_logger:
+    git:
+      url: https://github.com/AdguardTeam/adguard-dart-logger.git
+      ref: master
+
+  secure_mnemonic:
+    path: packages/secure_mnemonic
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: 3.0.0
+  test: 1.26.2
+  mocktail: 1.0.3

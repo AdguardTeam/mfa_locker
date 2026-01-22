@@ -1,0 +1,55 @@
+name: mfa_demo
+description: A simplified demo app for the locker library
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ">=3.9.0 <4.0.0"
+  flutter: ">=3.35.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  flutter_bloc: 8.1.6
+  macos_window_utils: 1.9.1
+  freezed_annotation: 3.1.0
+  path_provider: 2.1.5
+  rxdart: 0.28.0
+  msix: 3.16.12
+  
+  locker:
+    path: ../
+  
+  adguard_logger:
+    git:
+      url: https://github.com/AdguardTeam/adguard-dart-logger.git
+      ref: master
+
+  action_bloc:
+    path: ./packages/action_bloc
+  package_info_plus:
+    path: ./packages/package_info_plus
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  
+  build_runner: 2.7.0
+  flutter_lints: 6.0.0
+  freezed: 3.2.0
+
+flutter:
+  uses-material-design: true
+
+msix_config:
+  display_name: MFA Locker
+  publisher_display_name: AdGuard
+  identity_name: 36229AdGuard.MFALocker
+  publisher: CN=3FA0712E-1911-4324-98EE-BAAF714F46BE
+  capabilities: internetClient
+  languages: en, de, es, ru, pt-BR, zh-CN, ja, it, ko, fr, zh-TW
+  sign_msix: false
+  output_name: MFALocker
+  output_path: build\windows\x64\runner\msix\
