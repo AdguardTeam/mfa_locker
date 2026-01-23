@@ -23,8 +23,8 @@ dependencies:
   
   adguard_logger:
     git:
-      url: https://github.com/AdguardTeam/adguard-dart-logger.git
-      ref: master
+      url: https://github.com/AdguardTeam/adguard-dart-logger
+      ref: v1.0.1
 
   action_bloc:
     path: ./packages/action_bloc

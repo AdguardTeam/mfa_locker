@@ -21,8 +21,8 @@ dependencies:
 
   adguard_logger:
     git:
-      url: https://github.com/AdguardTeam/adguard-dart-logger.git
-      ref: master
+      url: https://github.com/AdguardTeam/adguard-dart-logger
+      ref: v1.0.1
 
   secure_mnemonic:
     path: packages/secure_mnemonic
