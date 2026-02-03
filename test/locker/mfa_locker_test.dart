@@ -668,6 +668,205 @@ void main() {
       });
     });
 
+    group('update', () {
+      test('updates cache and calls storage.updateEntry with meta and value', () async {
+        // Arrange
+        final cipher = _Helpers.createMockPasswordCipherFunc();
+        final id = EntryId('entryId');
+
+        _Helpers.stubReadAllMeta(
+          storage,
+          cipher,
+          id: id.value,
+          metaBytes: [1, 2],
+        );
+        await locker.loadAllMeta(cipher);
+
+        final oldMeta = locker.allMeta[id]!;
+        final newMeta = _StorageHelpers.createEntryMeta([3, 4]);
+        final newValue = _StorageHelpers.createEntryValue([5, 6]);
+
+        when(
+          () => storage.updateEntry(
+            id: id,
+            cipherFunc: cipher,
+            entryMeta: newMeta,
+            entryValue: newValue,
+          ),
+        ).thenAnswer((_) async {});
+
+        // Act
+        await locker.update(
+          id: id,
+          cipherFunc: cipher,
+          entryMeta: newMeta,
+          entryValue: newValue,
+        );
+
+        // Assert
+        verify(
+          () => storage.updateEntry(
+            id: id,
+            cipherFunc: cipher,
+            entryMeta: newMeta,
+            entryValue: newValue,
+          ),
+        ).called(1);
+
+        expect(locker.allMeta[id], same(newMeta));
+        _Helpers.verifyErasedAll([cipher, newValue, oldMeta]);
+      });
+
+      test('updates only value without changing meta cache', () async {
+        // Arrange
+        final cipher = _Helpers.createMockPasswordCipherFunc();
+        final id = EntryId('entryId');
+
+        _Helpers.stubReadAllMeta(
+          storage,
+          cipher,
+          id: id.value,
+          metaBytes: [1, 2],
+        );
+        await locker.loadAllMeta(cipher);
+
+        final existingMeta = locker.allMeta[id]!;
+        final newValue = _StorageHelpers.createEntryValue([5, 6]);
+
+        when(
+          () => storage.updateEntry(
+            id: id,
+            cipherFunc: cipher,
+            entryValue: newValue,
+          ),
+        ).thenAnswer((_) async {});
+
+        // Act
+        await locker.update(
+          id: id,
+          cipherFunc: cipher,
+          entryValue: newValue,
+        );
+
+        // Assert
+        verify(
+          () => storage.updateEntry(
+            id: id,
+            cipherFunc: cipher,
+            entryValue: newValue,
+          ),
+        ).called(1);
+
+        expect(locker.allMeta[id], same(existingMeta));
+        _Helpers.verifyErasedAll([cipher, newValue]);
+      });
+
+      test('updates only meta and updates cache', () async {
+        // Arrange
+        final cipher = _Helpers.createMockPasswordCipherFunc();
+        final id = EntryId('entryId');
+
+        _Helpers.stubReadAllMeta(storage, cipher, id: id.value, metaBytes: [1, 2]);
+        await locker.loadAllMeta(cipher);
+
+        final oldMeta = locker.allMeta[id]!;
+        final newMeta = _StorageHelpers.createEntryMeta([3, 4]);
+
+        when(
+          () => storage.updateEntry(
+            id: id,
+            cipherFunc: cipher,
+            entryMeta: newMeta,
+          ),
+        ).thenAnswer((_) async {});
+
+        // Act
+        await locker.update(
+          id: id,
+          cipherFunc: cipher,
+          entryMeta: newMeta,
+        );
+
+        // Assert
+        verify(
+          () => storage.updateEntry(
+            id: id,
+            cipherFunc: cipher,
+            entryMeta: newMeta,
+          ),
+        ).called(1);
+
+        expect(locker.allMeta[id], same(newMeta));
+        _Helpers.verifyErasedAll([cipher, oldMeta]);
+      });
+
+      test('throws when storage not initialized', () async {
+        // Arrange
+        when(() => storage.isInitialized).thenAnswer((_) async => false);
+        final cipher = _Helpers.createMockPasswordCipherFunc();
+        final meta = _StorageHelpers.createEntryMeta();
+        final value = _StorageHelpers.createEntryValue();
+
+        // Act & Assert
+        await expectLater(
+          () => locker.update(
+            id: EntryId('entry-id'),
+            cipherFunc: cipher,
+            entryMeta: meta,
+            entryValue: value,
+          ),
+          throwsA(isA<StateError>()),
+        );
+
+        verifyNever(
+          () => storage.updateEntry(
+            id: any(named: 'id'),
+            cipherFunc: any(named: 'cipherFunc'),
+            entryMeta: any(named: 'entryMeta'),
+            entryValue: any(named: 'entryValue'),
+          ),
+        );
+
+        _Helpers.verifyErasedAll([cipher, value, meta]);
+      });
+
+      test('rethrows on storage error and erases meta on error', () async {
+        // Arrange
+        final cipher = _Helpers.createMockPasswordCipherFunc();
+        final id = EntryId('entryId');
+        final meta = _StorageHelpers.createEntryMeta([3, 4]);
+        final value = _StorageHelpers.createEntryValue([5, 6]);
+
+        _Helpers.stubReadAllMeta(storage, cipher, id: id.value);
+        await locker.loadAllMeta(cipher);
+
+        final before = Map.of(locker.allMeta);
+
+        when(
+          () => storage.updateEntry(
+            id: id,
+            cipherFunc: cipher,
+            entryMeta: meta,
+            entryValue: value,
+          ),
+        ).thenThrow(Exception('test'));
+
+        // Act & Assert
+        await expectLater(
+          () => locker.update(
+            id: id,
+            cipherFunc: cipher,
+            entryMeta: meta,
+            entryValue: value,
+          ),
+          throwsException,
+        );
+
+        expect(locker.allMeta, equals(before));
+        _Helpers.verifyErasedAll([cipher, value, meta]);
+      });
+    });
+
     group('wrap management', () {
       test('changePassword calls correct method from storage', () async {
         // Arrange

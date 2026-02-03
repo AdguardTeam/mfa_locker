@@ -190,6 +190,35 @@ class MFALocker implements Locker {
       );
 
   @override
+  Future<void> update({
+    required EntryId id,
+    required CipherFunc cipherFunc,
+    EntryMeta? entryMeta,
+    EntryValue? entryValue,
+  }) =>
+      _sync(
+        () => _executeWithCleanup(
+          erasables: [cipherFunc, if (entryValue != null) entryValue],
+          erasablesOnError: [if (entryMeta != null) entryMeta],
+          callback: () async {
+            await loadAllMetaIfLocked(cipherFunc);
+
+            await _storage.updateEntry(
+              id: id,
+              cipherFunc: cipherFunc,
+              entryMeta: entryMeta,
+              entryValue: entryValue,
+            );
+
+            if (entryMeta != null) {
+              _metaCache[id]?.erase();
+              _metaCache[id] = entryMeta;
+            }
+          },
+        ),
+      );
+
+  @override
   Future<void> changePassword({
     required PasswordCipherFunc newCipherFunc,
     required PasswordCipherFunc oldCipherFunc,

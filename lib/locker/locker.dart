@@ -115,6 +115,19 @@ abstract interface class Locker {
     required CipherFunc cipherFunc,
   });
 
+  /// Updates an entry by id.
+  ///
+  /// If the locker is locked, attempts to unlock using [cipherFunc].
+  /// At least one of [entryMeta] or [entryValue] must be provided.
+  ///
+  /// Throws [StateError] if storage is not initialized.
+  Future<void> update({
+    required EntryId id,
+    required CipherFunc cipherFunc,
+    EntryMeta? entryMeta,
+    EntryValue? entryValue,
+  });
+
   /// Adds a new password and re-wraps access using the old password.
   ///
   /// Uses [oldCipherFunc] to authorize and add [newCipherFunc] as a new
