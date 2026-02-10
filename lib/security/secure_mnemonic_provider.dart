@@ -81,8 +81,8 @@ class SecureMnemonicProviderImpl implements SecureMnemonicProvider {
       }
 
       return base64Decode(encrypted);
-    } catch (error, stackTrace) {
-      Error.throwWithStackTrace(_mapPluginError(error), stackTrace);
+    } on SecureMnemonicException catch (e, stackTrace) {
+      Error.throwWithStackTrace(_mapExceptionToBiometricException(e), stackTrace);
     }
   }
 
@@ -97,62 +97,29 @@ class SecureMnemonicProviderImpl implements SecureMnemonicProvider {
       }
 
       return base64Decode(decrypted);
-    } catch (error, stackTrace) {
-      Error.throwWithStackTrace(_mapPluginError(error), stackTrace);
+    } on SecureMnemonicException catch (e, stackTrace) {
+      Error.throwWithStackTrace(_mapExceptionToBiometricException(e), stackTrace);
     }
   }
 
   @override
   Future<void> deleteKey({required String tag}) => _secureMnemonic.deleteKey(tag: tag);
 
-  Object _mapPluginError(Object error) {
-    final message = error.toString().toLowerCase();
-
-    if (_containsAny(message, const ['key_not_found', 'key not found'])) {
-      return const BiometricException(BiometricExceptionType.keyNotFound);
-    }
-
-    if (_containsAny(message, const ['key_already_exists', 'key already exists'])) {
-      return const BiometricException(BiometricExceptionType.keyAlreadyExists);
-    }
-
-    if (_containsAny(
-      message,
-      const ['authentication_user_canceled', 'authentication user canceled'],
-    )) {
-      return const BiometricException(BiometricExceptionType.cancel);
-    }
-
-    // Map authentication failures (wrong finger/face, decryption errors) to cancellation
-    // This allows graceful retry without crashing
-    if (_containsAny(
-      message,
-      const [
-        'keychainserviceerror',
-        'decryption_error',
-        'authentication_failed',
-        'authentication failed',
-        'errsecinvalidpassword',
-        'errsecauthfailed',
-        'authentication error',
-      ],
-    )) {
-      return const BiometricException(BiometricExceptionType.failure);
-    }
-
-    if (_containsAny(
-      message,
-      const ['biometric_not_supported', 'biometric not supported'],
-    )) {
-      return const BiometricException(BiometricExceptionType.notAvailable);
-    }
-
-    if (_containsAny(message, const ['not_configured', 'not configured'])) {
-      return const BiometricException(BiometricExceptionType.notConfigured);
-    }
-
-    return Exception(message);
-  }
-
-  bool _containsAny(String message, List<String> values) => values.any((value) => message.contains(value));
+  BiometricException _mapExceptionToBiometricException(SecureMnemonicException e) => switch (e.code) {
+        SecureMnemonicExceptionCode.keyNotFound => const BiometricException(BiometricExceptionType.keyNotFound),
+        SecureMnemonicExceptionCode.keyAlreadyExists =>
+          const BiometricException(BiometricExceptionType.keyAlreadyExists),
+        SecureMnemonicExceptionCode.authenticationUserCanceled =>
+          const BiometricException(BiometricExceptionType.cancel),
+        SecureMnemonicExceptionCode.authenticationError ||
+        SecureMnemonicExceptionCode.encryptionError ||
+        SecureMnemonicExceptionCode.decryptionError =>
+          const BiometricException(BiometricExceptionType.failure),
+        SecureMnemonicExceptionCode.biometricNotSupported ||
+        SecureMnemonicExceptionCode.secureEnclaveUnavailable ||
+        SecureMnemonicExceptionCode.tpmUnsupported =>
+          const BiometricException(BiometricExceptionType.notAvailable),
+        SecureMnemonicExceptionCode.configureError => const BiometricException(BiometricExceptionType.notConfigured),
+        _ => BiometricException(BiometricExceptionType.failure, originalError: e),
+      };
 }

@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:secure_mnemonic/data/biometric_status.dart';
 import 'package:secure_mnemonic/data/model/config_data.dart';
+import 'package:secure_mnemonic/data/secure_mnemonic_exception.dart';
+import 'package:secure_mnemonic/data/secure_mnemonic_exception_code.dart';
 import 'package:secure_mnemonic/data/tpm_status.dart';
 import 'package:secure_mnemonic/secure_mnemonic_platform_interface.dart';
 
@@ -36,16 +38,68 @@ class MethodChannelSecureMnemonic extends SecureMnemonicPlatform {
   }
 
   @override
-  Future<void> generateKey({required String tag}) => methodChannel.invokeMethod<void>('generateKey', {'tag': tag});
+  Future<void> generateKey({required String tag}) async {
+    try {
+      await methodChannel.invokeMethod<void>(
+        'generateKey',
+        {
+          'tag': tag,
+        },
+      );
+    } on PlatformException catch (e) {
+      throw _mapPlatformException(e);
+    }
+  }
 
   @override
-  Future<String?> encrypt({required String tag, required String data}) =>
-      methodChannel.invokeMethod<String?>('encrypt', {'tag': tag, 'data': data});
+  Future<String?> encrypt({required String tag, required String data}) async {
+    try {
+      return await methodChannel.invokeMethod<String?>(
+        'encrypt',
+        {
+          'tag': tag,
+          'data': data,
+        },
+      );
+    } on PlatformException catch (e) {
+      throw _mapPlatformException(e);
+    }
+  }
 
   @override
-  Future<String?> decrypt({required String tag, required String data}) =>
-      methodChannel.invokeMethod<String?>('decrypt', {'tag': tag, 'data': data});
+  Future<String?> decrypt({required String tag, required String data}) async {
+    try {
+      return await methodChannel.invokeMethod<String?>(
+        'decrypt',
+        {
+          'tag': tag,
+          'data': data,
+        },
+      );
+    } on PlatformException catch (e) {
+      throw _mapPlatformException(e);
+    }
+  }
 
   @override
-  Future<void> deleteKey({required String tag}) => methodChannel.invokeMethod<void>('deleteKey', {'tag': tag});
+  Future<void> deleteKey({required String tag}) async {
+    try {
+      await methodChannel.invokeMethod<void>(
+        'deleteKey',
+        {
+          'tag': tag,
+        },
+      );
+    } on PlatformException catch (e) {
+      throw _mapPlatformException(e);
+    }
+  }
+
+  SecureMnemonicException _mapPlatformException(PlatformException e) {
+    return SecureMnemonicException(
+      code: SecureMnemonicExceptionCode.fromString(e.code),
+      message: e.message ?? 'Unknown error',
+      details: e.details,
+    );
+  }
 }

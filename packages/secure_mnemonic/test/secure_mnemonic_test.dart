@@ -67,7 +67,7 @@ void main() {
         expect(decrypted, equals(data));
       });
 
-      test('throws Exception if trying to decrypt with different tag', () async {
+      test('throws SecureMnemonicException if trying to decrypt with different tag', () async {
         // Arrange
         final encrypted = await secureMnemonic.encrypt(tag: tag, data: data);
         const differentTag = 'another_tag';
@@ -75,7 +75,7 @@ void main() {
         // Act & Assert
         expect(
           () => secureMnemonic.decrypt(tag: differentTag, data: encrypted!),
-          throwsA(predicate((e) => e is Exception && e.toString().contains('Key not found for tag $differentTag'))),
+          throwsA(predicate((e) => e is SecureMnemonicException && e.code == SecureMnemonicExceptionCode.keyNotFound)),
         );
       });
     });
@@ -120,7 +120,7 @@ void main() {
     });
 
     group('decrypt', () {
-      test('throws Exception if plugin is not configured', () async {
+      test('throws SecureMnemonicException if plugin is not configured', () async {
         // Arrange
         // We do NOT call secureMnemonic.configure here
         const tag = 'unconfigured_tag';
@@ -132,7 +132,9 @@ void main() {
         // Act & Assert
         expect(
           () => secureMnemonic.decrypt(tag: tag, data: 'encrypted_data'),
-          throwsA(predicate((e) => e is Exception && e.toString().contains('Plugin is not configured'))),
+          throwsA(
+            predicate((e) => e is SecureMnemonicException && e.code == SecureMnemonicExceptionCode.configureError),
+          ),
         );
       });
 

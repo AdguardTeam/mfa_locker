@@ -1,6 +1,8 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:secure_mnemonic/data/biometric_status.dart';
 import 'package:secure_mnemonic/data/model/config_data.dart';
+import 'package:secure_mnemonic/data/secure_mnemonic_exception.dart';
+import 'package:secure_mnemonic/data/secure_mnemonic_exception_code.dart';
 import 'package:secure_mnemonic/data/tpm_status.dart';
 import 'package:secure_mnemonic/secure_mnemonic_platform_interface.dart';
 
@@ -48,7 +50,17 @@ class MockSecureMnemonicPlatform with MockPlatformInterfaceMixin implements Secu
   @override
   Future<void> generateKey({required String tag}) async {
     if (tag.isEmpty) {
-      throw Exception('Tag cannot be empty (Mock)');
+      throw const SecureMnemonicException(
+        code: SecureMnemonicExceptionCode.invalidArgument,
+        message: 'Tag cannot be empty (Mock)',
+      );
+    }
+
+    if (_storedKeys.containsKey(tag)) {
+      throw const SecureMnemonicException(
+        code: SecureMnemonicExceptionCode.keyAlreadyExists,
+        message: 'Key already exists (Mock)',
+      );
     }
 
     _storedKeys[tag] = 'key_for_$tag';
@@ -62,10 +74,16 @@ class MockSecureMnemonicPlatform with MockPlatformInterfaceMixin implements Secu
   @override
   Future<String?> encrypt({required String tag, required String data}) async {
     if (!_storedKeys.containsKey(tag)) {
-      throw Exception('Key not found for tag $tag (Mock)');
+      throw SecureMnemonicException(
+        code: SecureMnemonicExceptionCode.keyNotFound,
+        message: 'Key not found for tag $tag (Mock)',
+      );
     }
     if (data.isEmpty) {
-      throw Exception('Data cannot be empty (Mock)');
+      throw const SecureMnemonicException(
+        code: SecureMnemonicExceptionCode.invalidArgument,
+        message: 'Data cannot be empty (Mock)',
+      );
     }
     return 'encrypted_$data';
   }
@@ -80,16 +98,28 @@ class MockSecureMnemonicPlatform with MockPlatformInterfaceMixin implements Secu
   @override
   Future<String?> decrypt({required String tag, required String data}) async {
     if (!isConfigured) {
-      throw Exception('Plugin is not configured (Mock)');
+      throw const SecureMnemonicException(
+        code: SecureMnemonicExceptionCode.configureError,
+        message: 'Plugin is not configured (Mock)',
+      );
     }
     if (!_storedKeys.containsKey(tag)) {
-      throw Exception('Key not found for tag $tag (Mock)');
+      throw SecureMnemonicException(
+        code: SecureMnemonicExceptionCode.keyNotFound,
+        message: 'Key not found for tag $tag (Mock)',
+      );
     }
     if (data.isEmpty) {
-      throw Exception('Data cannot be empty (Mock)');
+      throw const SecureMnemonicException(
+        code: SecureMnemonicExceptionCode.invalidArgument,
+        message: 'Data cannot be empty (Mock)',
+      );
     }
     if (!data.startsWith('encrypted_')) {
-      throw Exception('Invalid encrypted data (Mock)');
+      throw const SecureMnemonicException(
+        code: SecureMnemonicExceptionCode.decryptionError,
+        message: 'Invalid encrypted data (Mock)',
+      );
     }
     return data.replaceFirst('encrypted_', '');
   }
@@ -100,10 +130,13 @@ class MockSecureMnemonicPlatform with MockPlatformInterfaceMixin implements Secu
   ///
   /// Throws an [Exception] if [tag] is empty.
   @override
-  Future<bool> deleteKey({required String tag}) async {
+  Future<void> deleteKey({required String tag}) async {
     if (tag.isEmpty) {
-      throw Exception('Tag cannot be empty (Mock)');
+      throw const SecureMnemonicException(
+        code: SecureMnemonicExceptionCode.invalidArgument,
+        message: 'Tag cannot be empty (Mock)',
+      );
     }
-    return _storedKeys.remove(tag) != null;
+    _storedKeys.remove(tag);
   }
 }
