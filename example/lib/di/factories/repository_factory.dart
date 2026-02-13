@@ -41,9 +41,9 @@ class RepositoryFactoryImpl implements RepositoryFactory {
   Future<void> init() async {
     _timerService = TimerServiceImpl(lockerRepository: lockerRepository);
 
-    // Configure secure mnemonic provider once at app startup
+    // Configure biometric cipher provider once at app startup
     // This must be done before any biometric operations
-    await lockerRepository.configureSecureMnemonic(
+    await lockerRepository.configureBiometricCipher(
       const BiometricConfig(
         promptTitle: 'Authenticate',
         promptSubtitle: 'Use biometric to unlock',

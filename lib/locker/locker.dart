@@ -138,11 +138,11 @@ abstract interface class Locker {
     required PasswordCipherFunc oldCipherFunc,
   });
 
-  /// Configures the secure mnemonic provider with biometric settings.
+  /// Configures the biometric cipher provider with biometric settings.
   ///
   /// This must be called once at application startup before any biometric
   /// operations. Sets up prompts and platform-specific biometric configuration.
-  Future<void> configureSecureMnemonic(BiometricConfig config);
+  Future<void> configureBiometricCipher(BiometricConfig config);
 
   /// Enable biometric authentication (requires password confirmation)
   /// This method handles key generation and storage update.

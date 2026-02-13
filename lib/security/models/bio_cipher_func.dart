@@ -3,18 +3,18 @@ import 'dart:typed_data';
 
 import 'package:adguard_logger/adguard_logger.dart';
 import 'package:locker/erasable/erasable_byte_array.dart';
+import 'package:locker/security/biometric_cipher_provider.dart';
 import 'package:locker/security/models/cipher_func.dart';
-import 'package:locker/security/secure_mnemonic_provider.dart';
 import 'package:locker/storage/models/data/origin.dart';
 
 class BioCipherFunc extends CipherFunc {
   final String keyTag;
-  final SecureMnemonicProvider _secureProvider;
+  final BiometricCipherProvider _secureProvider;
 
   BioCipherFunc({
     required this.keyTag,
   })  : assert(keyTag != '', 'keyTag cannot be empty'),
-        _secureProvider = SecureMnemonicProviderImpl.instance,
+        _secureProvider = BiometricCipherProviderImpl.instance,
         super(origin: Origin.bio);
 
   @override

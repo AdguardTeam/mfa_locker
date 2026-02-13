@@ -84,9 +84,9 @@ abstract class LockerRepository {
   /// Map TPM status, biometry status, and settings to BiometricState
   Future<BiometricState> determineBiometricState();
 
-  /// Configure secure mnemonic provider with custom settings
+  /// Configure biometric cipher provider with custom settings
   /// This must be called before any biometric operations
-  Future<void> configureSecureMnemonic(BiometricConfig config);
+  Future<void> configureBiometricCipher(BiometricConfig config);
 
   /// Enable biometric authentication (requires password confirmation)
   Future<void> enableBiometric({required String password});
@@ -328,9 +328,9 @@ class LockerRepositoryImpl implements LockerRepository {
   }
 
   @override
-  Future<void> configureSecureMnemonic(BiometricConfig config) async {
+  Future<void> configureBiometricCipher(BiometricConfig config) async {
     await _ensureLockerInstance();
-    await _locker.configureSecureMnemonic(config);
+    await _locker.configureBiometricCipher(config);
   }
 
   @override

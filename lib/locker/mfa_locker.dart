@@ -4,14 +4,16 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:adguard_logger/adguard_logger.dart';
+import 'package:biometric_cipher/data/biometric_status.dart';
+import 'package:biometric_cipher/data/tpm_status.dart';
 import 'package:locker/erasable/erasable.dart';
 import 'package:locker/locker/locker.dart';
 import 'package:locker/locker/models/biometric_state.dart';
+import 'package:locker/security/biometric_cipher_provider.dart';
 import 'package:locker/security/models/bio_cipher_func.dart';
 import 'package:locker/security/models/biometric_config.dart';
 import 'package:locker/security/models/cipher_func.dart';
 import 'package:locker/security/models/password_cipher_func.dart';
-import 'package:locker/security/secure_mnemonic_provider.dart';
 import 'package:locker/storage/encrypted_storage.dart';
 import 'package:locker/storage/encrypted_storage_impl.dart';
 import 'package:locker/storage/models/data/origin.dart';
@@ -21,8 +23,6 @@ import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/utils/sync.dart';
 import 'package:meta/meta.dart';
 import 'package:rxdart/rxdart.dart';
-import 'package:secure_mnemonic/data/biometric_status.dart';
-import 'package:secure_mnemonic/data/tpm_status.dart';
 
 class MFALocker implements Locker {
   final EncryptedStorage _storage;
@@ -38,7 +38,7 @@ class MFALocker implements Locker {
 
   final _sync = Sync();
 
-  SecureMnemonicProvider get _secureProvider => SecureMnemonicProviderImpl.instance;
+  BiometricCipherProvider get _secureProvider => BiometricCipherProviderImpl.instance;
 
   @override
   ValueStream<LockerState> get stateStream => _stateController.stream;
@@ -324,7 +324,7 @@ class MFALocker implements Locker {
   }
 
   @override
-  Future<void> configureSecureMnemonic(BiometricConfig config) => _secureProvider.configure(config);
+  Future<void> configureBiometricCipher(BiometricConfig config) => _secureProvider.configure(config);
 
   @override
   Future<BiometricState> determineBiometricState() async {

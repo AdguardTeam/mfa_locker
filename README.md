@@ -130,7 +130,7 @@ import 'package:locker/security/models/biometric_config.dart';
 import 'package:locker/security/models/bio_cipher_func.dart';
 
 // Configure biometrics (call once at app startup)
-await locker.configureSecureMnemonic(
+await locker.configureBiometricCipher(
   BiometricConfig(
     promptTitle: 'Authenticate',
     promptSubtitle: 'Use biometrics to unlock your vault',
@@ -205,7 +205,7 @@ locker/
 │   ├── erasable/         # Secure memory management
 │   └── utils/            # Utilities
 ├── packages/
-│   └── secure_mnemonic/  # TPM/biometric plugin (iOS, macOS, Android, Windows)
+│   └── biometric_cipher/  # TPM/biometric plugin (iOS, macOS, Android, Windows)
 ├── example/              # Demo Flutter app (mfa_demo)
 ├── test/                 # Unit tests
 └── docs/                 # Documentation

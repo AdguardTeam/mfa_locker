@@ -21,6 +21,9 @@ dependencies:
   locker:
     path: ../
   
+  biometric_cipher:
+    path: ../packages/biometric_cipher
+  
   adguard_logger:
     git:
       url: https://github.com/AdguardTeam/adguard-dart-logger

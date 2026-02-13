@@ -4,6 +4,7 @@ import 'package:mfa_demo/core/extensions/context_extensions.dart';
 import 'package:mfa_demo/features/locker/bloc/locker_bloc.dart';
 import 'package:mfa_demo/features/locker/views/auth/change_password_screen.dart';
 import 'package:mfa_demo/features/settings/views/settings_screen.dart';
+import 'package:mfa_demo/features/tpm_test/views/tpm_test_screen.dart';
 
 class UnlockedScreenActions extends StatelessWidget {
   const UnlockedScreenActions({
@@ -30,6 +31,8 @@ class UnlockedScreenActions extends StatelessWidget {
             context.read<LockerBloc>().add(const LockerEvent.lockRequested());
           } else if (value == 'clear_all') {
             onClearAll();
+          } else if (value == 'tpm_test') {
+            context.push(const TPMTestScreen());
           }
         },
         itemBuilder: (context) => [
@@ -50,6 +53,16 @@ class UnlockedScreenActions extends StatelessWidget {
                 Icon(Icons.lock_reset),
                 SizedBox(width: 8),
                 Text('Change Password'),
+              ],
+            ),
+          ),
+          const PopupMenuItem(
+            value: 'tpm_test',
+            child: Row(
+              children: [
+                Icon(Icons.security),
+                SizedBox(width: 8),
+                Text('TPM Test'),
               ],
             ),
           ),

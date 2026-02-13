@@ -24,8 +24,8 @@ dependencies:
       url: https://github.com/AdguardTeam/adguard-dart-logger
       ref: v1.0.1
 
-  secure_mnemonic:
-    path: packages/secure_mnemonic
+  biometric_cipher:
+    path: packages/biometric_cipher
 
 dev_dependencies:
   flutter_test:

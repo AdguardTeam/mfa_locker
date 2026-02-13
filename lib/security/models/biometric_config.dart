@@ -1,8 +1,8 @@
-import 'package:secure_mnemonic/data/model/android_config.dart';
-import 'package:secure_mnemonic/data/model/config_data.dart';
+import 'package:biometric_cipher/data/model/android_config.dart';
+import 'package:biometric_cipher/data/model/config_data.dart';
 
 /// Configuration for biometric authentication prompts shown by the
-/// [secure_mnemonic] plugin.
+/// [biometric_cipher] plugin.
 ///
 /// This wrapper keeps locker APIs free from third-party types while allowing
 /// callers to supply localized strings and platform specific overrides.

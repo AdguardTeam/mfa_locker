@@ -1,4 +1,7 @@
 PODS:
+  - biometric_cipher (0.0.1):
+    - Flutter
+    - FlutterMacOS
   - FlutterMacOS (1.0.0)
   - macos_window_utils (1.0.0):
     - FlutterMacOS
@@ -6,18 +9,17 @@ PODS:
     - FlutterMacOS
   - package_info_plus (0.0.1):
     - FlutterMacOS
-  - secure_mnemonic (0.0.1):
-    - Flutter
-    - FlutterMacOS
 
 DEPENDENCIES:
+  - biometric_cipher (from `Flutter/ephemeral/.symlinks/plugins/biometric_cipher/darwin`)
   - FlutterMacOS (from `Flutter/ephemeral`)
   - macos_window_utils (from `Flutter/ephemeral/.symlinks/plugins/macos_window_utils/macos`)
   - objective_c (from `Flutter/ephemeral/.symlinks/plugins/objective_c/macos`)
   - package_info_plus (from `Flutter/ephemeral/.symlinks/plugins/package_info_plus/macos`)
-  - secure_mnemonic (from `Flutter/ephemeral/.symlinks/plugins/secure_mnemonic/darwin`)
 
 EXTERNAL SOURCES:
+  biometric_cipher:
+    :path: Flutter/ephemeral/.symlinks/plugins/biometric_cipher/darwin
   FlutterMacOS:
     :path: Flutter/ephemeral
   macos_window_utils:
@@ -26,15 +28,13 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/objective_c/macos
   package_info_plus:
     :path: Flutter/ephemeral/.symlinks/plugins/package_info_plus/macos
-  secure_mnemonic:
-    :path: Flutter/ephemeral/.symlinks/plugins/secure_mnemonic/darwin
 
 SPEC CHECKSUMS:
+  biometric_cipher: eb4b91010b7e7410ff7e9c7965dcceb0d8e1e042
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
   macos_window_utils: 23f54331a0fd51eea9e0ed347253bf48fd379d1d
   objective_c: ec13431e45ba099cb734eb2829a5c1cd37986cba
   package_info_plus: df1c3739865b25efce1baa132886908723813bae
-  secure_mnemonic: adcf8742d359488645e68e449db7640ec174746a
 
 PODFILE CHECKSUM: 54d867c82ac51cbd61b565781b9fada492027009
 
