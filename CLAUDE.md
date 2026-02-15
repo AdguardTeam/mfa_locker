@@ -10,7 +10,7 @@ MFA Locker is a secure encrypted key-value storage library for Dart/Flutter with
 
 ## Build & Development Commands
 
-This project uses FVM (Flutter Version Management). The locked version is in `.ci-flutter-version`.
+This project uses FVM (Flutter Version Management). Flutter `3.35.1` is locked in `.ci-flutter-version`. A root `Makefile` proxies all targets to `example/Makefile`, so `make` commands work from either root or `example/`. Set `USE_FVM=false` to use system Flutter instead of FVM.
 
 ```bash
 # Setup FVM
@@ -37,13 +37,19 @@ fvm flutter test --name "should unlock"
 # Analyze code
 fvm flutter analyze --fatal-warnings --fatal-infos
 
+# DCM analysis (Dart Code Metrics — enforces file naming, member ordering, BLoC rules)
+make dcm-analyze
+
 # Format code (120 char line width, configured in analysis_options.yaml)
 fvm dart format . --line-length 120
 
-# Build APK (from example/, flavors: dev, prod, stage)
-cd example && make apk FLAVOR=dev
+# Clean build environment and regenerate
+make clean-build-env
 
-# CI builds (from example/)
+# Build APK (from example/, flavors: dev, prod, stage)
+make apk FLAVOR=dev
+
+# CI builds
 make ci-build-ios ENV_FILE=config/dev.env
 make ci-build-macos ENV_FILE=config/dev.env
 make ci-build-windows FLAVOR=dev
@@ -99,13 +105,21 @@ lib/                    # Core library (package: locker)
 ├── erasable/          # Secure memory management (ErasableByteArray)
 └── utils/             # Utilities (crypto, extensions, sync)
 packages/
-└── secure_mnemonic/   # Platform channel plugin for biometric key management
-                       # (iOS, macOS, Android, Windows native code)
+├── biometric_cipher/  # Platform channel plugin for TPM/Secure Enclave biometrics
+│                      # (iOS, macOS, Android, Windows native code)
+└── secure_mnemonic/   # Mnemonic key storage plugin
 example/               # Demo Flutter app (mfa_demo) — separate pubspec
 ├── lib/features/      # Feature modules (locker, settings)
 ├── lib/di/            # Dependency injection
-└── Makefile           # Build commands
+├── packages/
+│   ├── action_bloc/   # Custom ActionBloc pattern (BLoC + side effects, local package)
+│   └── package_info_plus/  # Local fork of package_info_plus
+└── Makefile           # Build commands (root Makefile proxies here)
 test/                  # Unit tests (mocktail for mocking)
+├── locker/            # MFALocker tests
+├── mocks/             # Mock classes
+├── storage/           # Storage tests
+└── utils/             # Utility tests
 ```
 
 ## Exception Hierarchy
@@ -161,6 +175,9 @@ For complete coding standards and development practices, see [`docs/conventions.
 - TODO comments: `// TODO(firstLetter.lastName): Description`
 
 ### File Organization Rules
+
+These are enforced by DCM (Dart Code Metrics) in the example app's `analysis_options.yaml` via rules like `prefer-match-file-name` and `match-class-name-pattern`.
+
 - **One primary type per file** — file name must match the primary class/extension name
 - **Extensions in separate files** — named after the extension (e.g., `LockerBlocBiometricStream` → `locker_bloc_biometric_stream.dart`)
 - **Sealed classes separate from widgets** — extract to dedicated files (e.g., `biometric_auth_result.dart`)
@@ -256,4 +273,12 @@ macOS full-screen transitions trigger rapid lifecycle changes. Use `FullscreenLi
 enum FullscreenState { normal, transitioning }
 ```
 
-This prevents spurious lock events during the transition. See `docs/flutter-lifecycle.md` for details.
+This prevents spurious lock events during the transition.
+
+## Documentation References
+
+- [`docs/conventions.md`](docs/conventions.md) — Complete coding standards
+- [`docs/vision.md`](docs/vision.md) — Architecture principles and project vision
+- [`docs/workflow.md`](docs/workflow.md) — Iteration-based development workflow
+- [`docs/guidelines.md`](docs/guidelines.md) — AI-assisted development rules
+- [`docs/MFA_Locker.md`](docs/MFA_Locker.md) — Technical encryption architecture
