@@ -8,11 +8,11 @@ import 'package:mfa_demo/core/extensions/context_extensions.dart';
 import 'package:mfa_demo/features/locker/bloc/locker_bloc.dart';
 import 'package:mfa_demo/features/locker/data/models/authentication_result.dart';
 import 'package:mfa_demo/features/locker/views/storage/add_entry_screen.dart';
+import 'package:mfa_demo/features/locker/views/storage/entry_reveal_screen.dart';
 import 'package:mfa_demo/features/locker/views/widgets/authentication_bottom_sheet.dart';
 import 'package:mfa_demo/features/locker/views/widgets/confirmation_dialog.dart';
 import 'package:mfa_demo/features/locker/views/widgets/confirmation_style.dart';
 import 'package:mfa_demo/features/locker/views/widgets/entries_list_view.dart';
-import 'package:mfa_demo/features/locker/views/widgets/entry_value_dialog.dart';
 import 'package:mfa_demo/features/locker/views/widgets/loading_overlay.dart';
 import 'package:mfa_demo/features/locker/views/widgets/locker_bloc_biometric_stream.dart';
 import 'package:mfa_demo/features/locker/views/widgets/unlocked_screen_actions.dart';
@@ -40,9 +40,8 @@ class UnlockedScreen extends StatelessWidget {
       listener: (context, action) {
         action.mapOrNull(
           showEntryValue: (value) {
-            showDialog<void>(
-              context: context,
-              builder: (context) => EntryValueDialog(
+            context.push(
+              EntryRevealScreen(
                 entryName: value.name,
                 entryValue: value.value,
               ),

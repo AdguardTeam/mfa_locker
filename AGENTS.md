@@ -65,19 +65,32 @@ mfa_locker/                     # Root: locker library (Dart package)
 │   │       ├── locker/         # Main locker feature
 │   │       │   ├── bloc/       # LockerBloc, events, state, actions
 │   │       │   ├── data/       # Models, repositories
-│   │       │   └── views/      # Auth screens, storage screens, widgets
+│   │       │   └── views/
+│   │       │       ├── auth/   # Auth screens (password, biometric)
+│   │       │       ├── storage/ # Storage screens
+│   │       │       │   ├── add_entry_screen.dart
+│   │       │       │   ├── entry_reveal_screen.dart  # Full-screen entry reveal
+│   │       │       │   ├── init_entry_screen.dart
+│   │       │       │   └── unlocked_screen.dart
+│   │       │       └── widgets/ # Shared widgets (dialogs, overlays, etc.)
 │   │       └── settings/       # Settings feature (bloc, models, views)
 │   ├── packages/
 │   │   ├── action_bloc/        # Custom ActionBloc pattern (BLoC + side effects)
 │   │   └── package_info_plus/  # Local fork of package_info_plus
+│   ├── test/                   # Example app widget tests
+│   │   └── features/locker/views/storage/  # Widget tests (e.g. entry_reveal_screen_test.dart)
 │   └── Makefile                # Build commands (root Makefile proxies here)
 ├── docs/                       # Project documentation
-│   ├── vision.md               # Architecture principles, anti-patterns
 │   ├── conventions.md          # Coding standards and development practices
 │   ├── guidelines.md           # AI-assisted development rules
 │   ├── workflow.md             # Iteration-based development workflow
+│   ├── workflows-description.md # Descriptions of all Windsurf SDD/doc/dev workflows
 │   ├── MFA_Locker.md           # Technical encryption architecture
 │   └── code-style-guide.md    # Code style reference
+├── specs/                      # SDD specs and plans
+│   └── .current/               # Active spec.md, plan.md, validation.md
+├── scripts/                    # Dart helper scripts (e.g. print_windows_style_version.dart)
+├── templates/                  # AGENTS.md, README, CHANGELOG, DEPLOYMENT, DEVELOPMENT templates
 ├── config/                     # Environment files (dev.env, prod.env, stage.env)
 ├── Makefile                    # Proxy — forwards all targets to example/Makefile
 ├── pubspec.yaml                # Root library dependencies
@@ -109,11 +122,20 @@ This project uses FVM (Flutter Version Management). Flutter `3.35.1` is locked i
 
 ### Testing
 
+**Root library tests** (run from root `/`):
+
 | Command | Purpose |
 |---------|---------|
 | `fvm flutter test` | Run all library tests |
 | `fvm flutter test test/locker/mfa_locker_test.dart` | Run specific test file |
 | `fvm flutter test --name "should unlock"` | Run tests matching a name pattern |
+
+**Example app widget tests** (run from `example/`):
+
+| Command | Purpose |
+|---------|---------|
+| `fvm flutter test` | Run all example app tests |
+| `fvm flutter test test/features/locker/views/storage/entry_reveal_screen_test.dart` | Run specific widget test |
 
 When Dart MCP tools are available, **always prefer MCP test tools** over shell commands.
 
@@ -199,8 +221,6 @@ These are enforced by DCM (Dart Code Metrics) in the example app's `analysis_opt
 - **Single responsibility** — Each component does one thing well.
 - **Clarity over cleverness** — Readable code beats clever code.
 
-For complete architectural principles, see `docs/vision.md`.
-
 ### Architecture
 
 ```
@@ -219,6 +239,7 @@ UI Layer (Widgets) -> BLoC Layer (ActionBloc) -> Repository Layer -> MFALocker L
 - **ActionBloc**: BLoC + explicit side effects (Actions). Events trigger state changes and optional actions.
 - **Freezed**: All models use Freezed for immutability. Run `make gen` after model changes.
 - **Single source of truth**: BLoC holds UI state, MFALocker holds data state.
+- **Full-screen navigation**: One-time side effects (e.g. revealing an entry value) use `context.push(Screen(...))` via `BlocActionListener`, not `showDialog`.
 
 #### Dependency Injection
 
@@ -561,5 +582,6 @@ This prevents spurious lock events during the transition.
 - [`docs/conventions.md`](docs/conventions.md) — Complete coding standards and development practices
 - [`docs/guidelines.md`](docs/guidelines.md) — AI-assisted development rules
 - [`docs/workflow.md`](docs/workflow.md) — Iteration-based development workflow
+- [`docs/workflows-description.md`](docs/workflows-description.md) — Descriptions of all Windsurf SDD/doc/dev workflows
 - [`docs/MFA_Locker.md`](docs/MFA_Locker.md) — Technical encryption architecture
 - [`docs/code-style-guide.md`](docs/code-style-guide.md) — Code style reference

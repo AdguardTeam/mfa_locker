@@ -28,5 +28,6 @@ class ActionChange<A> {
   int get hashCode => currentAction.hashCode ^ nextAction.hashCode;
 
   @override
-  String toString() => 'ActionChange { currentAction: $currentAction, nextAction: $nextAction }';
+  String toString() =>
+      'ActionChange { currentAction: $currentAction, nextAction: $nextAction }';
 }
