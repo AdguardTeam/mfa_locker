@@ -558,7 +558,6 @@ This prevents spurious lock events during the transition.
 
 ## Documentation References
 
-- [`docs/vision.md`](docs/vision.md) — Architecture principles, anti-patterns, project vision
 - [`docs/conventions.md`](docs/conventions.md) — Complete coding standards and development practices
 - [`docs/guidelines.md`](docs/guidelines.md) — AI-assisted development rules
 - [`docs/workflow.md`](docs/workflow.md) — Iteration-based development workflow
