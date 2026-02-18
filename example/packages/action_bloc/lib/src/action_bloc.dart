@@ -10,8 +10,7 @@ part 'bloc_action_consumer.dart';
 part 'bloc_action_listener.dart';
 part 'bloc_action_state_consumer.dart';
 
-abstract class ActionBloc<E, S, A> extends Bloc<E, S>
-    implements StateActionStreamable<S, A> {
+abstract class ActionBloc<E, S, A> extends Bloc<E, S> implements StateActionStreamable<S, A> {
   ActionBloc(super.initialState);
 
   final _blocObserver = Bloc.observer;
@@ -34,8 +33,7 @@ abstract class ActionBloc<E, S, A> extends Bloc<E, S>
     }
 
     if (_blocObserver is ActionBlocObserver) {
-      _blocObserver.onActionChange(this,
-          ActionChange<A>(currentAction: _currentAction, nextAction: action));
+      _blocObserver.onActionChange(this, ActionChange<A>(currentAction: _currentAction, nextAction: action));
     }
 
     _actionStreamController.add(action);

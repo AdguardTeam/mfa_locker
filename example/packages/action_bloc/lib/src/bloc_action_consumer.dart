@@ -1,7 +1,6 @@
 part of 'action_bloc.dart';
 
-class BlocActionConsumer<B extends StateActionStreamable<S, A>, S, A>
-    extends StatefulWidget {
+class BlocActionConsumer<B extends StateActionStreamable<S, A>, S, A> extends StatefulWidget {
   const BlocActionConsumer({
     super.key,
     required this.builder,
@@ -18,8 +17,7 @@ class BlocActionConsumer<B extends StateActionStreamable<S, A>, S, A>
   final BlocActionListenerCondition<A>? listenWhen;
 
   @override
-  State<BlocActionConsumer<B, S, A>> createState() =>
-      _BlocActionConsumerState<B, S, A>();
+  State<BlocActionConsumer<B, S, A>> createState() => _BlocActionConsumerState<B, S, A>();
 
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
@@ -27,8 +25,7 @@ class BlocActionConsumer<B extends StateActionStreamable<S, A>, S, A>
     properties
       ..add(DiagnosticsProperty<B?>('bloc', bloc))
       ..add(ObjectFlagProperty<BlocWidgetBuilder<S>>.has('builder', builder))
-      ..add(ObjectFlagProperty<BlocActionWidgetListener<A>>.has(
-          'listener', listener))
+      ..add(ObjectFlagProperty<BlocActionWidgetListener<A>>.has('listener', listener))
       ..add(
         ObjectFlagProperty<BlocBuilderCondition<S>?>.has(
           'buildWhen',
@@ -44,8 +41,7 @@ class BlocActionConsumer<B extends StateActionStreamable<S, A>, S, A>
   }
 }
 
-class _BlocActionConsumerState<B extends StateActionStreamable<S, A>, S, A>
-    extends State<BlocActionConsumer<B, S, A>> {
+class _BlocActionConsumerState<B extends StateActionStreamable<S, A>, S, A> extends State<BlocActionConsumer<B, S, A>> {
   late B _bloc;
 
   @override
@@ -80,8 +76,7 @@ class _BlocActionConsumerState<B extends StateActionStreamable<S, A>, S, A>
       child: BlocBuilder<B, S>(
         bloc: _bloc,
         builder: widget.builder,
-        buildWhen: (previous, current) =>
-            widget.buildWhen?.call(previous, current) ?? true,
+        buildWhen: (previous, current) => widget.buildWhen?.call(previous, current) ?? true,
       ),
     );
   }

@@ -104,16 +104,14 @@ void main() {
       } else if (Platform.isIOS) {
         expect(find.text('Package Info Plus Example'), findsOneWidget);
         expect(find.text('4'), findsOneWidget);
-        expect(
-            find.text('io.flutter.plugins.packageInfoExample'), findsOneWidget);
+        expect(find.text('io.flutter.plugins.packageInfoExample'), findsOneWidget);
         expect(find.text('1.2.3'), findsOneWidget);
         expect(find.text('Not set'), findsOneWidget);
         expect(find.text('com.apple.simulator'), findsOneWidget);
       } else if (Platform.isMacOS) {
         expect(find.text('Package Info Plus Example'), findsOneWidget);
         expect(find.text('4'), findsOneWidget);
-        expect(
-            find.text('io.flutter.plugins.packageInfoExample'), findsOneWidget);
+        expect(find.text('io.flutter.plugins.packageInfoExample'), findsOneWidget);
         expect(find.text('1.2.3'), findsOneWidget);
         expect(find.text('Not set'), findsOneWidget);
         expect(find.text('not available'), findsOneWidget);

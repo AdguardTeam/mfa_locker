@@ -1,7 +1,6 @@
 part of 'action_bloc.dart';
 
-class BlocActionStateConsumer<B extends StateActionStreamable<S, A>, S, A>
-    extends StatefulWidget {
+class BlocActionStateConsumer<B extends StateActionStreamable<S, A>, S, A> extends StatefulWidget {
   const BlocActionStateConsumer({
     super.key,
     required this.builder,
@@ -22,8 +21,7 @@ class BlocActionStateConsumer<B extends StateActionStreamable<S, A>, S, A>
   final BlocActionListenerCondition<A>? listenActionWhen;
 
   @override
-  State<BlocActionStateConsumer<B, S, A>> createState() =>
-      _BlocActionStateConsumerState<B, S, A>();
+  State<BlocActionStateConsumer<B, S, A>> createState() => _BlocActionStateConsumerState<B, S, A>();
 
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
@@ -31,10 +29,8 @@ class BlocActionStateConsumer<B extends StateActionStreamable<S, A>, S, A>
     properties
       ..add(DiagnosticsProperty<B?>('bloc', bloc))
       ..add(ObjectFlagProperty<BlocWidgetBuilder<S>>.has('builder', builder))
-      ..add(ObjectFlagProperty<BlocWidgetListener<S>>.has(
-          'stateListener', stateListener))
-      ..add(ObjectFlagProperty<BlocActionWidgetListener<A>>.has(
-          'actionListener', actionListener))
+      ..add(ObjectFlagProperty<BlocWidgetListener<S>>.has('stateListener', stateListener))
+      ..add(ObjectFlagProperty<BlocActionWidgetListener<A>>.has('actionListener', actionListener))
       ..add(
         ObjectFlagProperty<BlocBuilderCondition<S>?>.has(
           'buildWhen',

@@ -20,7 +20,6 @@ migrate_working_dir/
 .vscode/
 .claude/
 .cursor/
-.windsurf/
 
 # Flutter/Dart/Pub related
 **/doc/api/

@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "figma-remote-mcp-server": {
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.figma.com/mcp",
+        "--static-oauth-client-metadata",
+        "{\"client_name\":\"Windsurf\",\"client_uri\":\"https://windsurf.ai\"}"
+      ],
+      "command": "npx",
+      "disabled": false,
+      "env": {}
+    },
+    "dart-mcp-server": {
+      "command": "dart",
+      "args": [
+        "mcp-server"
+      ],
+      "env": {}
+    }
+  }
+}

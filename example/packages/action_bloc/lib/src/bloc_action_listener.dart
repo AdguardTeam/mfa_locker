@@ -1,13 +1,10 @@
 part of 'action_bloc.dart';
 
-typedef BlocActionWidgetListenerWithState<S, A> = void Function(
-    BuildContext context, S state, A action);
-typedef BlocActionWidgetListener<A> = void Function(
-    BuildContext context, A action);
+typedef BlocActionWidgetListenerWithState<S, A> = void Function(BuildContext context, S state, A action);
+typedef BlocActionWidgetListener<A> = void Function(BuildContext context, A action);
 typedef BlocActionListenerCondition<A> = bool Function(A? previous, A current);
 
-class BlocActionListener<B extends StateActionStreamable<S, A>, S, A>
-    extends BlocActionListenerBase<B, S, A> {
+class BlocActionListener<B extends StateActionStreamable<S, A>, S, A> extends BlocActionListenerBase<B, S, A> {
   const BlocActionListener({
     super.key,
     required BlocActionWidgetListener<A> listener,
@@ -25,8 +22,7 @@ class BlocActionListener<B extends StateActionStreamable<S, A>, S, A>
   }) : super(listenerWithState: listener);
 }
 
-abstract class BlocActionListenerBase<B extends StateActionStreamable<S, A>, S,
-    A> extends StatefulWidget {
+abstract class BlocActionListenerBase<B extends StateActionStreamable<S, A>, S, A> extends StatefulWidget {
   const BlocActionListenerBase({
     this.listener,
     this.listenerWithState,
@@ -43,18 +39,15 @@ abstract class BlocActionListenerBase<B extends StateActionStreamable<S, A>, S,
   final BlocActionListenerCondition<A>? listenWhen;
 
   @override
-  State<BlocActionListenerBase<B, S, A>> createState() =>
-      _BlocActionListenerBaseState<B, S, A>();
+  State<BlocActionListenerBase<B, S, A>> createState() => _BlocActionListenerBaseState<B, S, A>();
 
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
     properties
       ..add(DiagnosticsProperty<B?>('bloc', bloc))
-      ..add(ObjectFlagProperty<BlocActionWidgetListener<A>>.has(
-          'listener', listener))
-      ..add(ObjectFlagProperty<BlocActionWidgetListenerWithState<S, A>>.has(
-          'listenerWithState', listenerWithState))
+      ..add(ObjectFlagProperty<BlocActionWidgetListener<A>>.has('listener', listener))
+      ..add(ObjectFlagProperty<BlocActionWidgetListenerWithState<S, A>>.has('listenerWithState', listenerWithState))
       ..add(
         ObjectFlagProperty<BlocListenerCondition<A>?>.has(
           'listenWhen',

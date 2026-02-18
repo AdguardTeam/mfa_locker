@@ -136,19 +136,16 @@ void main() {
             Uri.parse('https://example.com/a/b/c/version.json?cachebuster=1'),
           );
           expect(
-            plugin.versionJsonUrl(
-                'https://example.com/?hello_world=true#/my-page', 1),
+            plugin.versionJsonUrl('https://example.com/?hello_world=true#/my-page', 1),
             Uri.parse('https://example.com/version.json?cachebuster=1'),
           );
           expect(
-            plugin.versionJsonUrl(
-                'https://example.com/a/b/c/?hello_world=true#/my-page', 1),
+            plugin.versionJsonUrl('https://example.com/a/b/c/?hello_world=true#/my-page', 1),
             Uri.parse('https://example.com/a/b/c/version.json?cachebuster=1'),
           );
           expect(
             // 'c' here is to be considered as a page, not a folder
-            plugin.versionJsonUrl(
-                'https://example.com/a/b/c?hello_world=true#/my-page', 1),
+            plugin.versionJsonUrl('https://example.com/a/b/c?hello_world=true#/my-page', 1),
             Uri.parse('https://example.com/a/b/version.json?cachebuster=1'),
           );
         },
@@ -174,8 +171,7 @@ void main() {
             Uri.parse('https://example.com/version.json?cachebuster=1'),
           );
           expect(
-            plugin.versionJsonUrl(
-                'https://example.com/index.html?hello_world=true/#/my-page', 1),
+            plugin.versionJsonUrl('https://example.com/index.html?hello_world=true/#/my-page', 1),
             Uri.parse('https://example.com/version.json?cachebuster=1'),
           );
           expect(
@@ -183,38 +179,32 @@ void main() {
             Uri.parse('https://example.com/a/b/c/version.json?cachebuster=1'),
           );
           expect(
-            plugin.versionJsonUrl(
-                'https://example.com/my-special-file.html', 1),
+            plugin.versionJsonUrl('https://example.com/my-special-file.html', 1),
             Uri.parse('https://example.com/version.json?cachebuster=1'),
           );
           expect(
-            plugin.versionJsonUrl(
-                'https://example.com/a/b/c/my-special-file.html', 1),
+            plugin.versionJsonUrl('https://example.com/a/b/c/my-special-file.html', 1),
             Uri.parse('https://example.com/a/b/c/version.json?cachebuster=1'),
           );
         },
       );
 
-      testWidgets('Get correct versionJsonUrl for chrome-extension',
-          (tester) async {
+      testWidgets('Get correct versionJsonUrl for chrome-extension', (tester) async {
         expect(
           plugin.versionJsonUrl('chrome-extension://abcdefgh', 1),
           Uri.parse('chrome-extension://abcdefgh/version.json?cachebuster=1'),
         );
         expect(
           plugin.versionJsonUrl('chrome-extension://abcdefgh/a/b/c', 1),
-          Uri.parse(
-              'chrome-extension://abcdefgh/a/b/c/version.json?cachebuster=1'),
+          Uri.parse('chrome-extension://abcdefgh/a/b/c/version.json?cachebuster=1'),
         );
         expect(
           plugin.versionJsonUrl('chrome-extension://abcdefgh/#my-page', 1),
           Uri.parse('chrome-extension://abcdefgh/version.json?cachebuster=1'),
         );
         expect(
-          plugin.versionJsonUrl(
-              'chrome-extension://abcdefgh/a/b/c/#my-page', 1),
-          Uri.parse(
-              'chrome-extension://abcdefgh/a/b/c/version.json?cachebuster=1'),
+          plugin.versionJsonUrl('chrome-extension://abcdefgh/a/b/c/#my-page', 1),
+          Uri.parse('chrome-extension://abcdefgh/a/b/c/version.json?cachebuster=1'),
         );
       });
 
@@ -255,8 +245,7 @@ void main() {
         final Clock fakeClock = Clock(() => now);
 
         when(assetManagerMock.assetsDir).thenReturn(assetsDir);
-        when(assetManagerMock.getAssetUrl(''))
-            .thenReturn('$baseUrl$assetsDir/');
+        when(assetManagerMock.getAssetUrl('')).thenReturn('$baseUrl$assetsDir/');
 
         await withClock(fakeClock, () async {
           final int cache = now.millisecondsSinceEpoch;
@@ -290,8 +279,7 @@ void main() {
         final Clock fakeClock = Clock(() => now);
 
         when(assetManagerMock.assetsDir).thenReturn(assetsDir);
-        when(assetManagerMock.getAssetUrl(''))
-            .thenReturn('$managerBaseUrl$assetsDir/');
+        when(assetManagerMock.getAssetUrl('')).thenReturn('$managerBaseUrl$assetsDir/');
 
         await withClock(fakeClock, () async {
           final int cache = now.millisecondsSinceEpoch;
