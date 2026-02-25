@@ -221,14 +221,17 @@ class MFALocker implements Locker {
   @override
   Future<void> changePassword({
     required PasswordCipherFunc newCipherFunc,
-    required PasswordCipherFunc oldCipherFunc,
+    required CipherFunc existingCipherFunc,
   }) =>
       _sync(
         () => _executeWithCleanup(
-          erasables: [newCipherFunc, oldCipherFunc],
+          erasables: [newCipherFunc, existingCipherFunc],
           callback: () async {
-            await loadAllMetaIfLocked(oldCipherFunc);
-            await _storage.addOrReplaceWrap(newWrapFunc: newCipherFunc, existingWrapFunc: oldCipherFunc);
+            await loadAllMetaIfLocked(existingCipherFunc);
+            await _storage.addOrReplaceWrap(
+              newWrapFunc: newCipherFunc,
+              existingWrapFunc: existingCipherFunc,
+            );
           },
         ),
       );

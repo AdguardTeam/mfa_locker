@@ -298,7 +298,7 @@ class LockerRepositoryImpl implements LockerRepository {
     final newCipherFunc = await _securityProvider.authenticatePassword(password: newPassword, forceNewSalt: true);
 
     await _locker.changePassword(
-      oldCipherFunc: oldCipherFunc,
+      existingCipherFunc: oldCipherFunc,
       newCipherFunc: newCipherFunc,
     );
   }

@@ -128,14 +128,15 @@ abstract interface class Locker {
     EntryValue? entryValue,
   });
 
-  /// Adds a new password and re-wraps access using the old password.
+  /// Adds a new password and re-wraps access using an existing credential.
   ///
-  /// Uses [oldCipherFunc] to authorize and add [newCipherFunc] as a new
-  /// password-based wrap. If the locker is locked, it will be unlocked using
-  /// [oldCipherFunc].
+  /// Uses [existingCipherFunc] to authorize and add [newCipherFunc] as a new
+  /// password-based wrap. [existingCipherFunc] can be either a password or
+  /// biometric cipher. If the locker is locked, it will be unlocked using
+  /// [existingCipherFunc].
   Future<void> changePassword({
     required PasswordCipherFunc newCipherFunc,
-    required PasswordCipherFunc oldCipherFunc,
+    required CipherFunc existingCipherFunc,
   });
 
   /// Configures the biometric cipher provider with biometric settings.

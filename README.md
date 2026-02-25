@@ -174,12 +174,24 @@ await locker.updateLockTimeout(
 
 ### 6. Change Password
 
+Using old password:
 ```dart
 await locker.changePassword(
-  oldCipherFunc: PasswordCipherFunc(
+  existingCipherFunc: PasswordCipherFunc(
     password: 'old_password',
     salt: await locker.salt,
   ),
+  newCipherFunc: PasswordCipherFunc(
+    password: 'new_password',
+    salt: await locker.salt,
+  ),
+);
+```
+
+Using biometrics:
+```dart
+await locker.changePassword(
+  existingCipherFunc: BioCipherFunc(keyTag: 'biometric'),
   newCipherFunc: PasswordCipherFunc(
     password: 'new_password',
     salt: await locker.salt,

@@ -884,7 +884,10 @@ void main() {
         ).thenAnswer((_) async {});
 
         // Act
-        await locker.changePassword(newCipherFunc: newPwd, oldCipherFunc: oldPwd);
+        await locker.changePassword(
+          newCipherFunc: newPwd,
+          existingCipherFunc: oldPwd,
+        );
 
         // Assert
         verify(
@@ -972,7 +975,7 @@ void main() {
 
         // Act & Assert
         await expectLater(
-          () => locker.changePassword(newCipherFunc: newPwd, oldCipherFunc: oldPwd),
+          () => locker.changePassword(newCipherFunc: newPwd, existingCipherFunc: oldPwd),
           throwsException,
         );
 
@@ -1218,7 +1221,7 @@ void main() {
         ).thenAnswer((_) async => expected);
 
         // Act
-        final fChange = locker.changePassword(newCipherFunc: newPwd, oldCipherFunc: oldPwd);
+        final fChange = locker.changePassword(newCipherFunc: newPwd, existingCipherFunc: oldPwd);
         await Future<void>.delayed(delayDuration);
         expect(wrapCalls, 1, reason: 'changePassword must have entered storage and be waiting on the gate');
 
