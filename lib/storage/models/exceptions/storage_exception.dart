@@ -22,9 +22,14 @@ class StorageException implements Exception {
         message: message ?? 'Storage is invalid',
       );
 
-  factory StorageException.entryNotFound({required String entryId}) => StorageException(
+  factory StorageException.entryNotFound() => const StorageException(
         type: StorageExceptionType.entryNotFound,
-        message: 'Entry with id $entryId not found',
+        message: 'Entry not found',
+      );
+
+  factory StorageException.duplicateEntry() => const StorageException(
+        type: StorageExceptionType.duplicateEntry,
+        message: 'Duplicate entry',
       );
 
   factory StorageException.other(String message) => StorageException(
@@ -41,5 +46,6 @@ enum StorageExceptionType {
   alreadyInitialized,
   invalidStorage,
   entryNotFound,
+  duplicateEntry,
   other,
 }

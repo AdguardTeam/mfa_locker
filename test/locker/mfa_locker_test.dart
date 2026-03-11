@@ -6,8 +6,10 @@ import 'package:locker/locker/locker.dart';
 import 'package:locker/locker/mfa_locker.dart';
 import 'package:locker/security/models/cipher_func.dart';
 import 'package:locker/storage/models/data/origin.dart';
+import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_meta.dart';
+import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -24,6 +26,14 @@ void main() {
     registerFallbackValue(EntryId('fallback'));
     registerFallbackValue(_StorageHelpers.createEntryMeta());
     registerFallbackValue(_StorageHelpers.createEntryValue([1]));
+    registerFallbackValue(<EntryAddInput>[]);
+    registerFallbackValue(
+      EntryAddInput(
+        meta: _StorageHelpers.createEntryMeta(),
+        value: _StorageHelpers.createEntryValue([1]),
+      ),
+    );
+    registerFallbackValue(EntryUpdateInput(id: EntryId('fallback')));
     registerFallbackValue(MockBioCipherFunc());
     registerFallbackValue(MockPasswordCipherFunc());
   });
@@ -137,14 +147,14 @@ void main() {
         final pwd = _Helpers.createMockPasswordCipherFunc();
         final meta = _StorageHelpers.createEntryMeta();
         final value = _StorageHelpers.createEntryValue();
+        final entry = EntryAddInput(meta: meta, value: value);
         final readAllMeta = _Helpers.stubReadAllMeta(storage, pwd);
 
         when(() => storage.isInitialized).thenAnswer((_) async => false);
         when(
           () => storage.init(
             passwordCipherFunc: pwd,
-            initialEntryMeta: meta,
-            initialEntryValue: value,
+            initialEntries: [entry],
             lockTimeout: _Helpers.lockTimeout.inMilliseconds,
           ),
         ).thenAnswer((_) async {
@@ -155,8 +165,7 @@ void main() {
         // Act
         await locker.init(
           passwordCipherFunc: pwd,
-          initialEntryMeta: meta,
-          initialEntryValue: value,
+          initialEntries: [entry],
           lockTimeout: _Helpers.lockTimeout,
         );
 
@@ -164,8 +173,7 @@ void main() {
         verify(
           () => storage.init(
             passwordCipherFunc: pwd,
-            initialEntryMeta: meta,
-            initialEntryValue: value,
+            initialEntries: [entry],
             lockTimeout: _Helpers.lockTimeout.inMilliseconds,
           ),
         ).called(1);
@@ -182,13 +190,13 @@ void main() {
         final pwd = _Helpers.createMockPasswordCipherFunc();
         final meta = _StorageHelpers.createEntryMeta();
         final value = _StorageHelpers.createEntryValue();
+        final entry = EntryAddInput(meta: meta, value: value);
 
         // Act & Assert
         await expectLater(
           () => locker.init(
             passwordCipherFunc: pwd,
-            initialEntryMeta: meta,
-            initialEntryValue: value,
+            initialEntries: [entry],
             lockTimeout: _Helpers.lockTimeout,
           ),
           throwsA(isA<StateError>()),
@@ -197,8 +205,7 @@ void main() {
         verifyNever(
           () => storage.init(
             passwordCipherFunc: any(named: 'passwordCipherFunc'),
-            initialEntryMeta: any(named: 'initialEntryMeta'),
-            initialEntryValue: any(named: 'initialEntryValue'),
+            initialEntries: any(named: 'initialEntries'),
             lockTimeout: any(named: 'lockTimeout'),
           ),
         );
@@ -211,13 +218,13 @@ void main() {
         final pwd = _Helpers.createMockPasswordCipherFunc();
         final meta = _StorageHelpers.createEntryMeta();
         final value = _StorageHelpers.createEntryValue();
+        final entry = EntryAddInput(meta: meta, value: value);
 
         when(() => storage.isInitialized).thenAnswer((_) async => false);
         when(
           () => storage.init(
             passwordCipherFunc: pwd,
-            initialEntryMeta: meta,
-            initialEntryValue: value,
+            initialEntries: [entry],
             lockTimeout: _Helpers.lockTimeout.inMilliseconds,
           ),
         ).thenThrow(Exception('test'));
@@ -226,8 +233,7 @@ void main() {
         await expectLater(
           () => locker.init(
             passwordCipherFunc: pwd,
-            initialEntryMeta: meta,
-            initialEntryValue: value,
+            initialEntries: [entry],
             lockTimeout: _Helpers.lockTimeout,
           ),
           throwsException,
@@ -337,30 +343,28 @@ void main() {
         final metaToAdd = _StorageHelpers.createEntryMeta([1, 2]);
         final valueToAdd = _StorageHelpers.createEntryValue();
         final expectedId = EntryId('id');
+        final input = EntryAddInput(meta: metaToAdd, value: valueToAdd);
 
         _Helpers.stubReadAllMeta(storage, cipher);
         await locker.loadAllMeta(cipher);
 
         when(
           () => storage.addEntry(
-            entryMeta: metaToAdd,
-            entryValue: valueToAdd,
+            input: input,
             cipherFunc: cipher,
           ),
         ).thenAnswer((_) async => expectedId);
 
         // Act
         final result = await locker.write(
-          entryMeta: metaToAdd,
-          entryValue: valueToAdd,
+          input: input,
           cipherFunc: cipher,
         );
 
         // Assert
         verify(
           () => storage.addEntry(
-            entryMeta: metaToAdd,
-            entryValue: valueToAdd,
+            input: input,
             cipherFunc: cipher,
           ),
         ).called(1);
@@ -382,19 +386,18 @@ void main() {
         final oldMeta = locker.allMeta[id]!;
         final newMeta = _StorageHelpers.createEntryMeta([3, 4]);
         final newValue = _StorageHelpers.createEntryValue();
+        final input = EntryAddInput(meta: newMeta, value: newValue);
 
         when(
           () => storage.addEntry(
-            entryMeta: newMeta,
-            entryValue: newValue,
+            input: input,
             cipherFunc: cipher,
           ),
         ).thenAnswer((_) async => id);
 
         // Act
         await locker.write(
-          entryMeta: newMeta,
-          entryValue: newValue,
+          input: input,
           cipherFunc: cipher,
         );
 
@@ -409,13 +412,13 @@ void main() {
         final cipher = _Helpers.createMockPasswordCipherFunc();
         final meta = _StorageHelpers.createEntryMeta();
         final value = _StorageHelpers.createEntryValue();
+        final input = EntryAddInput(meta: meta, value: value);
 
         _Helpers.stubReadAllMeta(storage, cipher);
 
         when(
           () => storage.addEntry(
-            entryMeta: meta,
-            entryValue: value,
+            input: input,
             cipherFunc: cipher,
           ),
         ).thenThrow(Exception('test'));
@@ -423,8 +426,7 @@ void main() {
         // Act & Assert
         await expectLater(
           () => locker.write(
-            entryMeta: meta,
-            entryValue: value,
+            input: input,
             cipherFunc: cipher,
           ),
           throwsException,
@@ -439,12 +441,12 @@ void main() {
         final cipher = _Helpers.createMockPasswordCipherFunc();
         final meta = _StorageHelpers.createEntryMeta();
         final value = _StorageHelpers.createEntryValue();
+        final input = EntryAddInput(meta: meta, value: value);
 
         // Act & Assert
         await expectLater(
           () => locker.write(
-            entryMeta: meta,
-            entryValue: value,
+            input: input,
             cipherFunc: cipher,
           ),
           throwsA(isA<StateError>()),
@@ -452,13 +454,50 @@ void main() {
 
         verifyNever(
           () => storage.addEntry(
-            entryMeta: any(named: 'entryMeta'),
-            entryValue: any(named: 'entryValue'),
+            input: any(named: 'input'),
             cipherFunc: any(named: 'cipherFunc'),
           ),
         );
 
         _Helpers.verifyErasedAll([cipher, value, meta]);
+      });
+
+      test('passes explicit id to storage.addEntry', () async {
+        // Arrange
+        final cipher = _Helpers.createMockPasswordCipherFunc();
+        final meta = _StorageHelpers.createEntryMeta([1, 2]);
+        final value = _StorageHelpers.createEntryValue();
+        final explicitId = EntryId('my-custom-id');
+        final input = EntryAddInput(meta: meta, value: value, id: explicitId);
+
+        _Helpers.stubReadAllMeta(storage, cipher);
+        await locker.loadAllMeta(cipher);
+
+        when(
+          () => storage.addEntry(
+            input: input,
+            cipherFunc: cipher,
+          ),
+        ).thenAnswer((_) async => explicitId);
+
+        // Act
+        final result = await locker.write(
+          input: input,
+          cipherFunc: cipher,
+        );
+
+        // Assert
+        verify(
+          () => storage.addEntry(
+            input: input,
+            cipherFunc: cipher,
+          ),
+        ).called(1);
+
+        expect(result, equals(explicitId));
+        expect(locker.allMeta[explicitId], same(meta));
+
+        _Helpers.verifyErasedAll([cipher, value]);
       });
     });
 
@@ -685,31 +724,26 @@ void main() {
         final oldMeta = locker.allMeta[id]!;
         final newMeta = _StorageHelpers.createEntryMeta([3, 4]);
         final newValue = _StorageHelpers.createEntryValue([5, 6]);
+        final input = EntryUpdateInput(id: id, meta: newMeta, value: newValue);
 
         when(
           () => storage.updateEntry(
-            id: id,
+            input: input,
             cipherFunc: cipher,
-            entryMeta: newMeta,
-            entryValue: newValue,
           ),
         ).thenAnswer((_) async {});
 
         // Act
         await locker.update(
-          id: id,
+          input: input,
           cipherFunc: cipher,
-          entryMeta: newMeta,
-          entryValue: newValue,
         );
 
         // Assert
         verify(
           () => storage.updateEntry(
-            id: id,
+            input: input,
             cipherFunc: cipher,
-            entryMeta: newMeta,
-            entryValue: newValue,
           ),
         ).called(1);
 
@@ -732,28 +766,26 @@ void main() {
 
         final existingMeta = locker.allMeta[id]!;
         final newValue = _StorageHelpers.createEntryValue([5, 6]);
+        final input = EntryUpdateInput(id: id, value: newValue);
 
         when(
           () => storage.updateEntry(
-            id: id,
+            input: input,
             cipherFunc: cipher,
-            entryValue: newValue,
           ),
         ).thenAnswer((_) async {});
 
         // Act
         await locker.update(
-          id: id,
+          input: input,
           cipherFunc: cipher,
-          entryValue: newValue,
         );
 
         // Assert
         verify(
           () => storage.updateEntry(
-            id: id,
+            input: input,
             cipherFunc: cipher,
-            entryValue: newValue,
           ),
         ).called(1);
 
@@ -771,28 +803,26 @@ void main() {
 
         final oldMeta = locker.allMeta[id]!;
         final newMeta = _StorageHelpers.createEntryMeta([3, 4]);
+        final input = EntryUpdateInput(id: id, meta: newMeta);
 
         when(
           () => storage.updateEntry(
-            id: id,
+            input: input,
             cipherFunc: cipher,
-            entryMeta: newMeta,
           ),
         ).thenAnswer((_) async {});
 
         // Act
         await locker.update(
-          id: id,
+          input: input,
           cipherFunc: cipher,
-          entryMeta: newMeta,
         );
 
         // Assert
         verify(
           () => storage.updateEntry(
-            id: id,
+            input: input,
             cipherFunc: cipher,
-            entryMeta: newMeta,
           ),
         ).called(1);
 
@@ -806,24 +836,21 @@ void main() {
         final cipher = _Helpers.createMockPasswordCipherFunc();
         final meta = _StorageHelpers.createEntryMeta();
         final value = _StorageHelpers.createEntryValue();
+        final input = EntryUpdateInput(id: EntryId('entry-id'), meta: meta, value: value);
 
         // Act & Assert
         await expectLater(
           () => locker.update(
-            id: EntryId('entry-id'),
+            input: input,
             cipherFunc: cipher,
-            entryMeta: meta,
-            entryValue: value,
           ),
           throwsA(isA<StateError>()),
         );
 
         verifyNever(
           () => storage.updateEntry(
-            id: any(named: 'id'),
+            input: any(named: 'input'),
             cipherFunc: any(named: 'cipherFunc'),
-            entryMeta: any(named: 'entryMeta'),
-            entryValue: any(named: 'entryValue'),
           ),
         );
 
@@ -836,6 +863,7 @@ void main() {
         final id = EntryId('entryId');
         final meta = _StorageHelpers.createEntryMeta([3, 4]);
         final value = _StorageHelpers.createEntryValue([5, 6]);
+        final input = EntryUpdateInput(id: id, meta: meta, value: value);
 
         _Helpers.stubReadAllMeta(storage, cipher, id: id.value);
         await locker.loadAllMeta(cipher);
@@ -844,20 +872,16 @@ void main() {
 
         when(
           () => storage.updateEntry(
-            id: id,
+            input: input,
             cipherFunc: cipher,
-            entryMeta: meta,
-            entryValue: value,
           ),
         ).thenThrow(Exception('test'));
 
         // Act & Assert
         await expectLater(
           () => locker.update(
-            id: id,
+            input: input,
             cipherFunc: cipher,
-            entryMeta: meta,
-            entryValue: value,
           ),
           throwsException,
         );
@@ -1147,14 +1171,15 @@ void main() {
           final val1 = _StorageHelpers.createEntryValue([1]);
           final meta2 = _StorageHelpers.createEntryMeta([2]);
           final val2 = _StorageHelpers.createEntryValue([2]);
+          final input1 = EntryAddInput(meta: meta1, value: val1);
+          final input2 = EntryAddInput(meta: meta2, value: val2);
 
           final gate1 = Completer<void>();
           var addCalls = 0;
 
           when(
             () => storage.addEntry(
-              entryMeta: any(named: 'entryMeta'),
-              entryValue: any(named: 'entryValue'),
+              input: any(named: 'input'),
               cipherFunc: cipher,
             ),
           ).thenAnswer((invocation) async {
@@ -1167,11 +1192,11 @@ void main() {
           });
 
           // Act: start two concurrent writes
-          final f1 = locker.write(entryMeta: meta1, entryValue: val1, cipherFunc: cipher);
+          final f1 = locker.write(input: input1, cipherFunc: cipher);
           await Future<void>.delayed(delayDuration);
           expect(addCalls, 1, reason: 'First write must have entered storage.addEntry and be blocked.');
 
-          final f2 = locker.write(entryMeta: meta2, entryValue: val2, cipherFunc: cipher);
+          final f2 = locker.write(input: input2, cipherFunc: cipher);
           await Future<void>.delayed(delayDuration);
           expect(addCalls, 1, reason: 'Second write must be queued and not enter addEntry yet.');
 
@@ -1181,8 +1206,12 @@ void main() {
 
           // Assert
           expect(addCalls, 2, reason: 'Both storage.addEntry calls should have executed sequentially.');
-          verify(() => storage.addEntry(entryMeta: meta1, entryValue: val1, cipherFunc: cipher)).called(1);
-          verify(() => storage.addEntry(entryMeta: meta2, entryValue: val2, cipherFunc: cipher)).called(1);
+          verify(
+            () => storage.addEntry(input: input1, cipherFunc: cipher),
+          ).called(1);
+          verify(
+            () => storage.addEntry(input: input2, cipherFunc: cipher),
+          ).called(1);
           expect(id1.value, isNot(equals(id2.value)), reason: 'Both writes reached storage.');
         },
       );

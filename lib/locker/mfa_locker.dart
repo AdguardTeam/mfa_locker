@@ -17,8 +17,10 @@ import 'package:locker/security/models/password_cipher_func.dart';
 import 'package:locker/storage/encrypted_storage.dart';
 import 'package:locker/storage/encrypted_storage_impl.dart';
 import 'package:locker/storage/models/data/origin.dart';
+import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_meta.dart';
+import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/utils/sync.dart';
 import 'package:meta/meta.dart';
@@ -76,13 +78,12 @@ class MFALocker implements Locker {
   @override
   Future<void> init({
     required PasswordCipherFunc passwordCipherFunc,
-    required EntryMeta initialEntryMeta,
-    required EntryValue initialEntryValue,
+    required List<EntryAddInput> initialEntries,
     required Duration lockTimeout,
   }) =>
       _sync(
         () => _executeWithCleanup(
-          erasables: [passwordCipherFunc, initialEntryMeta, initialEntryValue],
+          erasables: [passwordCipherFunc, ...initialEntries],
           callback: () async {
             if (await isStorageInitialized) {
               throw StateError('Storage is already initialized');
@@ -90,8 +91,7 @@ class MFALocker implements Locker {
 
             await _storage.init(
               passwordCipherFunc: passwordCipherFunc,
-              initialEntryMeta: initialEntryMeta,
-              initialEntryValue: initialEntryValue,
+              initialEntries: initialEntries,
               lockTimeout: lockTimeout.inMilliseconds,
             );
 
@@ -120,28 +120,26 @@ class MFALocker implements Locker {
 
   @override
   Future<EntryId> write({
-    required EntryMeta entryMeta,
-    required EntryValue entryValue,
+    required EntryAddInput input,
     required CipherFunc cipherFunc,
   }) =>
       _sync(
         () => _executeWithCleanup<EntryId>(
-          // dispose entryMeta only on error because it is cached
-          erasables: [cipherFunc, entryValue],
-          erasablesOnError: [entryMeta],
+          // dispose input.meta only on error because it is cached
+          erasables: [cipherFunc, input.value],
+          erasablesOnError: [input.meta],
           callback: () async {
             await loadAllMetaIfLocked(cipherFunc);
 
-            final id = await _storage.addEntry(
-              entryMeta: entryMeta,
-              entryValue: entryValue,
+            final entryId = await _storage.addEntry(
+              input: input,
               cipherFunc: cipherFunc,
             );
 
-            _metaCache[id]?.erase();
-            _metaCache[id] = entryMeta;
+            _metaCache[entryId]?.erase();
+            _metaCache[entryId] = input.meta;
 
-            return id;
+            return entryId;
           },
         ),
       );
@@ -191,28 +189,25 @@ class MFALocker implements Locker {
 
   @override
   Future<void> update({
-    required EntryId id,
+    required EntryUpdateInput input,
     required CipherFunc cipherFunc,
-    EntryMeta? entryMeta,
-    EntryValue? entryValue,
   }) =>
       _sync(
         () => _executeWithCleanup(
-          erasables: [cipherFunc, if (entryValue != null) entryValue],
-          erasablesOnError: [if (entryMeta != null) entryMeta],
+          // dispose input.meta only on error because it is cached
+          erasables: [cipherFunc, if (input.value != null) input.value!],
+          erasablesOnError: [if (input.meta != null) input.meta!],
           callback: () async {
             await loadAllMetaIfLocked(cipherFunc);
 
             await _storage.updateEntry(
-              id: id,
+              input: input,
               cipherFunc: cipherFunc,
-              entryMeta: entryMeta,
-              entryValue: entryValue,
             );
 
-            if (entryMeta != null) {
-              _metaCache[id]?.erase();
-              _metaCache[id] = entryMeta;
+            if (input.meta != null) {
+              _metaCache[input.id]?.erase();
+              _metaCache[input.id] = input.meta!;
             }
           },
         ),

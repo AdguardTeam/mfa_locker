@@ -5,7 +5,9 @@ import 'dart:typed_data';
 import 'package:locker/storage/encrypted_storage_impl.dart';
 import 'package:locker/storage/models/data/key_wrap.dart';
 import 'package:locker/storage/models/data/origin.dart';
+import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
+import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/decrypt_failed_exception.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
@@ -182,8 +184,7 @@ void main() {
         // Act
         await storage.init(
           passwordCipherFunc: cipherFunc,
-          initialEntryMeta: entryMeta,
-          initialEntryValue: entryValue,
+          initialEntries: [EntryAddInput(meta: entryMeta, value: entryValue)],
           lockTimeout: _Helpers.lockTimeout,
         );
 
@@ -211,8 +212,7 @@ void main() {
         await expectLater(
           () => storage.init(
             passwordCipherFunc: cipherFunc,
-            initialEntryMeta: entryMeta,
-            initialEntryValue: entryValue,
+            initialEntries: [EntryAddInput(meta: entryMeta, value: entryValue)],
             lockTimeout: _Helpers.lockTimeout,
           ),
           throwsA(isA<StorageException>()),
@@ -228,8 +228,7 @@ void main() {
         await expectLater(
           () => storage.init(
             passwordCipherFunc: failingCipher,
-            initialEntryMeta: _Helpers.createEntryMeta(),
-            initialEntryValue: _Helpers.createEntryValue(),
+            initialEntries: [EntryAddInput(meta: _Helpers.createEntryMeta(), value: _Helpers.createEntryValue())],
             lockTimeout: _Helpers.lockTimeout,
           ),
           throwsA(isA<StorageException>()),
@@ -245,8 +244,7 @@ void main() {
         await expectLater(
           () => storage.init(
             passwordCipherFunc: cipherFunc,
-            initialEntryMeta: _Helpers.createEntryMeta(),
-            initialEntryValue: _Helpers.createEntryValue(),
+            initialEntries: [EntryAddInput(meta: _Helpers.createEntryMeta(), value: _Helpers.createEntryValue())],
             lockTimeout: 0,
           ),
           throwsA(isA<StorageException>()),
@@ -262,9 +260,98 @@ void main() {
         await expectLater(
           () => storage.init(
             passwordCipherFunc: cipherFunc,
-            initialEntryMeta: _Helpers.createEntryMeta(),
-            initialEntryValue: _Helpers.createEntryValue(),
+            initialEntries: [EntryAddInput(meta: _Helpers.createEntryMeta(), value: _Helpers.createEntryValue())],
             lockTimeout: -1,
+          ),
+          throwsA(isA<StorageException>()),
+        );
+        expect(await storageFile.exists(), isFalse);
+      });
+
+      test('creates storage with empty entries list', () async {
+        final cipherFunc = _Helpers.createMockPasswordCipherFunc();
+
+        await storage.init(
+          passwordCipherFunc: cipherFunc,
+          initialEntries: [],
+          lockTimeout: _Helpers.lockTimeout,
+        );
+
+        final data = await _Helpers.readStorageData(storageFile);
+        expect(data.entries, isEmpty);
+        expect(data.masterKey.wraps, isNotEmpty);
+      });
+
+      test('creates storage with multiple entries', () async {
+        final cipherFunc = _Helpers.createMockPasswordCipherFunc();
+        final entries = [
+          EntryAddInput(meta: _Helpers.createEntryMeta([1]), value: _Helpers.createEntryValue([1])),
+          EntryAddInput(meta: _Helpers.createEntryMeta([2]), value: _Helpers.createEntryValue([2])),
+          EntryAddInput(meta: _Helpers.createEntryMeta([3]), value: _Helpers.createEntryValue([3])),
+        ];
+
+        await storage.init(
+          passwordCipherFunc: cipherFunc,
+          initialEntries: entries,
+          lockTimeout: _Helpers.lockTimeout,
+        );
+
+        final data = await _Helpers.readStorageData(storageFile);
+        expect(data.entries, hasLength(3));
+      });
+
+      test('creates storage with explicit entry IDs', () async {
+        final cipherFunc = _Helpers.createMockPasswordCipherFunc();
+        const id1 = 'explicit-id-1';
+        const id2 = 'explicit-id-2';
+        final entries = [
+          EntryAddInput(id: EntryId(id1), meta: _Helpers.createEntryMeta(), value: _Helpers.createEntryValue()),
+          EntryAddInput(id: EntryId(id2), meta: _Helpers.createEntryMeta(), value: _Helpers.createEntryValue()),
+        ];
+
+        await storage.init(
+          passwordCipherFunc: cipherFunc,
+          initialEntries: entries,
+          lockTimeout: _Helpers.lockTimeout,
+        );
+
+        final data = await _Helpers.readStorageData(storageFile);
+        final ids = data.entries.map((e) => e.id.value).toList();
+        expect(ids, containsAll([id1, id2]));
+      });
+
+      test('creates storage mixing explicit and generated IDs', () async {
+        final cipherFunc = _Helpers.createMockPasswordCipherFunc();
+        const explicitId = 'my-explicit-id';
+        final entries = [
+          EntryAddInput(id: EntryId(explicitId), meta: _Helpers.createEntryMeta(), value: _Helpers.createEntryValue()),
+          EntryAddInput(meta: _Helpers.createEntryMeta(), value: _Helpers.createEntryValue()),
+        ];
+
+        await storage.init(
+          passwordCipherFunc: cipherFunc,
+          initialEntries: entries,
+          lockTimeout: _Helpers.lockTimeout,
+        );
+
+        final data = await _Helpers.readStorageData(storageFile);
+        expect(data.entries, hasLength(2));
+        expect(data.entries.map((e) => e.id.value), contains(explicitId));
+      });
+
+      test('throws on duplicate explicit IDs', () async {
+        final cipherFunc = _Helpers.createMockPasswordCipherFunc();
+        const duplicateId = 'duplicate-id';
+        final entries = [
+          EntryAddInput(id: EntryId(duplicateId), meta: _Helpers.createEntryMeta(), value: _Helpers.createEntryValue()),
+          EntryAddInput(id: EntryId(duplicateId), meta: _Helpers.createEntryMeta(), value: _Helpers.createEntryValue()),
+        ];
+
+        await expectLater(
+          () => storage.init(
+            passwordCipherFunc: cipherFunc,
+            initialEntries: entries,
+            lockTimeout: _Helpers.lockTimeout,
           ),
           throwsA(isA<StorageException>()),
         );
@@ -618,8 +705,7 @@ void main() {
 
         // Act
         final entryId = await storage.addEntry(
-          entryMeta: entryMeta,
-          entryValue: entryValue,
+          input: EntryAddInput(meta: entryMeta, value: entryValue),
           cipherFunc: cipherFunc,
         );
 
@@ -652,8 +738,7 @@ void main() {
 
         // Act
         await storage.addEntry(
-          entryMeta: entryMeta,
-          entryValue: entryValue,
+          input: EntryAddInput(meta: entryMeta, value: entryValue),
           cipherFunc: cipherFunc,
         );
 
@@ -673,8 +758,7 @@ void main() {
         // Act & Assert
         await expectLater(
           () => storage.addEntry(
-            entryMeta: entryMeta,
-            entryValue: entryValue,
+            input: EntryAddInput(meta: entryMeta, value: entryValue),
             cipherFunc: cipherFunc,
           ),
           throwsA(isA<StorageException>()),
@@ -695,11 +779,59 @@ void main() {
           storageFile,
           () => expectLater(
             storage.addEntry(
-              entryMeta: _Helpers.createEntryMeta(),
-              entryValue: _Helpers.createEntryValue(),
+              input: EntryAddInput(meta: _Helpers.createEntryMeta(), value: _Helpers.createEntryValue()),
               cipherFunc: failingCipher,
             ),
             throwsA(isA<DecryptFailedException>()),
+          ),
+        );
+      });
+
+      test('stores entry with explicit id', () async {
+        final masterKey = await CryptographyUtils.generateAESKey();
+        final cipherFunc = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKey.bytes);
+        final wrapPwd = KeyWrap(origin: Origin.pwd, encryptedKey: masterKey.bytes);
+        final signedData = await _Helpers.createStorageData(wraps: [wrapPwd], masterKey: masterKey);
+        await _Helpers.writeStorageData(storageFile, signedData);
+
+        const explicitId = 'my-entry-id';
+
+        final returnedId = await storage.addEntry(
+          input:
+              EntryAddInput(meta: _Helpers.createEntryMeta(), value: _Helpers.createEntryValue(), id: EntryId(explicitId)),
+          cipherFunc: cipherFunc,
+        );
+
+        expect(returnedId.value, equals(explicitId));
+        final updated = await _Helpers.readStorageData(storageFile);
+        expect(updated.entries.map((e) => e.id.value), contains(explicitId));
+      });
+
+      test('throws on duplicate explicit id', () async {
+        final masterKey = await CryptographyUtils.generateAESKey();
+        final cipherFunc = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKey.bytes);
+        final wrapPwd = KeyWrap(origin: Origin.pwd, encryptedKey: masterKey.bytes);
+        const existingId = 'existing-id';
+        final existingEntry = await _Helpers.createEncryptedEntry(masterKey: masterKey, id: existingId);
+        final signedData = await _Helpers.createStorageData(
+          wraps: [wrapPwd],
+          entries: [existingEntry],
+          masterKey: masterKey,
+        );
+        await _Helpers.writeStorageData(storageFile, signedData);
+
+        await _Helpers.expectFileUnchanged(
+          storageFile,
+          () => expectLater(
+            storage.addEntry(
+              input: EntryAddInput(
+                meta: _Helpers.createEntryMeta(),
+                value: _Helpers.createEntryValue(),
+                id: EntryId(existingId),
+              ),
+              cipherFunc: cipherFunc,
+            ),
+            throwsA(isA<StorageException>()),
           ),
         );
       });
@@ -728,9 +860,8 @@ void main() {
 
         // Act
         await storage.updateEntry(
-          id: EntryId(entryId),
+          input: EntryUpdateInput(id: EntryId(entryId), meta: newMeta),
           cipherFunc: cipherFunc,
-          entryMeta: newMeta,
         );
 
         // Assert
@@ -758,9 +889,8 @@ void main() {
 
         // Act
         await storage.updateEntry(
-          id: EntryId(entryId),
+          input: EntryUpdateInput(id: EntryId(entryId), meta: _Helpers.createEntryMeta([7])),
           cipherFunc: cipherFunc,
-          entryMeta: _Helpers.createEntryMeta([7]),
         );
 
         // Assert
@@ -785,9 +915,8 @@ void main() {
 
         // Act
         await storage.updateEntry(
-          id: EntryId(entryId),
+          input: EntryUpdateInput(id: EntryId(entryId), value: _Helpers.createEntryValue([7])),
           cipherFunc: cipherFunc,
-          entryValue: _Helpers.createEntryValue([7]),
         );
 
         // Assert
@@ -813,9 +942,8 @@ void main() {
 
         // Act
         await storage.updateEntry(
-          id: EntryId(entryId),
+          input: EntryUpdateInput(id: EntryId(entryId), value: newValue),
           cipherFunc: cipherFunc,
-          entryValue: newValue,
         );
 
         // Assert
@@ -843,10 +971,12 @@ void main() {
 
         // Act
         await storage.updateEntry(
-          id: EntryId(entryId),
+          input: EntryUpdateInput(
+            id: EntryId(entryId),
+            meta: _Helpers.createEntryMeta([3]),
+            value: _Helpers.createEntryValue([4]),
+          ),
           cipherFunc: cipherFunc,
-          entryMeta: _Helpers.createEntryMeta([3]),
-          entryValue: _Helpers.createEntryValue([4]),
         );
 
         // Assert
@@ -864,7 +994,7 @@ void main() {
         // Act & Assert
         await expectLater(
           storage.updateEntry(
-            id: EntryId('id'),
+            input: EntryUpdateInput(id: EntryId('id')),
             cipherFunc: cipherFunc,
           ),
           throwsA(isA<StorageException>()),
@@ -882,9 +1012,8 @@ void main() {
         // Act & Assert
         await expectLater(
           () => storage.updateEntry(
-            id: EntryId('missing'),
+            input: EntryUpdateInput(id: EntryId('missing'), meta: _Helpers.createEntryMeta()),
             cipherFunc: cipher,
-            entryMeta: _Helpers.createEntryMeta(),
           ),
           throwsA(isA<StorageException>()),
         );
@@ -905,9 +1034,8 @@ void main() {
           storageFile,
           () => expectLater(
             storage.updateEntry(
-              id: EntryId('id'),
+              input: EntryUpdateInput(id: EntryId('id'), meta: _Helpers.createEntryMeta([8])),
               cipherFunc: failingCipher,
-              entryMeta: _Helpers.createEntryMeta([8]),
             ),
             throwsA(isA<DecryptFailedException>()),
           ),
@@ -1260,11 +1388,11 @@ void main() {
         final v2 = _Helpers.createEntryValue([2]);
 
         // Act:
-        final f1 = storage.addEntry(entryMeta: m1, entryValue: v1, cipherFunc: cipher);
+        final f1 = storage.addEntry(input: EntryAddInput(meta: m1, value: v1), cipherFunc: cipher);
         await Future<void>.delayed(delayDuration);
         expect(readCalls, 1, reason: 'the first operation entered and is waiting at the gate');
 
-        final f2 = storage.addEntry(entryMeta: m2, entryValue: v2, cipherFunc: cipher);
+        final f2 = storage.addEntry(input: EntryAddInput(meta: m2, value: v2), cipherFunc: cipher);
         await Future<void>.delayed(delayDuration);
         expect(readCalls, 1, reason: 'the second operation must not enter until the lock is released');
 
@@ -1309,8 +1437,7 @@ void main() {
 
         // Act
         final addIdFuture = storage.addEntry(
-          entryMeta: _Helpers.createEntryMeta([3]),
-          entryValue: _Helpers.createEntryValue([3]),
+          input: EntryAddInput(meta: _Helpers.createEntryMeta([3]), value: _Helpers.createEntryValue([3])),
           cipherFunc: cipher,
         );
         await Future<void>.delayed(delayDuration);
@@ -1368,7 +1495,10 @@ void main() {
         final newVal = _Helpers.createEntryValue(const [2]);
 
         // Act:
-        final update = storage.updateEntry(id: EntryId(entryId), cipherFunc: cipher, entryValue: newVal);
+        final update = storage.updateEntry(
+          input: EntryUpdateInput(id: EntryId(entryId), value: newVal),
+          cipherFunc: cipher,
+        );
         await Future<void>.delayed(delayDuration);
         expect(readCalls, 1);
 
@@ -1475,8 +1605,7 @@ void main() {
 
         // Act: addEntry enters and blocks; erase is queued.
         final addF = storage.addEntry(
-          entryMeta: _Helpers.createEntryMeta([1]),
-          entryValue: _Helpers.createEntryValue([1]),
+          input: EntryAddInput(meta: _Helpers.createEntryMeta([1]), value: _Helpers.createEntryValue([1])),
           cipherFunc: cipher,
         );
         await Future<void>.delayed(delayDuration);

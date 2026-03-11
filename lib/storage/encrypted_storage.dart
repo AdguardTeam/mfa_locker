@@ -4,8 +4,10 @@ import 'dart:typed_data';
 import 'package:locker/security/models/cipher_func.dart';
 import 'package:locker/security/models/password_cipher_func.dart';
 import 'package:locker/storage/models/data/origin.dart';
+import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_meta.dart';
+import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
 import 'package:meta/meta.dart';
@@ -29,21 +31,20 @@ abstract interface class EncryptedStorage {
   /// The lock timeout in milliseconds.
   Future<int?> get lockTimeout;
 
-  /// Initializes the storage with a initial record.
+  /// Initializes the storage with optional initial entries.
   ///
   /// For storage initialization, only password authentication is supported.
   ///
   /// [passwordCipherFunc] - Cipher function to encrypt the master key.
-  /// [initialEntryMeta] - Metadata for the initial entry.
-  /// [initialEntryValue] - Value for the initial entry.
+  /// [initialEntries] - Entries to store during initialization. May be empty.
   /// [lockTimeout] - The auto-lock timeout in milliseconds. Must be greater than 0.
   ///
   /// Throws [StorageException] if the lock timeout is not greater than 0.
   /// Throws [StorageException] if the storage is already initialized.
+  /// Throws [StorageException] if duplicate explicit IDs are found in [initialEntries].
   Future<void> init({
     required PasswordCipherFunc passwordCipherFunc,
-    required EntryMeta initialEntryMeta,
-    required EntryValue initialEntryValue,
+    required List<EntryAddInput> initialEntries,
     required int lockTimeout,
   });
 
@@ -80,32 +81,28 @@ abstract interface class EncryptedStorage {
 
   /// Adds an entry to the storage.
   ///
-  /// [entryMeta] - Metadata for the entry.
-  /// [entryValue] - Value for the entry.
+  /// [input] - Entry data (meta, value, optional fixed ID). When [input.id] is
+  /// provided, a duplicate check is performed.
   /// [cipherFunc] - Cipher function to decrypt the master key.
   ///
   /// Returns the id of the added entry.
+  ///
+  /// Throws [StorageException] if [input.id] is provided and already exists.
   Future<EntryId> addEntry({
-    required EntryMeta entryMeta,
-    required EntryValue entryValue,
+    required EntryAddInput input,
     required CipherFunc cipherFunc,
   });
 
   /// Updates an entry by its id.
   ///
-  /// [id] - The id of the entry to update.
+  /// [input] - Update data (id, optional meta, optional value). At least one of
+  /// [input.meta] or [input.value] must be non-null, otherwise throws [StorageException].
   /// [cipherFunc] - The cipher function to decrypt the master key.
-  /// [entryMeta] -  New metadata for the entry.
-  /// [entryValue] - New value for the entry.
-  ///
-  /// At least one of [entryMeta] or [entryValue] must be provided, otherwise throws [StorageException].
   ///
   /// Throws [StorageException] if no entry was found.
   Future<void> updateEntry({
-    required EntryId id,
+    required EntryUpdateInput input,
     required CipherFunc cipherFunc,
-    EntryMeta? entryMeta,
-    EntryValue? entryValue,
   });
 
   /// Retrieves and decrypts all entries metadata and maps them to their ids.

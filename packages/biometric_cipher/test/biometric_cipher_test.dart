@@ -75,7 +75,9 @@ void main() {
         // Act & Assert
         expect(
           () => biometricCipher.decrypt(tag: differentTag, data: encrypted!),
-          throwsA(predicate((e) => e is BiometricCipherException && e.code == BiometricCipherExceptionCode.keyNotFound)),
+          throwsA(
+            predicate((e) => e is BiometricCipherException && e.code == BiometricCipherExceptionCode.keyNotFound),
+          ),
         );
       });
     });

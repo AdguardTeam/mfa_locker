@@ -16,8 +16,10 @@ import 'package:locker/storage/models/data/origin.dart';
 import 'package:locker/storage/models/data/storage_data.dart';
 import 'package:locker/storage/models/data/storage_entry.dart';
 import 'package:locker/storage/models/data/wrapped_key.dart';
+import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_meta.dart';
+import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/decrypt_failed_exception.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
@@ -107,8 +109,7 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
   @override
   Future<void> init({
     required PasswordCipherFunc passwordCipherFunc,
-    required EntryMeta initialEntryMeta,
-    required EntryValue initialEntryValue,
+    required List<EntryAddInput> initialEntries,
     required int lockTimeout,
   }) =>
       _sync(() async {
@@ -119,6 +120,9 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
         if (lockTimeout <= 0) {
           throw StorageException.other('Lock timeout must be greater than 0');
         }
+
+        final explicitIds = initialEntries.map((e) => e.id).whereType<EntryId>().toList();
+        _validateNoDuplicateIds(explicitIds);
 
         final masterKey = await CryptographyUtils.generateAESKey();
 
@@ -133,24 +137,28 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
             ],
           );
 
-          final idString = _generateEntryId();
-          final encryptedEntryMeta = await CryptographyUtils.encrypt(
-            key: masterKey,
-            data: initialEntryMeta,
-          );
-          final encryptedEntryValue = await CryptographyUtils.encrypt(
-            key: masterKey,
-            data: initialEntryValue,
-          );
-
-          final storageEntry = StorageEntry(
-            id: EntryId(idString),
-            encryptedMeta: encryptedEntryMeta,
-            encryptedValue: encryptedEntryValue,
-          );
+          final storageEntries = <StorageEntry>[];
+          for (final entry in initialEntries) {
+            final idString = entry.id?.value ?? _generateEntryId();
+            final encryptedMeta = await CryptographyUtils.encrypt(
+              key: masterKey,
+              data: entry.meta,
+            );
+            final encryptedValue = await CryptographyUtils.encrypt(
+              key: masterKey,
+              data: entry.value,
+            );
+            storageEntries.add(
+              StorageEntry(
+                id: EntryId(idString),
+                encryptedMeta: encryptedMeta,
+                encryptedValue: encryptedValue,
+              ),
+            );
+          }
 
           final storageData = StorageData(
-            entries: [storageEntry],
+            entries: storageEntries,
             masterKey: wrappedMasterKey,
             salt: passwordCipherFunc.salt,
             lockTimeout: lockTimeout,
@@ -271,7 +279,7 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
           final newEntries = data.entries.where((e) => e.id != id).toList();
 
           if (newEntries.length == originalLength) {
-            throw StorageException.entryNotFound(entryId: id.value);
+            throw StorageException.entryNotFound();
           }
 
           final newData = data.copyWith(entries: newEntries);
@@ -295,27 +303,31 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
 
   @override
   Future<EntryId> addEntry({
-    required EntryMeta entryMeta,
-    required EntryValue entryValue,
+    required EntryAddInput input,
     required CipherFunc cipherFunc,
   }) =>
       _sync(() async {
         ErasableByteArray? masterKey;
         try {
           final data = await _loadData();
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
 
-          final idString = _generateEntryId();
+          final idString = input.id?.value ?? _generateEntryId();
           final entryId = EntryId(idString);
+
+          if (input.id != null) {
+            _validateNoDuplicateIds([entryId, ...data.entries.map((e) => e.id)]);
+          }
+
+          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
 
           final encryptedMeta = await CryptographyUtils.encrypt(
             key: masterKey,
-            data: entryMeta,
+            data: input.meta,
           );
 
           final encryptedValue = await CryptographyUtils.encrypt(
             key: masterKey,
-            data: entryValue,
+            data: input.value,
           );
 
           final newEntry = StorageEntry(
@@ -345,24 +357,22 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
 
   @override
   Future<void> updateEntry({
-    required EntryId id,
+    required EntryUpdateInput input,
     required CipherFunc cipherFunc,
-    EntryMeta? entryMeta,
-    EntryValue? entryValue,
   }) =>
       _sync(() async {
         ErasableByteArray? masterKey;
 
         try {
-          if (entryMeta == null && entryValue == null) {
+          if (input.meta == null && input.value == null) {
             throw StorageException.other('Either entryMeta or entryValue must be provided');
           }
 
           final data = await _loadData();
-          final entry = data.entries.firstWhereOrNull((e) => e.id == id);
+          final entry = data.entries.firstWhereOrNull((e) => e.id == input.id);
 
           if (entry == null) {
-            throw StorageException.entryNotFound(entryId: id.value);
+            throw StorageException.entryNotFound();
           }
 
           masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
@@ -370,17 +380,17 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
           Uint8List? encryptedMeta;
           Uint8List? encryptedValue;
 
-          if (entryMeta != null) {
+          if (input.meta != null) {
             encryptedMeta = await CryptographyUtils.encrypt(
               key: masterKey,
-              data: entryMeta,
+              data: input.meta!,
             );
           }
 
-          if (entryValue != null) {
+          if (input.value != null) {
             encryptedValue = await CryptographyUtils.encrypt(
               key: masterKey,
-              data: entryValue,
+              data: input.value!,
             );
           }
 
@@ -389,7 +399,7 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
             encryptedValue: encryptedValue,
           );
 
-          final entriesWithoutUpdated = data.entries.where((e) => e.id != id).toList();
+          final entriesWithoutUpdated = data.entries.where((e) => e.id != input.id).toList();
           final newEntries = [...entriesWithoutUpdated, updatedEntry];
           final newData = data.copyWith(entries: newEntries);
 
@@ -455,7 +465,7 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
           );
 
           if (entry == null || entry.id.isEmpty) {
-            throw StorageException.entryNotFound(entryId: id.value);
+            throw StorageException.entryNotFound();
           }
 
           masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
@@ -639,6 +649,18 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
         error: e,
         stackTrace: st,
       );
+    }
+  }
+
+  /// Validates that [ids] contains no duplicates.
+  ///
+  /// Throws [StorageException.duplicateEntry] if a duplicate is found.
+  void _validateNoDuplicateIds(List<EntryId> ids) {
+    final seen = <String>{};
+    for (final id in ids) {
+      if (!seen.add(id.value)) {
+        throw StorageException.duplicateEntry();
+      }
     }
   }
 

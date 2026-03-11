@@ -9,6 +9,7 @@ import 'package:locker/locker/mfa_locker.dart';
 import 'package:locker/locker/models/biometric_state.dart';
 import 'package:locker/security/models/biometric_config.dart';
 import 'package:locker/security/security_provider.dart';
+import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
@@ -178,8 +179,7 @@ class LockerRepositoryImpl implements LockerRepository {
 
       await _locker.init(
         passwordCipherFunc: passwordCipherFunc,
-        initialEntryMeta: entryMeta,
-        initialEntryValue: entryValue,
+        initialEntries: [EntryAddInput(meta: entryMeta, value: entryValue)],
         lockTimeout: lockTimeout,
       );
 
@@ -240,8 +240,7 @@ class LockerRepositoryImpl implements LockerRepository {
     final entryValue = _createEntryValue(value);
 
     await _locker.write(
-      entryMeta: entryMeta,
-      entryValue: entryValue,
+      input: EntryAddInput(meta: entryMeta, value: entryValue),
       cipherFunc: passwordCipherFunc,
     );
   }
@@ -383,8 +382,7 @@ class LockerRepositoryImpl implements LockerRepository {
     final entryValue = _createEntryValue(value);
 
     await _locker.write(
-      entryMeta: entryMeta,
-      entryValue: entryValue,
+      input: EntryAddInput(meta: entryMeta, value: entryValue),
       cipherFunc: bioCipherFunc,
     );
   }

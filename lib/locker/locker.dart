@@ -6,8 +6,10 @@ import 'package:locker/security/models/bio_cipher_func.dart';
 import 'package:locker/security/models/biometric_config.dart';
 import 'package:locker/security/models/cipher_func.dart';
 import 'package:locker/security/models/password_cipher_func.dart';
+import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_meta.dart';
+import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -50,16 +52,15 @@ abstract interface class Locker {
   /// or dispose. Holding references beyond the unlocked session is discouraged.
   Map<EntryId, EntryMeta> get allMeta;
 
-  /// Initializes the storage and creates the first entry using the provided
-  /// password-derived cipher function.
+  /// Initializes the storage and stores the provided initial entries (may be empty)
+  /// using the provided password-derived cipher function.
   ///
   /// On success the locker transitions to the unlocked state, metadata is cached.
   ///
   /// Throws [StateError] if storage is already initialized.
   Future<void> init({
     required PasswordCipherFunc passwordCipherFunc,
-    required EntryMeta initialEntryMeta,
-    required EntryValue initialEntryValue,
+    required List<EntryAddInput> initialEntries,
     required Duration lockTimeout,
   });
 
@@ -78,15 +79,15 @@ abstract interface class Locker {
 
   /// Writes a new entry to storage.
   ///
-  /// [entryMeta] - The metadata for the entry to store.
-  /// [entryValue] - The value to store.
+  /// [input] - Entry data (meta, value, optional fixed ID). When [input.id] is
+  /// provided, a duplicate check is performed.
+  /// Throws [StorageException] if [input.id] already exists.
   ///
   /// Returns the id of the stored entry.
   ///
   /// Throws [StateError] if storage is not initialized.
   Future<EntryId> write({
-    required EntryMeta entryMeta,
-    required EntryValue entryValue,
+    required EntryAddInput input,
     required CipherFunc cipherFunc,
   });
 
@@ -118,14 +119,12 @@ abstract interface class Locker {
   /// Updates an entry by id.
   ///
   /// If the locker is locked, attempts to unlock using [cipherFunc].
-  /// At least one of [entryMeta] or [entryValue] must be provided.
+  /// At least one of [input.meta] or [input.value] must be non-null.
   ///
   /// Throws [StateError] if storage is not initialized.
   Future<void> update({
-    required EntryId id,
+    required EntryUpdateInput input,
     required CipherFunc cipherFunc,
-    EntryMeta? entryMeta,
-    EntryValue? entryValue,
   });
 
   /// Adds a new password and re-wraps access using an existing credential.
