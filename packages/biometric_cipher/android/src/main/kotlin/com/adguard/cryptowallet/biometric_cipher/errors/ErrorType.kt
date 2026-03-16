@@ -13,6 +13,7 @@ enum class ErrorType {
     DECODE_DATA_INVALID_SIZE,
     AUTHENTICATION_USER_CANCELED,
     AUTHENTICATION_ERROR,
+    KEY_PERMANENTLY_INVALIDATED,
     UNKNOWN_EXCEPTION;
 
     val errorDescription
@@ -30,6 +31,7 @@ enum class ErrorType {
                 DECODE_DATA_INVALID_SIZE -> "Decode data invalid size"
                 AUTHENTICATION_USER_CANCELED -> "Authentication user canceled"
                 AUTHENTICATION_ERROR -> "Authentication error"
+                KEY_PERMANENTLY_INVALIDATED -> "Biometric key has been permanently invalidated"
                 UNKNOWN_EXCEPTION -> "Unknown exception"
             }
 }

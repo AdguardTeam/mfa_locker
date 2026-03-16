@@ -1,6 +1,7 @@
 package com.adguard.cryptowallet.biometric_cipher.handlers
 
 import android.content.Context
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.util.Log
 import com.adguard.cryptowallet.biometric_cipher.enums.ArgumentName
 import com.adguard.cryptowallet.biometric_cipher.enums.MethodName
@@ -224,6 +225,10 @@ class SecureMethodCallHandlerImpl(
                 val errorCode = when (e) {
                     is BaseException -> {
                         e.code
+                    }
+
+                    is KeyPermanentlyInvalidatedException -> {
+                        ErrorType.KEY_PERMANENTLY_INVALIDATED.name
                     }
 
                     else -> {

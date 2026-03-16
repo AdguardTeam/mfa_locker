@@ -8,7 +8,7 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 | # | Iteration | Status | Notes |
 |---|-----------|--------|-------|
-| 1 | Android: detect `KeyPermanentlyInvalidatedException` | :white_large_square: Not started | |
+| 1 | Android: detect `KeyPermanentlyInvalidatedException` | :white_check_mark: Done | |
 | 2 | iOS/macOS: detect biometric key invalidation | :white_large_square: Not started | |
 | 3 | Dart plugin: `keyPermanentlyInvalidated` code | :white_large_square: Not started | |
 | 4 | Locker: `keyInvalidated` exception type | :white_large_square: Not started | |
@@ -23,12 +23,12 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 **Goal:** Surface `KEY_PERMANENTLY_INVALIDATED` through the Flutter method channel instead of the generic `"decrypt"` fallback.
 
-- [ ] **1.1** Add `KEY_PERMANENTLY_INVALIDATED` to `ErrorType` enum and its `errorDescription`
+- [x] **1.1** Add `KEY_PERMANENTLY_INVALIDATED` to `ErrorType` enum and its `errorDescription`
   - File: `packages/biometric_cipher/android/src/main/kotlin/…/errors/ErrorType.kt`
   - Add value before `UNKNOWN_EXCEPTION`
   - Description: `"Biometric key has been permanently invalidated"`
 
-- [ ] **1.2** Catch `KeyPermanentlyInvalidatedException` in `executeOperation()`
+- [x] **1.2** Catch `KeyPermanentlyInvalidatedException` in `executeOperation()`
   - File: `packages/biometric_cipher/android/src/main/kotlin/…/handlers/SecureMethodCallHandlerImpl.kt`
   - Add import: `android.security.keystore.KeyPermanentlyInvalidatedException`
   - Add `is KeyPermanentlyInvalidatedException` branch in the `when(e)` block, between `is BaseException` and `else`

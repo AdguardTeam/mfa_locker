@@ -20,12 +20,12 @@ KeyPermanentlyInvalidatedException (cipher.init())
 
 ## Tasks
 
-- [ ] **1.1** Add `KEY_PERMANENTLY_INVALIDATED` to `ErrorType` enum and its `errorDescription`
+- [x] **1.1** Add `KEY_PERMANENTLY_INVALIDATED` to `ErrorType` enum and its `errorDescription`
   - File: `packages/biometric_cipher/android/src/main/kotlin/.../errors/ErrorType.kt`
   - Add value before `UNKNOWN_EXCEPTION`
   - Description: `"Biometric key has been permanently invalidated"`
 
-- [ ] **1.2** Catch `KeyPermanentlyInvalidatedException` in `executeOperation()`
+- [x] **1.2** Catch `KeyPermanentlyInvalidatedException` in `executeOperation()`
   - File: `packages/biometric_cipher/android/src/main/kotlin/.../handlers/SecureMethodCallHandlerImpl.kt`
   - Add import: `android.security.keystore.KeyPermanentlyInvalidatedException`
   - Add `is KeyPermanentlyInvalidatedException` branch in the `when(e)` block, between `is BaseException` and `else`
