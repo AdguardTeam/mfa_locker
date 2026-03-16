@@ -15,7 +15,7 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 | 5 | Locker: `teardownBiometryPasswordOnly` method | :white_large_square: Not started | |
 | 6 | Tests | :white_large_square: Not started | |
 
-**Current Phase:** 1
+**Current Phase:** 2
 
 ---
 
