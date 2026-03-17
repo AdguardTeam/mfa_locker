@@ -10,12 +10,12 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 |---|-----------|--------|-------|
 | 1 | Android: detect `KeyPermanentlyInvalidatedException` | :white_check_mark: Done | |
 | 2 | iOS/macOS: detect biometric key invalidation | :white_check_mark: Done | |
-| 3 | Dart plugin: `keyPermanentlyInvalidated` code | :white_large_square: Not started | |
+| 3 | Dart plugin: `keyPermanentlyInvalidated` code | :white_check_mark: Complete | |
 | 4 | Locker: `keyInvalidated` exception type | :white_large_square: Not started | |
 | 5 | Locker: `teardownBiometryPasswordOnly` method | :white_large_square: Not started | |
 | 6 | Tests | :white_large_square: Not started | |
 
-**Current Phase:** 3
+**Current Phase:** 4
 
 ---
 
@@ -81,7 +81,7 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 **Goal:** Map the native `KEY_PERMANENTLY_INVALIDATED` channel code to a Dart enum value.
 
-- [ ] **3.1** Add `keyPermanentlyInvalidated` to `BiometricCipherExceptionCode`
+- [x] **3.1** Add `keyPermanentlyInvalidated` to `BiometricCipherExceptionCode`
   - File: `packages/biometric_cipher/lib/data/biometric_cipher_exception_code.dart`
   - Add enum value (before `unknown`)
   - Add `'KEY_PERMANENTLY_INVALIDATED' => keyPermanentlyInvalidated` to `fromString`

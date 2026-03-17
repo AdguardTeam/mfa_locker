@@ -25,7 +25,7 @@ packages/biometric_cipher/lib/data/biometric_cipher_exception_code.dart
 
 ## Tasks
 
-- [ ] **3.1** Add `keyPermanentlyInvalidated` to `BiometricCipherExceptionCode`
+- [x] **3.1** Add `keyPermanentlyInvalidated` to `BiometricCipherExceptionCode`
   - File: `packages/biometric_cipher/lib/data/biometric_cipher_exception_code.dart`
   - Add enum value before `unknown`
   - Add `'KEY_PERMANENTLY_INVALIDATED' => keyPermanentlyInvalidated` to `fromString` switch

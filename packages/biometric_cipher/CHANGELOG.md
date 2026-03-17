@@ -15,6 +15,10 @@
 
   Both paths converge at `SecureEnclaveManagerError.keyPermanentlyInvalidated` before reaching `BiometricCipherPlugin`, which emits `FlutterError(code: "KEY_PERMANENTLY_INVALIDATED")`. Existing error codes (`AUTHENTICATION_USER_CANCELED`, `DECRYPTION_ERROR`) are unaffected. Affected files: `KeychainServiceError.swift`, `KeychainService.swift`, `SecureEnclaveManagerError.swift`, `SecureEnclaveManager.swift`, `SecureEnclavePluginError.swift`, `BiometricCipherPlugin.swift`.
 
+### Dart
+
+* Added `BiometricCipherExceptionCode.keyPermanentlyInvalidated` to the `BiometricCipherExceptionCode` enum and mapped the channel string `'KEY_PERMANENTLY_INVALIDATED'` to it in `fromString`. Previously this string fell through to `BiometricCipherExceptionCode.unknown`; it now produces a distinct, named code that downstream consumers (locker layer) can match explicitly. All existing `fromString` mappings are unchanged. `unknown` remains the last enum value and the fallback for unrecognised codes. Affected file: `biometric_cipher_exception_code.dart`.
+
 ## 0.0.1
 
 * TODO: Describe initial release.
