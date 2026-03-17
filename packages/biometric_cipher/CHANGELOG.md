@@ -27,6 +27,8 @@
 
 * Added a `@visibleForTesting` named constructor `BiometricCipherProviderImpl.forTesting(BiometricCipher)` to `BiometricCipherProviderImpl`. This enables unit tests to inject a mock `BiometricCipher` without affecting the production singleton. The existing `instance` singleton and its private `_()` constructor are unaffected. Affected file: `lib/security/biometric_cipher_provider.dart`.
 
+* Added `teardownBiometryPasswordOnly` to the `Locker` abstract interface and implemented it in `MFALocker`. The method removes the `Origin.bio` wrap using password authentication alone, without triggering a biometric prompt. This is the recovery path for the app layer after detecting `BiometricExceptionType.keyInvalidated`: the hardware key is already gone, so the existing `teardownBiometry` (which requires a `BioCipherFunc` and would trigger a failing biometric prompt) cannot be used. After removing the wrap from storage, the method attempts to delete the hardware key via the platform provider; any error during key deletion is suppressed and logged at warning level, because the OS may have already removed the key. Existing `teardownBiometry` behavior is unchanged. Affected files: `lib/locker/locker.dart`, `lib/locker/mfa_locker.dart`.
+
 ## 0.0.1
 
 * TODO: Describe initial release.

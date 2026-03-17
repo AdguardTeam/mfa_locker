@@ -12,11 +12,11 @@ When a biometric key is permanently invalidated (after a biometric enrollment ch
 
 ## Tasks
 
-- [ ] **5.1** Add `teardownBiometryPasswordOnly` to `Locker` abstract interface
+- [x] **5.1** Add `teardownBiometryPasswordOnly` to `Locker` abstract interface
   - File: `lib/locker/locker.dart`
   - Signature: `Future<void> teardownBiometryPasswordOnly({required PasswordCipherFunc passwordCipherFunc, required String biometricKeyTag})`
 
-- [ ] **5.2** Implement `teardownBiometryPasswordOnly` in `MFALocker`
+- [x] **5.2** Implement `teardownBiometryPasswordOnly` in `MFALocker`
   - File: `lib/locker/mfa_locker.dart`
   - Password-only `disableBiometry` logic: `loadAllMetaIfLocked(passwordCipherFunc)` → `_storage.deleteWrap(originToDelete: Origin.bio, cipherFunc: passwordCipherFunc)`
   - Wrap in `_sync` + `_executeWithCleanup` (follow existing patterns)

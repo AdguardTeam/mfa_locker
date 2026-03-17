@@ -437,6 +437,27 @@ class MFALocker implements Locker {
     await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
   }
 
+  @override
+  Future<void> teardownBiometryPasswordOnly({
+    required PasswordCipherFunc passwordCipherFunc,
+    required String biometricKeyTag,
+  }) async {
+    await _sync(
+      () => _executeWithCleanup(
+        erasables: [passwordCipherFunc],
+        callback: () async {
+          await loadAllMetaIfLocked(passwordCipherFunc);
+          await _storage.deleteWrap(originToDelete: Origin.bio, cipherFunc: passwordCipherFunc);
+        },
+      ),
+    );
+    try {
+      await _secureProvider.deleteKey(tag: biometricKeyTag);
+    } catch (_, __) {
+      logger.logWarning('teardownBiometryPasswordOnly: failed to delete biometric key, suppressing');
+    }
+  }
+
   Future<T> _executeWithCleanup<T>({
     required List<Erasable> erasables,
     required Future<T> Function() callback,
