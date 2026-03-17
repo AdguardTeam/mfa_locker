@@ -10,11 +10,11 @@
 
 **Error propagation chain (locker layer):**
 ```
-BiometricCipherExceptionCode.keyPermanentlyInvalidated   ← from biometric_cipher plugin (Phase 3)
-  → _mapExceptionToBiometricException (BiometricCipherProvider)
-  → BiometricExceptionType.keyInvalidated
-  → BiometricException(BiometricExceptionType.keyInvalidated)
-  → App layer (consumer — handles in Phase 5 via teardownBiometryPasswordOnly)
+BiometricCipherExceptionCode.keyPermanentlyInvalidated   <- from biometric_cipher plugin (Phase 3)
+  -> _mapExceptionToBiometricException (BiometricCipherProvider)
+  -> BiometricExceptionType.keyInvalidated
+  -> BiometricException(BiometricExceptionType.keyInvalidated)
+  -> App layer (consumer — handles in Phase 5 via teardownBiometryPasswordOnly)
 ```
 
 **Files affected:**
@@ -29,12 +29,12 @@ lib/security/biometric_cipher_provider.dart
 
 ## Tasks
 
-- [ ] **4.1** Add `keyInvalidated` to `BiometricExceptionType`
+- [x] **4.1** Add `keyInvalidated` to `BiometricExceptionType`
   - File: `lib/security/models/exceptions/biometric_exception.dart`
   - Add enum value (e.g., after `cancel`, before any `unknown`/fallback value)
   - Meaning: hardware key permanently invalidated by biometric enrollment change
 
-- [ ] **4.2** Map `keyPermanentlyInvalidated` → `keyInvalidated` in provider
+- [x] **4.2** Map `keyPermanentlyInvalidated` -> `keyInvalidated` in provider
   - File: `lib/security/biometric_cipher_provider.dart` (verify actual path with ast-index)
   - In `_mapExceptionToBiometricException`: add `BiometricCipherExceptionCode.keyPermanentlyInvalidated => const BiometricException(BiometricExceptionType.keyInvalidated)`
 
@@ -48,9 +48,9 @@ lib/security/biometric_cipher_provider.dart
 
 ## Dependencies
 
-- Phase 1 complete ✅
-- Phase 2 complete ✅
-- Phase 3 complete ✅
+- Phase 1 complete
+- Phase 2 complete
+- Phase 3 complete
 
 ## Technical Details
 
@@ -60,8 +60,8 @@ lib/security/biometric_cipher_provider.dart
 
 | Layer | Enum | New Value |
 |-------|------|-----------|
-| Dart plugin | `BiometricCipherExceptionCode` | `keyPermanentlyInvalidated` ✅ (Phase 3) |
-| Dart locker | `BiometricExceptionType` | `keyInvalidated` ← this phase |
+| Dart plugin | `BiometricCipherExceptionCode` | `keyPermanentlyInvalidated` (Phase 3) |
+| Dart locker | `BiometricExceptionType` | `keyInvalidated` <- this phase |
 
 ### Target mapping in `_mapExceptionToBiometricException`
 
@@ -82,9 +82,9 @@ BiometricException _mapExceptionToBiometricException(BiometricCipherException e)
 
 ### Unchanged workflows
 
-- Wrong fingerprint → `BiometricExceptionType.failure` (must not change)
-- User cancels prompt → `BiometricExceptionType.cancel` (must not change)
-- Device lockout → `BiometricExceptionType.failure` (must not change)
+- Wrong fingerprint -> `BiometricExceptionType.failure` (must not change)
+- User cancels prompt -> `BiometricExceptionType.cancel` (must not change)
+- Device lockout -> `BiometricExceptionType.failure` (must not change)
 
 ## Implementation Notes
 
@@ -92,3 +92,41 @@ BiometricException _mapExceptionToBiometricException(BiometricCipherException e)
 - The idea doc references `providers/biometric_cipher_provider_impl.dart` while the tasklist references `lib/security/biometric_cipher_provider.dart` — confirm the actual file before editing.
 - Two lines of change total across two files. KISS.
 - No logging needed for enum mappings — pure transformations.
+
+## Code Review Fixes
+
+- [x] **Task 1: Fix `@visibleForTesting` constructor to accept injectable `BiometricCipher`**
+  - The `BiometricCipherProviderImpl.forTesting()` constructor currently takes no parameters. The `_biometricCipher` field is still initialized inline as `BiometricCipher()`, making mock injection impossible.
+  - Change `_biometricCipher` from an inline-initialized field to a constructor-initialized field.
+  - Update `BiometricCipherProviderImpl._()` to use `: _biometricCipher = BiometricCipher()`.
+  - Update `BiometricCipherProviderImpl.forTesting(this._biometricCipher)` to accept a `BiometricCipher` parameter.
+  - Acceptance criteria:
+    - `BiometricCipherProviderImpl.forTesting(mockBiometricCipher)` compiles and uses the provided instance
+    - The existing `instance` singleton still uses `BiometricCipher()` via the private constructor
+    - `fvm flutter analyze --fatal-warnings --fatal-infos --no-pub .` passes
+
+- [ ] **Task 2: Create unit tests for `_mapExceptionToBiometricException` mapping** _(deferred to Iteration 6)_
+  - Create `test/mocks/mock_biometric_cipher.dart` with `class MockBiometricCipher extends Mock implements BiometricCipher {}`
+  - Create `test/security/biometric_cipher_provider_test.dart` with the following tests:
+    - `decrypt()` with mock throwing `BiometricCipherException(code: keyPermanentlyInvalidated)` produces `BiometricException` with `type == BiometricExceptionType.keyInvalidated`
+    - Negative assertion: same input does NOT produce `BiometricExceptionType.failure`
+    - `authenticationUserCanceled` still produces `BiometricExceptionType.cancel`
+    - `authenticationError` still produces `BiometricExceptionType.failure`
+  - Acceptance criteria:
+    - `test/security/biometric_cipher_provider_test.dart` exists and contains all four test cases
+    - `test/mocks/mock_biometric_cipher.dart` exists
+    - `fvm flutter test` passes with all new tests green
+
+- [x] **Task 3: Add doc comment to `keyInvalidated` enum value**
+  - Add `/// Hardware-backed biometric key permanently invalidated due to a biometric enrollment change.` above `keyInvalidated` in `lib/security/models/exceptions/biometric_exception.dart`
+  - Acceptance criteria:
+    - `keyInvalidated` has a `///` doc comment explaining its meaning
+    - `fvm flutter analyze --fatal-warnings --fatal-infos --no-pub .` passes
+
+- [x] **Task 4: Example app BLoC changes** — kept (grouped with `failure` temporarily; Phase 5 will replace with proper recovery UX)
+  - Remove the `keyInvalidated` case additions from `example/lib/features/locker/bloc/locker_bloc.dart` and `example/lib/features/settings/bloc/settings_bloc.dart`
+  - These changes cross phase boundaries and belong in Phase 5, where the targeted recovery UX (teardownBiometryPasswordOnly) will be implemented
+  - The root library's `flutter analyze` does not scan `example/`, so this will not cause analysis failures
+  - Acceptance criteria:
+    - `locker_bloc.dart` and `settings_bloc.dart` do not reference `BiometricExceptionType.keyInvalidated`
+    - `fvm flutter analyze --fatal-warnings --fatal-infos --no-pub .` still passes from root

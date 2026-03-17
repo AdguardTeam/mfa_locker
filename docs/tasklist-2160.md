@@ -11,11 +11,11 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 | 1 | Android: detect `KeyPermanentlyInvalidatedException` | :white_check_mark: Done | |
 | 2 | iOS/macOS: detect biometric key invalidation | :white_check_mark: Done | |
 | 3 | Dart plugin: `keyPermanentlyInvalidated` code | :white_check_mark: Complete | |
-| 4 | Locker: `keyInvalidated` exception type | :white_large_square: Not started | |
+| 4 | Locker: `keyInvalidated` exception type | :white_check_mark: Complete | |
 | 5 | Locker: `teardownBiometryPasswordOnly` method | :white_large_square: Not started | |
 | 6 | Tests | :white_large_square: Not started | |
 
-**Current Phase:** 4
+**Current Phase:** 5
 
 ---
 
@@ -94,11 +94,11 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 **Goal:** Map the plugin exception to a locker-level `BiometricExceptionType.keyInvalidated`.
 
-- [ ] **4.1** Add `keyInvalidated` to `BiometricExceptionType`
+- [x] **4.1** Add `keyInvalidated` to `BiometricExceptionType`
   - File: `lib/security/models/exceptions/biometric_exception.dart`
   - Add enum value
 
-- [ ] **4.2** Map `keyPermanentlyInvalidated` → `keyInvalidated` in provider
+- [x] **4.2** Map `keyPermanentlyInvalidated` → `keyInvalidated` in provider
   - File: `lib/security/biometric_cipher_provider.dart`
   - In `_mapExceptionToBiometricException`: add `BiometricCipherExceptionCode.keyPermanentlyInvalidated => const BiometricException(BiometricExceptionType.keyInvalidated)`
 

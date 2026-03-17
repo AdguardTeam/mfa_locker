@@ -130,6 +130,7 @@ class SettingsBloc extends ActionBloc<SettingsEvent, SettingsState, SettingsActi
             return;
           case BiometricExceptionType.failure:
           case BiometricExceptionType.notConfigured:
+          case BiometricExceptionType.keyInvalidated:
             break;
         }
       }

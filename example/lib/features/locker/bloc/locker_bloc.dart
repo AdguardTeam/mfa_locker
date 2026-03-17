@@ -1079,6 +1079,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
           return;
 
         case BiometricExceptionType.failure:
+        case BiometricExceptionType.keyInvalidated:
           await _determineBiometricStateAndEmit(emit);
 
         case BiometricExceptionType.notConfigured:

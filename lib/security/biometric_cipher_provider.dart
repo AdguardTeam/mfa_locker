@@ -6,6 +6,7 @@ import 'package:biometric_cipher/data/biometric_status.dart';
 import 'package:biometric_cipher/data/tpm_status.dart';
 import 'package:locker/security/models/biometric_config.dart';
 import 'package:locker/security/models/exceptions/biometric_exception.dart';
+import 'package:meta/meta.dart';
 
 /// Interface for biometric cipher storage and cryptographic operations.
 ///
@@ -52,11 +53,14 @@ abstract class BiometricCipherProvider {
 
 /// Implementation of [BiometricCipherProvider] using the `biometric_cipher` package.
 class BiometricCipherProviderImpl implements BiometricCipherProvider {
-  BiometricCipherProviderImpl._();
+  final BiometricCipher _biometricCipher;
+
+  BiometricCipherProviderImpl._() : _biometricCipher = BiometricCipher();
+
+  @visibleForTesting
+  BiometricCipherProviderImpl.forTesting(this._biometricCipher);
 
   static final BiometricCipherProvider instance = BiometricCipherProviderImpl._();
-
-  final BiometricCipher _biometricCipher = BiometricCipher();
 
   @override
   Future<void> configure(BiometricConfig config) => _biometricCipher.configure(config: config.toConfigData());
@@ -109,6 +113,8 @@ class BiometricCipherProviderImpl implements BiometricCipherProvider {
         BiometricCipherExceptionCode.keyNotFound => const BiometricException(BiometricExceptionType.keyNotFound),
         BiometricCipherExceptionCode.keyAlreadyExists =>
           const BiometricException(BiometricExceptionType.keyAlreadyExists),
+        BiometricCipherExceptionCode.keyPermanentlyInvalidated =>
+          const BiometricException(BiometricExceptionType.keyInvalidated),
         BiometricCipherExceptionCode.authenticationUserCanceled =>
           const BiometricException(BiometricExceptionType.cancel),
         BiometricCipherExceptionCode.authenticationError ||

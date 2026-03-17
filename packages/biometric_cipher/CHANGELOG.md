@@ -19,6 +19,14 @@
 
 * Added `BiometricCipherExceptionCode.keyPermanentlyInvalidated` to the `BiometricCipherExceptionCode` enum and mapped the channel string `'KEY_PERMANENTLY_INVALIDATED'` to it in `fromString`. Previously this string fell through to `BiometricCipherExceptionCode.unknown`; it now produces a distinct, named code that downstream consumers (locker layer) can match explicitly. All existing `fromString` mappings are unchanged. `unknown` remains the last enum value and the fallback for unrecognised codes. Affected file: `biometric_cipher_exception_code.dart`.
 
+### Locker library
+
+* Added `BiometricExceptionType.keyInvalidated` to the locker library's `BiometricExceptionType` enum. This is a distinct value separate from `failure` and `cancel`, representing a hardware-backed biometric key that has been permanently invalidated by a biometric enrollment change. Affected file: `lib/security/models/exceptions/biometric_exception.dart`.
+
+* Added a mapping arm in `BiometricCipherProviderImpl._mapExceptionToBiometricException` so that `BiometricCipherExceptionCode.keyPermanentlyInvalidated` now produces `BiometricException(BiometricExceptionType.keyInvalidated)` instead of falling through to the generic `failure` wildcard. All existing mappings (`authenticationError` → `failure`, `authenticationUserCanceled` → `cancel`, etc.) are unchanged. Affected file: `lib/security/biometric_cipher_provider.dart`.
+
+* Added a `@visibleForTesting` named constructor `BiometricCipherProviderImpl.forTesting(BiometricCipher)` to `BiometricCipherProviderImpl`. This enables unit tests to inject a mock `BiometricCipher` without affecting the production singleton. The existing `instance` singleton and its private `_()` constructor are unaffected. Affected file: `lib/security/biometric_cipher_provider.dart`.
+
 ## 0.0.1
 
 * TODO: Describe initial release.
