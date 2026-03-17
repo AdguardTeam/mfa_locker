@@ -28,19 +28,20 @@ import 'package:rxdart/rxdart.dart';
 
 class MFALocker implements Locker {
   final EncryptedStorage _storage;
+  final BiometricCipherProvider _secureProvider;
 
   final BehaviorSubject<LockerState> _stateController = BehaviorSubject<LockerState>.seeded(LockerState.locked);
 
   MFALocker({
     required File file,
     @visibleForTesting EncryptedStorage? storage,
-  }) : _storage = storage ?? EncryptedStorageImpl(file: file);
+    @visibleForTesting BiometricCipherProvider? secureProvider,
+  })  : _storage = storage ?? EncryptedStorageImpl(file: file),
+        _secureProvider = secureProvider ?? BiometricCipherProviderImpl.instance;
 
   Map<EntryId, EntryMeta> _metaCache = {};
 
   final _sync = Sync();
-
-  BiometricCipherProvider get _secureProvider => BiometricCipherProviderImpl.instance;
 
   @override
   ValueStream<LockerState> get stateStream => _stateController.stream;

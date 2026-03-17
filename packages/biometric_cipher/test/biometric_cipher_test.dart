@@ -179,4 +179,19 @@ void main() {
       });
     });
   });
+
+  group('BiometricCipherExceptionCode', () {
+    group('fromString', () {
+      test('KEY_PERMANENTLY_INVALIDATED returns keyPermanentlyInvalidated', () {
+        // Arrange
+        const code = 'KEY_PERMANENTLY_INVALIDATED';
+
+        // Act
+        final result = BiometricCipherExceptionCode.fromString(code);
+
+        // Assert
+        expect(result, BiometricCipherExceptionCode.keyPermanentlyInvalidated);
+      });
+    });
+  });
 }

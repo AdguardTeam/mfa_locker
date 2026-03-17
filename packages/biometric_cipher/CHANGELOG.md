@@ -19,6 +19,8 @@
 
 * Added `BiometricCipherExceptionCode.keyPermanentlyInvalidated` to the `BiometricCipherExceptionCode` enum and mapped the channel string `'KEY_PERMANENTLY_INVALIDATED'` to it in `fromString`. Previously this string fell through to `BiometricCipherExceptionCode.unknown`; it now produces a distinct, named code that downstream consumers (locker layer) can match explicitly. All existing `fromString` mappings are unchanged. `unknown` remains the last enum value and the fallback for unrecognised codes. Affected file: `biometric_cipher_exception_code.dart`.
 
+* Added unit test for `BiometricCipherExceptionCode.fromString('KEY_PERMANENTLY_INVALIDATED')` to confirm it returns `BiometricCipherExceptionCode.keyPermanentlyInvalidated`. The test is a direct call to the static method with no mocks. Affected file: `packages/biometric_cipher/test/biometric_cipher_test.dart`.
+
 ### Locker library
 
 * Added `BiometricExceptionType.keyInvalidated` to the locker library's `BiometricExceptionType` enum. This is a distinct value separate from `failure` and `cancel`, representing a hardware-backed biometric key that has been permanently invalidated by a biometric enrollment change. Affected file: `lib/security/models/exceptions/biometric_exception.dart`.
@@ -28,6 +30,12 @@
 * Added a `@visibleForTesting` named constructor `BiometricCipherProviderImpl.forTesting(BiometricCipher)` to `BiometricCipherProviderImpl`. This enables unit tests to inject a mock `BiometricCipher` without affecting the production singleton. The existing `instance` singleton and its private `_()` constructor are unaffected. Affected file: `lib/security/biometric_cipher_provider.dart`.
 
 * Added `teardownBiometryPasswordOnly` to the `Locker` abstract interface and implemented it in `MFALocker`. The method removes the `Origin.bio` wrap using password authentication alone, without triggering a biometric prompt. This is the recovery path for the app layer after detecting `BiometricExceptionType.keyInvalidated`: the hardware key is already gone, so the existing `teardownBiometry` (which requires a `BioCipherFunc` and would trigger a failing biometric prompt) cannot be used. After removing the wrap from storage, the method attempts to delete the hardware key via the platform provider; any error during key deletion is suppressed and logged at warning level, because the OS may have already removed the key. Existing `teardownBiometry` behavior is unchanged. Affected files: `lib/locker/locker.dart`, `lib/locker/mfa_locker.dart`.
+
+* Added unit tests for all new Dart-layer code paths introduced in Phases 3–5. The only production code change is a `@visibleForTesting BiometricCipherProvider? secureProvider` constructor parameter on `MFALocker`, which replaces a private getter with a field initialized in the constructor initializer list (functionally equivalent for all existing call sites). Seven new tests across three test files:
+  - `test/security/biometric_cipher_provider_test.dart` (new file): three tests verifying that `BiometricCipherProviderImpl._mapExceptionToBiometricException` maps `keyPermanentlyInvalidated` → `BiometricExceptionType.keyInvalidated` and that the pre-existing `authenticationError` → `failure` and `authenticationUserCanceled` → `cancel` mappings remain unchanged.
+  - `test/locker/mfa_locker_test.dart`: three tests for `teardownBiometryPasswordOnly` — happy path (wrap and key deleted), `deleteKey` error suppressed (method completes normally), and locked-state ordering (uses `verifyInOrder` to confirm `loadAllMetaIfLocked` runs before `deleteWrap`).
+  - Two new mock files: `test/mocks/mock_biometric_cipher.dart` and `test/mocks/mock_biometric_cipher_provider.dart`.
+  - Total test count: 146 passing tests, 0 failures.
 
 ## 0.0.1
 

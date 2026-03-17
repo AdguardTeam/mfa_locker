@@ -14,6 +14,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import '../mocks/mock_bio_cipher_func.dart';
+import '../mocks/mock_biometric_cipher_provider.dart';
 import '../mocks/mock_encrypted_storage.dart';
 import '../mocks/mock_file.dart';
 import '../mocks/mock_password_cipher_func.dart';
@@ -1050,6 +1051,123 @@ void main() {
         );
 
         _Helpers.verifyErasedAll([pwd, bio]);
+      });
+    });
+
+    group('teardownBiometryPasswordOnly', () {
+      const biometricKeyTag = 'test-bio-key-tag';
+
+      late MockBiometricCipherProvider secureProvider;
+      late MockEncryptedStorage tpStorage;
+      late MFALocker tpLocker;
+
+      setUp(() {
+        secureProvider = MockBiometricCipherProvider();
+        tpStorage = MockEncryptedStorage();
+
+        tpLocker = MFALocker(
+          file: MockFile(),
+          storage: tpStorage,
+          secureProvider: secureProvider,
+        );
+
+        when(() => tpStorage.isInitialized).thenAnswer((_) async => true);
+        when(() => tpStorage.lockTimeout).thenAnswer((_) async => _Helpers.lockTimeout.inMilliseconds);
+      });
+
+      tearDown(() {
+        tpLocker.dispose();
+      });
+
+      test('deletes bio wrap and biometric key on success', () async {
+        // Arrange
+        final pwd = _Helpers.createMockPasswordCipherFunc();
+        _Helpers.stubReadAllMeta(tpStorage, pwd);
+
+        when(
+          () => tpStorage.deleteWrap(
+            originToDelete: Origin.bio,
+            cipherFunc: pwd,
+          ),
+        ).thenAnswer((_) async => true);
+
+        when(() => secureProvider.deleteKey(tag: biometricKeyTag)).thenAnswer((_) async {});
+
+        // Act
+        await tpLocker.teardownBiometryPasswordOnly(
+          passwordCipherFunc: pwd,
+          biometricKeyTag: biometricKeyTag,
+        );
+
+        // Assert
+        verify(
+          () => tpStorage.deleteWrap(
+            originToDelete: Origin.bio,
+            cipherFunc: pwd,
+          ),
+        ).called(1);
+        verify(() => secureProvider.deleteKey(tag: biometricKeyTag)).called(1);
+      });
+
+      test('completes normally when deleteKey throws', () async {
+        // Arrange
+        final pwd = _Helpers.createMockPasswordCipherFunc();
+        _Helpers.stubReadAllMeta(tpStorage, pwd);
+
+        when(
+          () => tpStorage.deleteWrap(
+            originToDelete: Origin.bio,
+            cipherFunc: pwd,
+          ),
+        ).thenAnswer((_) async => true);
+
+        when(() => secureProvider.deleteKey(tag: biometricKeyTag)).thenThrow(Exception('key gone'));
+
+        // Act & Assert - should not throw
+        await tpLocker.teardownBiometryPasswordOnly(
+          passwordCipherFunc: pwd,
+          biometricKeyTag: biometricKeyTag,
+        );
+
+        verify(
+          () => tpStorage.deleteWrap(
+            originToDelete: Origin.bio,
+            cipherFunc: pwd,
+          ),
+        ).called(1);
+        verify(() => secureProvider.deleteKey(tag: biometricKeyTag)).called(1);
+      });
+
+      test('unlocks before deleting wrap when locker is locked', () async {
+        // Arrange
+        final pwd = _Helpers.createMockPasswordCipherFunc();
+        _Helpers.stubReadAllMeta(tpStorage, pwd);
+
+        when(
+          () => tpStorage.deleteWrap(
+            originToDelete: Origin.bio,
+            cipherFunc: pwd,
+          ),
+        ).thenAnswer((_) async => true);
+
+        when(() => secureProvider.deleteKey(tag: biometricKeyTag)).thenAnswer((_) async {});
+
+        expect(tpLocker.stateStream.value, LockerState.locked);
+
+        // Act
+        await tpLocker.teardownBiometryPasswordOnly(
+          passwordCipherFunc: pwd,
+          biometricKeyTag: biometricKeyTag,
+        );
+
+        // Assert
+        verifyInOrder([
+          () => tpStorage.readAllMeta(cipherFunc: pwd),
+          () => tpStorage.deleteWrap(
+                originToDelete: Origin.bio,
+                cipherFunc: pwd,
+              ),
+        ]);
       });
     });
 
