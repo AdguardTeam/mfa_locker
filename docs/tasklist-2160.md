@@ -9,13 +9,13 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 | # | Iteration | Status | Notes |
 |---|-----------|--------|-------|
 | 1 | Android: detect `KeyPermanentlyInvalidatedException` | :white_check_mark: Done | |
-| 2 | iOS/macOS: detect biometric key invalidation | :white_large_square: Not started | |
+| 2 | iOS/macOS: detect biometric key invalidation | :white_check_mark: Done | |
 | 3 | Dart plugin: `keyPermanentlyInvalidated` code | :white_large_square: Not started | |
 | 4 | Locker: `keyInvalidated` exception type | :white_large_square: Not started | |
 | 5 | Locker: `teardownBiometryPasswordOnly` method | :white_large_square: Not started | |
 | 6 | Tests | :white_large_square: Not started | |
 
-**Current Phase:** 2
+**Current Phase:** 3
 
 ---
 
@@ -42,33 +42,33 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 **Goal:** Detect invalidated Secure Enclave keys at two points (nil key + `errSecAuthFailed`) and surface `KEY_PERMANENTLY_INVALIDATED` through the Flutter method channel.
 
-- [ ] **2.1** Add `.keyPermanentlyInvalidated` to `KeychainServiceError`
+- [x] **2.1** Add `.keyPermanentlyInvalidated` to `KeychainServiceError`
   - File: `packages/biometric_cipher/darwin/Classes/Errors/KeychainServiceError.swift`
   - Add case + code `"KEY_PERMANENTLY_INVALIDATED"` + description
 
-- [ ] **2.2** Add `keyExists(tag:)` helper to `KeychainService`
+- [x] **2.2** Add `keyExists(tag:)` helper to `KeychainService`
   - File: `packages/biometric_cipher/darwin/Classes/Services/KeychainService.swift`
   - Query keychain with `kSecUseAuthenticationUISkip`, no auth prompt
   - Returns `true` if `errSecSuccess` or `errSecInteractionNotAllowed`
 
-- [ ] **2.3** Update `KeychainService.decryptData()` — detect `errSecAuthFailed`
+- [x] **2.3** Update `KeychainService.decryptData()` — detect `errSecAuthFailed`
   - Same file as 2.2
   - In the `default` branch of the error switch: check `errorCode == errSecAuthFailed` → throw `.keyPermanentlyInvalidated`
 
-- [ ] **2.4** Add `.keyPermanentlyInvalidated` to `SecureEnclaveManagerError`
+- [x] **2.4** Add `.keyPermanentlyInvalidated` to `SecureEnclaveManagerError`
   - File: `packages/biometric_cipher/darwin/Classes/Errors/SecureEnclaveManagerError.swift`
   - Add case + code + description
 
-- [ ] **2.5** Update `SecureEnclaveManager.decrypt()` — propagate invalidation
+- [x] **2.5** Update `SecureEnclaveManager.decrypt()` — propagate invalidation
   - File: `packages/biometric_cipher/darwin/Classes/Managers/SecureEnclaveManager.swift`
   - When `getPrivateKey` returns `nil`: call `keyExists(tag:)` on `keychainService`. If key doesn't exist → throw `.keyPermanentlyInvalidated`. Otherwise keep existing `.failedGetPrivateKey`.
   - Wrap `keychainService.decryptData()` call in do/catch to re-throw `KeychainServiceError.keyPermanentlyInvalidated` as `SecureEnclaveManagerError.keyPermanentlyInvalidated`
 
-- [ ] **2.6** Add `.keyPermanentlyInvalidated` to `SecureEnclavePluginError`
+- [x] **2.6** Add `.keyPermanentlyInvalidated` to `SecureEnclavePluginError`
   - File: `packages/biometric_cipher/darwin/Classes/Errors/SecureEnclavePluginError.swift`
   - Add case + code `"KEY_PERMANENTLY_INVALIDATED"` + description
 
-- [ ] **2.7** Catch `.keyPermanentlyInvalidated` in `BiometricCipherPlugin.decrypt()`
+- [x] **2.7** Catch `.keyPermanentlyInvalidated` in `BiometricCipherPlugin.decrypt()`
   - File: `packages/biometric_cipher/darwin/Classes/BiometricCipherPlugin.swift`
   - Add catch branch for `SecureEnclaveManagerError.keyPermanentlyInvalidated` (similar to existing `authenticationUserCanceled` pattern)
   - Map to `FlutterError(code: "KEY_PERMANENTLY_INVALIDATED", …)`
