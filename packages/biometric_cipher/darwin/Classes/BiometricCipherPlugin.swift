@@ -8,16 +8,16 @@ import FlutterMacOS
 
 /// A Flutter plugin for managing cryptographic operations using Secure Enclave.
 public class BiometricCipherPlugin: NSObject, FlutterPlugin {
-    
+
     private let secureEnclaveManager: SecureEnclaveManagerProtocol
     private let laContextFactory: LAContextFactoryProtocol
-    
+
     public override init() {
         self.laContextFactory = LAContextFactory()
         self.secureEnclaveManager = SecureEnclaveManager(laContextFactory: self.laContextFactory)
         super.init()
     }
-    
+
     /// Registers the plugin with the Flutter engine.
     ///
     /// - Parameter registrar: The Flutter plugin registrar.
@@ -30,7 +30,7 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
         let instance = BiometricCipherPlugin()
         registrar.addMethodCallDelegate(instance, channel: channel)
     }
-    
+
     /// Handles incoming Flutter method calls and routes them to the appropriate functionality.
     ///
     /// - Parameters:
@@ -56,9 +56,9 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
             result(FlutterMethodNotImplemented)
         }
     }
-    
+
     // MARK: - Private Methods
-    
+
     /// Configures Secure Enclave usage, including the prompt title for biometric authentication.
     ///
     /// Expects `arguments` to contain a dictionary with the key `"biometricPromptTitle"` (a `String`).
@@ -71,14 +71,14 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
               let authTitle = args["biometricPromptTitle"] as? String else {
             let flutterError = getFlutterError(SecureEnclavePluginError.invalidArgument)
             result(flutterError)
-            
+
             return
         }
-        
+
         try? secureEnclaveManager.configure(authTitle: authTitle)
         result(nil)
     }
-    
+
     /// Checks whether the Secure Enclave is available on the current device.
     ///
     /// Returns `0` if supported, `1` otherwise (as per the existing plugin contract).
@@ -89,7 +89,7 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
         let value = isSupported ? 0 : 1
         result(value)
     }
-    
+
     /// Checks the availability of biometric authentication on the device.
     ///
     /// Determines whether biometric authentication (such as Face ID or Touch ID) is supported on the device.
@@ -98,7 +98,7 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
     /// - Parameter result: A callback that returns `0` if biometric authentication is supported, or an error if it is not available.
     private func getBiometryStatus(result: @escaping FlutterResult) {
         let laContext = laContextFactory.createContext()
-        
+
         do {
             let isBiometrySupported = try AuthenticationManager.isBiometrySupported(laContext)
             let value = isBiometrySupported ? 0 : 1
@@ -109,7 +109,7 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
             return
         }
     }
-    
+
     /// Generates a cryptographic key pair using the Secure Enclave.
     ///
     /// Expects `arguments` to contain a dictionary with the key `"tag"` (a `String`).
@@ -121,18 +121,18 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
         guard secureEnclaveManager.isSecureEnclaveSupported() else {
             let flutterError = getFlutterError(SecureEnclavePluginError.secureEnclaveNoAvailable)
             result(flutterError)
-            
+
             return
         }
-        
+
         guard let args = arguments as? [String: Any],
               let tag = args["tag"] as? String else {
             let flutterError = getFlutterError(SecureEnclavePluginError.invalidArgument)
             result(flutterError)
-            
+
             return
         }
-        
+
         do {
             try secureEnclaveManager.generateKeyPair(tag: tag)
             result(nil)
@@ -144,7 +144,7 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
             result(flutterError)
         }
     }
-    
+
     /// Deletes a cryptographic key associated with a given tag.
     ///
     /// Expects `arguments` to contain a dictionary with the key `"tag"` (a `String`).
@@ -156,18 +156,18 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
         guard secureEnclaveManager.isSecureEnclaveSupported() else {
             let flutterError = getFlutterError(SecureEnclavePluginError.secureEnclaveNoAvailable)
             result(flutterError)
-            
+
             return
         }
-        
+
         guard let args = arguments as? [String: Any],
               let tag = args["tag"] as? String else {
             let flutterError = getFlutterError(SecureEnclavePluginError.invalidArgument)
             result(flutterError)
-            
+
             return
         }
-        
+
         do{
             try secureEnclaveManager.deleteKey(tag: tag)
             result(nil)
@@ -176,7 +176,7 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
             result(flutterError)
         }
     }
-    
+
     /// Encrypts a string using the Secure Enclave's public key.
     ///
     /// Expects `arguments` to contain:
@@ -190,30 +190,30 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
         guard secureEnclaveManager.isSecureEnclaveSupported() else {
             let flutterError = getFlutterError(SecureEnclavePluginError.secureEnclaveNoAvailable)
             result(flutterError)
-            
+
             return
         }
-        
+
         guard let args = arguments as? [String: Any],
               let data = args["data"] as? String,
               let tag = args["tag"] as? String else {
             let flutterError = getFlutterError(SecureEnclavePluginError.invalidArgument)
             result(flutterError)
-            
+
             return
         }
-        
+
         do{
             let encryptedData = try secureEnclaveManager.encrypt(data, tag: tag)
             let encryptedDatabase64String = try Base64Codec.encode(encryptedData)
-            
+
             result(encryptedDatabase64String)
         } catch {
             let flutterError = getFlutterError(SecureEnclavePluginError.encryptionError(error: error))
             result(flutterError)
         }
     }
-    
+
     /// Decrypts a Base64-encoded string using the Secure Enclave's private key.
     ///
     /// Expects `arguments` to contain:
@@ -227,24 +227,30 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
         guard secureEnclaveManager.isSecureEnclaveSupported() else {
             let flutterError = getFlutterError(SecureEnclavePluginError.secureEnclaveNoAvailable)
             result(flutterError)
-            
+
             return
         }
-        
+
         guard let args = arguments as? [String: Any],
               let data = args["data"] as? String,
               let tag = args["tag"] as? String else {
             let flutterError = getFlutterError(SecureEnclavePluginError.invalidArgument)
             result(flutterError)
-            
+
             return
         }
-        
+
         do {
             let decryptedDatabase64Data = try Base64Codec.decode(data)
             let decryptedData = try secureEnclaveManager.decrypt(decryptedDatabase64Data, tag: tag)
-            
+
             result(decryptedData)
+        } catch SecureEnclaveManagerError.keyPermanentlyInvalidated {
+            result(FlutterError(
+                code: "KEY_PERMANENTLY_INVALIDATED",
+                message: "Biometric key has been permanently invalidated",
+                details: nil
+            ))
         } catch let error as KeychainServiceError {
             switch error {
             case .authenticationUserCanceled:
@@ -259,7 +265,7 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
             result(flutterError)
         }
     }
-    
+
     /// Converts a `BaseError` into a `FlutterError`, suitable for returning to the Flutter layer.
     ///
     /// - Parameters:

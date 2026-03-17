@@ -35,34 +35,34 @@ packages/biometric_cipher/darwin/Classes/
 
 ## Tasks
 
-- [ ] **2.1** Add `.keyPermanentlyInvalidated` to `KeychainServiceError`
+- [x] **2.1** Add `.keyPermanentlyInvalidated` to `KeychainServiceError`
   - File: `packages/biometric_cipher/darwin/Classes/Errors/KeychainServiceError.swift`
   - Add case + code `"KEY_PERMANENTLY_INVALIDATED"` + description
 
-- [ ] **2.2** Add `keyExists(tag:)` helper to `KeychainService`
+- [x] **2.2** Add `keyExists(tag:)` helper to `KeychainService`
   - File: `packages/biometric_cipher/darwin/Classes/Services/KeychainService.swift`
   - Query keychain with `kSecUseAuthenticationUI: kSecUseAuthenticationUISkip`, no auth prompt
   - Returns `true` if `errSecSuccess` or `errSecInteractionNotAllowed`
 
-- [ ] **2.3** Update `KeychainService.decryptData()` — detect `errSecAuthFailed`
+- [x] **2.3** Update `KeychainService.decryptData()` — detect `errSecAuthFailed`
   - Same file as 2.2
   - Replace the `guard let key = getPrivateKey(tag: tag)` nil path: call `keyExists(tag:)` to distinguish invalidation from cancel/lockout
   - In the `SecKeyCreateDecryptedData` error path: check `CFErrorGetCode(cfError) == errSecAuthFailed` → throw `.keyPermanentlyInvalidated`
 
-- [ ] **2.4** Add `.keyPermanentlyInvalidated` to `SecureEnclaveManagerError`
+- [x] **2.4** Add `.keyPermanentlyInvalidated` to `SecureEnclaveManagerError`
   - File: `packages/biometric_cipher/darwin/Classes/Errors/SecureEnclaveManagerError.swift`
   - Add case + code + description
 
-- [ ] **2.5** Update `SecureEnclaveManager.decrypt()` — propagate invalidation
+- [x] **2.5** Update `SecureEnclaveManager.decrypt()` — propagate invalidation
   - File: `packages/biometric_cipher/darwin/Classes/Managers/SecureEnclaveManager.swift`
   - Wrap `keychainService.decryptData()` call in do/catch to re-throw `KeychainServiceError.keyPermanentlyInvalidated` as `SecureEnclaveManagerError.keyPermanentlyInvalidated`
   - Other `KeychainServiceErrors` propagate unchanged
 
-- [ ] **2.6** Add `.keyPermanentlyInvalidated` to `SecureEnclavePluginError`
+- [x] **2.6** Add `.keyPermanentlyInvalidated` to `SecureEnclavePluginError`
   - File: `packages/biometric_cipher/darwin/Classes/Errors/SecureEnclavePluginError.swift`
   - Add case + code `"KEY_PERMANENTLY_INVALIDATED"` + description
 
-- [ ] **2.7** Catch `.keyPermanentlyInvalidated` in `BiometricCipherPlugin.decrypt()`
+- [x] **2.7** Catch `.keyPermanentlyInvalidated` in `BiometricCipherPlugin.decrypt()`
   - File: `packages/biometric_cipher/darwin/Classes/BiometricCipherPlugin.swift`
   - Add catch branch for `SecureEnclaveManagerError.keyPermanentlyInvalidated` (follow existing `authenticationUserCanceled` pattern)
   - Map to `FlutterError(code: "KEY_PERMANENTLY_INVALIDATED", message: "Biometric key has been permanently invalidated", details: nil)`
@@ -165,3 +165,14 @@ func decrypt(data: Data, tag: String) throws -> Data {
 - `errSecItemNotFound` in `keyExists()` means the OS deleted the item after a biometric change → key is gone.
 - Follow KISS principle: minimal changes, follow existing error enum + catch patterns already present in the codebase.
 - No behavior changes to existing flows: wrong fingerprint / lockout / user cancel continue producing existing error types.
+
+## Code Review Fixes
+
+- [ ] **Task 8: Update phase-2.md technical details to match actual implementation**
+  - The "Technical Details" section (lines 80-145) describes an architecture where `keyExists()` and Point A detection live inside `KeychainService.decryptData()` with a `(data: Data, tag: String)` signature. In the actual (correct) implementation per the PRD/plan, `keyExists(tag: Data)` is a private method on `SecureEnclaveManager`, Point A detection is in `SecureEnclaveManager.decrypt()`, and `KeychainService.decryptData()` retains its protocol signature `(key: SecKey, algorithm: SecKeyAlgorithm, data: Data)`.
+  - Task descriptions 2.2 and 2.3 also reference `KeychainService` for `keyExists` and Point A, which should reference `SecureEnclaveManager`.
+  - The error propagation chain in the Context section (lines 15-23) shows Point A going through `KeychainServiceError.keyPermanentlyInvalidated`, but Point A actually throws `SecureEnclaveManagerError.keyPermanentlyInvalidated` directly without going through `KeychainServiceError`.
+  - Acceptance criteria:
+    - Technical Details code snippets accurately reflect the implemented architecture (keyExists on SecureEnclaveManager, Point A in SecureEnclaveManager.decrypt)
+    - Task 2.2 and 2.3 descriptions accurately describe what was implemented
+    - Error propagation chain in Context distinguishes Point A (direct SecureEnclaveManagerError) from Point B (KeychainServiceError -> SecureEnclaveManagerError)

@@ -8,7 +8,7 @@ class KeychainService: KeychainServiceProtocol {
         }
         return key
     }
-    
+
     func deleteItem(_ query: CFDictionary) throws {
         let status = SecItemDelete(query)
         if status != errSecSuccess && status != errSecItemNotFound {
@@ -19,27 +19,27 @@ class KeychainService: KeychainServiceProtocol {
     func getPrivateKey(_ query: CFDictionary) -> SecKey? {
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query, &item)
-        
+
         guard status == errSecSuccess else {
             return nil
         }
-        
+
         let key = item as! SecKey
 
         return key
     }
-    
+
     func copyPublicKey(_ key: SecKey) throws -> SecKey {
         guard let publicKey = SecKeyCopyPublicKey(key) else {
             throw KeychainServiceError.failedToCopyPublicKey
         }
         return publicKey
     }
-    
+
     func isAlgorithmSupported(key: SecKey, operation: SecKeyOperationType, algorithm: SecKeyAlgorithm) -> Bool {
         return SecKeyIsAlgorithmSupported(key, operation, algorithm)
     }
-    
+
     func encryptData(key: SecKey, algorithm: SecKeyAlgorithm, data: Data) throws -> Data {
         var error: Unmanaged<CFError>?
         guard let encryptedData = SecKeyCreateEncryptedData(key, algorithm, data as CFData, &error) else {
@@ -47,7 +47,7 @@ class KeychainService: KeychainServiceProtocol {
         }
         return encryptedData as Data
     }
-    
+
     func decryptData(key: SecKey, algorithm: SecKeyAlgorithm, data: Data) throws -> Data {
         var error: Unmanaged<CFError>?
         guard let decryptedData = SecKeyCreateDecryptedData(key, algorithm, data as CFData, &error) else {
@@ -56,6 +56,8 @@ class KeychainService: KeychainServiceProtocol {
                 switch errorCode {
                 case Int(errSecUserCanceled), Int(LAError.userCancel.rawValue):
                     throw KeychainServiceError.authenticationUserCanceled
+                case Int(errSecAuthFailed):
+                    throw KeychainServiceError.keyPermanentlyInvalidated
                 default:
                     throw KeychainServiceError.failedToDecryptData(cfError)
                 }

@@ -3,19 +3,19 @@ enum SecureEnclaveManagerError: BaseError {
 
     /// Indicates an invalid tag was encountered.
     case invalidTag
-    
+
     //TODO: add docs
     case invalidAuthTitle
-    
+
     /// Indicates a failure to retrieve the private key from storage.
     case failedGetPrivateKey
-    
+
     /// Indicates a failure to retrieve the public key from storage.
     case failedGetPublicKey
-    
+
     /// Indicates that the encryption data provided is invalid.
     case invalidEncryptionData
-    
+
     /// Indicates that the encryption algorithm is not supported.
     case encryptionAlgorithmNotSupported
 
@@ -24,10 +24,13 @@ enum SecureEnclaveManagerError: BaseError {
 
     /// Indicates a failure to decode decrypted data.
     case decodeEncryptedDataFailed
-    
+
     /// Represents an error when attempting to create a key that already exists.
     case keyAlreadyExists
-    
+
+    /// The biometric key has been permanently invalidated due to a biometric enrollment change.
+    case keyPermanentlyInvalidated
+
     /// Returns a machine-readable error code.
     var code: String {
         switch self {
@@ -49,9 +52,11 @@ enum SecureEnclaveManagerError: BaseError {
             return "DECODE_DECRYPTED_DATA_ERROR"
         case .keyAlreadyExists:
             return "KEY_ALREADY_EXISTS"
+        case .keyPermanentlyInvalidated:
+            return "KEY_PERMANENTLY_INVALIDATED"
         }
     }
-    
+
     /// Returns a human-readable description of the error.
     var errorDescription: String {
         switch self {
@@ -73,6 +78,8 @@ enum SecureEnclaveManagerError: BaseError {
             return "Failed to decode decrypted data."
         case .keyAlreadyExists:
             return "A key with the same tag already exists."
+        case .keyPermanentlyInvalidated:
+            return "Biometric key has been permanently invalidated."
         }
     }
 }

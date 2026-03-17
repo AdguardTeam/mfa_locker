@@ -2,25 +2,28 @@ import Foundation
 
 /// Enumeration of errors that can occur when using `KeychainService`.
 enum KeychainServiceError: BaseError {
-    
+
     /// Failed to create a random key, with a possible underlying error.
     case failedToCreateRandomKey(Error?)
-    
+
     /// Error occurred while deleting an item from the Keychain.
     case failedToDeleteItem
-    
+
     /// Failed to retrieve the public key from a private key.
     case failedToCopyPublicKey
-    
+
     /// Error occurred while encrypting data, with a possible underlying error.
     case failedToEncryptData(Error?)
-    
+
     /// Error occurred while decrypting data, with a possible underlying error.
     case failedToDecryptData(Error?)
-    
+
     /// Authentication was canceled by the user.
     case authenticationUserCanceled
-    
+
+    /// The biometric key has been permanently invalidated due to a biometric enrollment change.
+    case keyPermanentlyInvalidated
+
     /// Returns a machine-readable error code.
     var code: String {
         switch self {
@@ -36,9 +39,11 @@ enum KeychainServiceError: BaseError {
             return "FAILED_TO_DECRYPT_DATA"
         case .authenticationUserCanceled:
             return "AUTHENTICATION_USER_CANCELED"
+        case .keyPermanentlyInvalidated:
+            return "KEY_PERMANENTLY_INVALIDATED"
         }
     }
-    
+
     /// Returns a human-readable error description.
     var errorDescription: String {
         switch self {
@@ -54,6 +59,8 @@ enum KeychainServiceError: BaseError {
             return "Error occurred while decrypting data. Error details: \(error?.localizedDescription ?? "no details available")."
         case .authenticationUserCanceled:
             return "Authentication was canceled by the user."
+        case .keyPermanentlyInvalidated:
+            return "Biometric key has been permanently invalidated."
         }
     }
 }
