@@ -63,9 +63,31 @@ lib/
 └── locker/
     ├── locker.dart                               # + teardownBiometryPasswordOnly signature
     └── mfa_locker.dart                           # + teardownBiometryPasswordOnly implementation
+
+example/lib/
+├── features/
+│   ├── locker/
+│   │   ├── data/repositories/
+│   │   │   └── locker_repository.dart            # + disableBiometricPasswordOnly method
+│   │   ├── bloc/
+│   │   │   ├── locker_state.dart                 # + isBiometricKeyInvalidated flag
+│   │   │   ├── locker_event.dart                 # + disableBiometricPasswordOnlyRequested event
+│   │   │   ├── locker_action.dart                # + biometricKeyInvalidated action
+│   │   │   └── locker_bloc.dart                  # separate keyInvalidated handling, new handler, clear flag
+│   │   └── views/
+│   │       ├── auth/
+│   │       │   └── locked_screen.dart            # hide biometric when key invalidated
+│   │       └── widgets/
+│   │           ├── biometric_unlock_button.dart   # hide when key invalidated
+│   │           └── locker_bloc_biometric_stream.dart # map biometricKeyInvalidated → BiometricFailed
+│   └── settings/
+│       ├── bloc/
+│       │   └── settings_bloc.dart                # keyInvalidated case in timeout-with-biometric handler
+│       └── views/
+│           └── settings_screen.dart              # invalidation description, toggle routing, timeout tile
 ```
 
-**Total: 12 existing files modified, 0 new files.**
+**Total: 22 existing files modified, 0 new files** (12 library + 10 example app).
 
 ---
 
@@ -120,6 +142,52 @@ teardownBiometryPasswordOnly(passwordCipherFunc, biometricKeyTag)
 
 **Decision:** New dedicated method (`teardownBiometryPasswordOnly`) rather than making `bioCipherFunc` optional in existing `teardownBiometry`. Explicit intent, no risk of breaking existing callers.
 
+### App-level flow (example app)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ UI Layer                                                     │
+│                                                              │
+│ LockedScreen / BiometricUnlockButton                         │
+│   └── Hide biometric button when isBiometricKeyInvalidated   │
+│                                                              │
+│ AuthenticationBottomSheet (via biometric stream)              │
+│   └── Show "Biometrics have changed" inline message          │
+│                                                              │
+│ SettingsScreen                                               │
+│   └── Show invalidation description in error color           │
+│   └── Route toggle-off to password-only event                │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+┌──────────────────────────▼───────────────────────────────────┐
+│ BLoC Layer (LockerBloc)                                      │
+│                                                              │
+│ _handleBiometricFailure:                                     │
+│   keyInvalidated → set flag, emit biometricKeyInvalidated    │
+│                    action, reset to idle, return early        │
+│                                                              │
+│ _onDisableBiometricPasswordOnlyRequested:                    │
+│   password-only → repo.disableBiometricPasswordOnly          │
+│                 → clear flag, refresh biometric state         │
+│                                                              │
+│ Clear flag on: enable success, erase                         │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+┌──────────────────────────▼───────────────────────────────────┐
+│ Repository Layer (LockerRepositoryImpl)                       │
+│                                                              │
+│ disableBiometricPasswordOnly(password):                      │
+│   authenticatePassword → locker.teardownBiometryPasswordOnly │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+┌──────────────────────────▼───────────────────────────────────┐
+│ Library Layer (MFALocker)                                    │
+│                                                              │
+│ teardownBiometryPasswordOnly(passwordCipherFunc, keyTag):    │
+│   deleteWrap(Origin.bio) + try deleteKey (suppress errors)   │
+└─────────────────────────────────────────────────────────────┘
+```
+
 ---
 
 ## 5. Data Model
@@ -165,6 +233,29 @@ App detects keyInvalidated
     → Try to delete hardware key (deleteKey) — errors suppressed
   → Biometric wrap is cleanly removed
   → App can re-enable biometrics with fresh key if desired
+```
+
+### Workflow 3: Example app biometric invalidation recovery
+
+```
+User changes biometrics in device settings (e.g., enrolls new fingerprint)
+  → User opens app → vault is locked
+  → User taps "Unlock Storage" → auth bottom sheet opens with biometric button
+  → Biometric prompt triggers → platform throws keyPermanentlyInvalidated
+  → BLoC sets isBiometricKeyInvalidated = true
+  → BLoC emits biometricKeyInvalidated action
+  → Biometric stream maps to BiometricFailed("Biometrics have changed. Please use your password.")
+  → Auth bottom sheet shows inline error message
+  → Biometric button hides (sheet + locked screen)
+  → User enters password → vault unlocks normally
+  → User navigates to Settings
+  → Biometric tile shows "Biometrics changed. Disable and re-enable to use new biometrics." in error color
+  → User toggles biometric OFF → password prompt appears
+  → User enters password → LockerBloc dispatches disableBiometricPasswordOnlyRequested
+  → Repository calls teardownBiometryPasswordOnly (no biometric prompt)
+  → Origin.bio wrap removed, flag cleared
+  → User toggles biometric ON → password + biometric prompts
+  → Fresh key created, biometric re-enabled with new enrollment
 ```
 
 ### Unchanged workflows (must not break)
