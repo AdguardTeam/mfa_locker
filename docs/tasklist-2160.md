@@ -12,10 +12,10 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 | 2 | iOS/macOS: detect biometric key invalidation | :white_check_mark: Done | |
 | 3 | Dart plugin: `keyPermanentlyInvalidated` code | :white_check_mark: Complete | |
 | 4 | Locker: `keyInvalidated` exception type | :white_check_mark: Complete | |
-| 5 | Locker: `teardownBiometryPasswordOnly` method | :white_large_square: Not started | |
+| 5 | Locker: `teardownBiometryPasswordOnly` method | :white_check_mark: Complete | |
 | 6 | Tests | :white_large_square: Not started | |
 
-**Current Phase:** 5
+**Current Phase:** 6
 
 ---
 
@@ -110,11 +110,11 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 **Goal:** Allow removing the `Origin.bio` wrap using password auth only, for when the biometric key is already invalidated.
 
-- [ ] **5.1** Add `teardownBiometryPasswordOnly` to `Locker` abstract interface
+- [x] **5.1** Add `teardownBiometryPasswordOnly` to `Locker` abstract interface
   - File: `lib/locker/locker.dart`
   - Signature: `Future<void> teardownBiometryPasswordOnly({required PasswordCipherFunc passwordCipherFunc, required String biometricKeyTag})`
 
-- [ ] **5.2** Implement `teardownBiometryPasswordOnly` in `MFALocker`
+- [x] **5.2** Implement `teardownBiometryPasswordOnly` in `MFALocker`
   - File: `lib/locker/mfa_locker.dart`
   - Password-only `disableBiometry` logic: `loadAllMetaIfLocked(passwordCipherFunc)` → `_storage.deleteWrap(originToDelete: Origin.bio, cipherFunc: passwordCipherFunc)`
   - Wrap in `_sync` + `_executeWithCleanup` (follow existing patterns)
