@@ -17,7 +17,7 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 | 7 | Example app: detect and display key invalidation | :white_large_square: Not started | |
 | 8 | Example app: password-only biometric disable | :white_large_square: Not started | |
 
-**Current Phase:** 6
+**Current Phase:** 8
 
 ---
 
