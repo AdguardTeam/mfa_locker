@@ -888,6 +888,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         emit(
           state.copyWith(
             status: LockerStatus.notInitialized,
+            isBiometricKeyInvalidated: false,
             entries: {},
             loadState: LoadState.none,
           ),
@@ -1078,8 +1079,18 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
 
           return;
 
-        case BiometricExceptionType.failure:
         case BiometricExceptionType.keyInvalidated:
+          emit(state.copyWith(isBiometricKeyInvalidated: true));
+          action(const LockerAction.biometricKeyInvalidated());
+          add(
+            const LockerEvent.biometricOperationStateChanged(
+              biometricOperationState: BiometricOperationState.idle,
+            ),
+          );
+
+          return;
+
+        case BiometricExceptionType.failure:
           await _determineBiometricStateAndEmit(emit);
 
         case BiometricExceptionType.notConfigured:

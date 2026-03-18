@@ -18,7 +18,9 @@ class LockedScreen extends StatelessWidget {
     ),
     body: BlocBuilder<LockerBloc, LockerState>(
       buildWhen: (previous, current) =>
-          previous.loadState != current.loadState || previous.biometricState != current.biometricState,
+          previous.loadState != current.loadState ||
+          previous.biometricState != current.biometricState ||
+          previous.isBiometricKeyInvalidated != current.isBiometricKeyInvalidated,
       builder: (context, state) => Stack(
         children: [
           SingleChildScrollView(
@@ -47,7 +49,9 @@ class LockedScreen extends StatelessWidget {
                       ? null
                       : () => _showAuthenticationSheet(context, state),
                   child: Text(
-                    state.biometricState.isEnabled ? 'Unlock Storage' : 'Unlock with Password',
+                    state.biometricState.isEnabled && !state.isBiometricKeyInvalidated
+                        ? 'Unlock Storage'
+                        : 'Unlock with Password',
                   ),
                 ),
               ],
@@ -61,6 +65,7 @@ class LockedScreen extends StatelessWidget {
 
   Future<void> _showAuthenticationSheet(BuildContext context, LockerState state) async {
     final bloc = context.read<LockerBloc>();
+    final showBiometric = state.biometricState.isEnabled && !state.isBiometricKeyInvalidated;
 
     final result = await showModalBottomSheet<AuthenticationResult?>(
       context: context,
@@ -69,9 +74,9 @@ class LockedScreen extends StatelessWidget {
       enableDrag: false,
       builder: (context) => AuthenticationBottomSheet(
         title: 'Unlock Storage',
-        showBiometricButton: state.biometricState.isEnabled,
+        showBiometricButton: showBiometric,
         biometricResultStream: bloc.biometricResultStream,
-        onBiometricPressed: state.biometricState.isEnabled
+        onBiometricPressed: showBiometric
             ? () => bloc.add(const LockerEvent.unlockWithBiometricRequested())
             : null,
       ),

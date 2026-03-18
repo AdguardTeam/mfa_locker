@@ -65,29 +65,29 @@ User changes biometrics in device settings
 
 ## Tasks
 
-- [ ] 7.1 Add `isBiometricKeyInvalidated` flag to `LockerState` (Freezed)
+- [x] 7.1 Add `isBiometricKeyInvalidated` flag to `LockerState` (Freezed)
   - File: `example/lib/features/locker/bloc/locker_state.dart`
   - Add `@Default(false) bool isBiometricKeyInvalidated` to `LockerState`
 
-- [ ] 7.2 Add `biometricKeyInvalidated()` action to `LockerAction` (Freezed)
+- [x] 7.2 Add `biometricKeyInvalidated()` action to `LockerAction` (Freezed)
   - File: `example/lib/features/locker/bloc/locker_action.dart`
   - Add `const factory LockerAction.biometricKeyInvalidated() = BiometricKeyInvalidatedAction`
 
-- [ ] 7.3 Run `make g` for code generation
+- [x] 7.3 Run `make g` for code generation
   - Dir: `example/`
   - Regenerates `.freezed.dart` files for updated state, event, and action classes
 
-- [ ] 7.4 Separate `keyInvalidated` from `failure` in `_handleBiometricFailure`
+- [x] 7.4 Separate `keyInvalidated` from `failure` in `_handleBiometricFailure`
   - File: `example/lib/features/locker/bloc/locker_bloc.dart`
   - Split the `case BiometricExceptionType.failure: case BiometricExceptionType.keyInvalidated:` block
   - `keyInvalidated`: set `isBiometricKeyInvalidated: true`, emit `biometricKeyInvalidated()` action, reset to `BiometricOperationState.idle`, return early
   - `failure`: keep existing behavior (call `_determineBiometricStateAndEmit`, fall through)
 
-- [ ] 7.5 Map `biometricKeyInvalidated` action in biometric stream extension
+- [x] 7.5 Map `biometricKeyInvalidated` action in biometric stream extension
   - File: `example/lib/features/locker/views/widgets/locker_bloc_biometric_stream.dart`
   - Add `biometricKeyInvalidated: (_) => const BiometricFailed('Biometrics have changed. Please use your password.')` to the `mapOrNull` call
 
-- [ ] 7.6 Hide biometric button when `isBiometricKeyInvalidated` is true
+- [x] 7.6 Hide biometric button when `isBiometricKeyInvalidated` is true
   - File: `example/lib/features/locker/views/auth/locked_screen.dart`
     - Update `buildWhen` to include `isBiometricKeyInvalidated`
     - Update `showBiometricButton:` to `state.biometricState.isEnabled && !state.isBiometricKeyInvalidated`
@@ -96,7 +96,7 @@ User changes biometrics in device settings
     - Update `buildWhen` to include `isBiometricKeyInvalidated`
     - Return `SizedBox.shrink()` when `state.isBiometricKeyInvalidated` is true
 
-- [ ] 7.7 Update `SettingsScreen` for invalidation display
+- [x] 7.7 Update `SettingsScreen` for invalidation display
   - File: `example/lib/features/settings/views/settings_screen.dart`
   - Update `_getBiometricStateDescription` to accept `isKeyInvalidated` parameter
   - When invalidated: return `'Biometrics changed. Disable and re-enable to use new biometrics.'`
@@ -105,11 +105,11 @@ User changes biometrics in device settings
   - Update `buildWhen` to include `isBiometricKeyInvalidated`
   - Account for invalidation in `_AutoLockTimeoutTile` biometric check: `state.biometricState.isEnabled && !lockerBloc.state.isBiometricKeyInvalidated`
 
-- [ ] 7.8 Update `SettingsBloc` — specific `keyInvalidated` case in timeout-with-biometric handler
+- [x] 7.8 Update `SettingsBloc` — specific `keyInvalidated` case in timeout-with-biometric handler
   - File: `example/lib/features/settings/bloc/settings_bloc.dart`
   - In `_onAutoLockTimeoutSelectedWithBiometric` catch block: add `case BiometricExceptionType.keyInvalidated:` with message `'Biometrics have changed. Please use your password.'`, return early
 
-- [ ] 7.9 Clear `isBiometricKeyInvalidated` flag on erase
+- [x] 7.9 Clear `isBiometricKeyInvalidated` flag on erase
   - File: `example/lib/features/locker/bloc/locker_bloc.dart`
   - In `_onEraseStorageRequested`, after successful erase: `emit(state.copyWith(isBiometricKeyInvalidated: false))`
 

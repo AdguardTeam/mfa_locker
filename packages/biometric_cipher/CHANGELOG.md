@@ -37,6 +37,24 @@
   - Two new mock files: `test/mocks/mock_biometric_cipher.dart` and `test/mocks/mock_biometric_cipher_provider.dart`.
   - Total test count: 146 passing tests, 0 failures.
 
+### Example app (mfa_demo)
+
+* Wired the example app to detect `BiometricExceptionType.keyInvalidated` at runtime and respond with clear UI feedback. No library-layer files were changed. All changes are in `example/lib/`.
+
+* Added `isBiometricKeyInvalidated` runtime flag to `LockerState` (in-memory, `@Default(false)`, resets on cold launch). The flag is set by `LockerBloc` the first time a biometric operation returns `keyInvalidated`, and cleared on storage erase. Affected file: `example/lib/features/locker/bloc/locker_state.dart`.
+
+* Added `LockerAction.biometricKeyInvalidated()` Freezed factory, distinct from `biometricAuthenticationFailed`, so the biometric stream extension and other consumers can handle the two conditions independently. Affected file: `example/lib/features/locker/bloc/locker_action.dart`.
+
+* Separated `BiometricExceptionType.keyInvalidated` from the generic `failure` case in `LockerBloc._handleBiometricFailure`. The `keyInvalidated` branch sets the flag, emits `biometricKeyInvalidated()`, resets biometric operation state to idle, and returns early — it does not fall through to the generic `biometricAuthenticationFailed` action. The `failure` case retains its original behavior unchanged. Affected file: `example/lib/features/locker/bloc/locker_bloc.dart`.
+
+* Added `biometricKeyInvalidated` arm to `LockerBlocBiometricStream`, mapping it to `BiometricFailed('Biometrics have changed. Please use your password.')`. The auth bottom sheet displays this message inline when the key is invalidated. Affected file: `example/lib/features/locker/views/widgets/locker_bloc_biometric_stream.dart`.
+
+* Updated `LockedScreen` and `BiometricUnlockButton` to hide the biometric unlock button when `isBiometricKeyInvalidated` is `true`. Both widgets also update `buildWhen` to rebuild immediately when the flag changes. The locked screen button label switches to `'Unlock with Password'` when the biometric path is unavailable. Affected files: `example/lib/features/locker/views/auth/locked_screen.dart`, `example/lib/features/locker/views/widgets/biometric_unlock_button.dart`.
+
+* Updated `SettingsScreen` to show `'Biometrics changed. Disable and re-enable to use new biometrics.'` as the biometric tile subtitle in the theme error color when `isBiometricKeyInvalidated` is `true`. The biometric tile toggle remains enabled when the key is invalidated so the user can initiate the disable flow. The auto-lock timeout tile no longer shows a biometric button when the key is invalidated. Affected file: `example/lib/features/settings/views/settings_screen.dart`.
+
+* Updated `SettingsBloc._onAutoLockTimeoutSelectedWithBiometric` to emit `biometricAuthenticationFailed(message: 'Biometrics have changed. Please use your password.')` and return early when `BiometricExceptionType.keyInvalidated` is caught, instead of falling through to the generic `'Failed to update timeout using biometric.'` message and snackbar. Affected file: `example/lib/features/settings/bloc/settings_bloc.dart`.
+
 ## 0.0.1
 
 * TODO: Describe initial release.

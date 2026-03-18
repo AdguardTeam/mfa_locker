@@ -11,6 +11,7 @@ abstract class LockerState with _$LockerState {
     @Default(BiometricState.hardwareUnavailable) BiometricState biometricState,
     @Default(BiometricOperationState.idle) BiometricOperationState biometricOperationState,
     @Default(false) bool enableBiometricAfterInit,
+    @Default(false) bool isBiometricKeyInvalidated,
   }) = _LockerState;
 }
 

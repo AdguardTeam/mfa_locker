@@ -74,19 +74,28 @@ class _SettingsViewState extends State<_SettingsView> {
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             child: BlocBuilder<LockerBloc, LockerState>(
-                              buildWhen: (previous, current) => previous.biometricState != current.biometricState,
+                              buildWhen: (previous, current) =>
+                                  previous.biometricState != current.biometricState ||
+                                  previous.isBiometricKeyInvalidated != current.isBiometricKeyInvalidated,
                               builder: (context, innerLockerState) => Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   SwitchListTile.adaptive(
                                     title: const Text('Biometric authentication'),
                                     subtitle: Text(
-                                      _getBiometricStateDescription(innerLockerState.biometricState),
+                                      _getBiometricStateDescription(
+                                        innerLockerState.biometricState,
+                                        isKeyInvalidated: innerLockerState.isBiometricKeyInvalidated,
+                                      ),
+                                      style: innerLockerState.isBiometricKeyInvalidated
+                                          ? TextStyle(color: Theme.of(context).colorScheme.error)
+                                          : null,
                                     ),
                                     value: innerLockerState.biometricState.isEnabled,
                                     onChanged: _canToggleBiometric(innerLockerState) ? _handleBiometricToggle : null,
                                   ),
-                                  if (innerLockerState.biometricState.isEnabled)
+                                  if (innerLockerState.biometricState.isEnabled &&
+                                      !innerLockerState.isBiometricKeyInvalidated)
                                     Padding(
                                       padding: const EdgeInsets.symmetric(horizontal: 16),
                                       child: Text(
@@ -113,7 +122,7 @@ class _SettingsViewState extends State<_SettingsView> {
   );
 
   bool _canToggleBiometric(LockerState state) =>
-      state.biometricState.isAvailable && state.loadState != LoadState.loading;
+      (state.biometricState.isAvailable || state.isBiometricKeyInvalidated) && state.loadState != LoadState.loading;
 
   Future<void> _handleBiometricToggle(bool value) async {
     final result = await showModalBottomSheet<AuthenticationResult?>(
@@ -144,16 +153,22 @@ class _SettingsViewState extends State<_SettingsView> {
     }
   }
 
-  String _getBiometricStateDescription(BiometricState biometricState) => switch (biometricState) {
-    BiometricState.tpmUnsupported => 'Secure storage not available on this device',
-    BiometricState.tpmVersionIncompatible => 'Device security version incompatible',
-    BiometricState.hardwareUnavailable => 'Biometric authentication not supported',
-    BiometricState.notEnrolled => 'Please set up fingerprint/face in device settings',
-    BiometricState.disabledByPolicy => 'Biometric authentication disabled by administrator',
-    BiometricState.securityUpdateRequired => 'Security update required',
-    BiometricState.availableButDisabled => 'Enable biometric unlock',
-    BiometricState.enabled => 'Biometric unlock enabled',
-  };
+  String _getBiometricStateDescription(BiometricState biometricState, {required bool isKeyInvalidated}) {
+    if (isKeyInvalidated) {
+      return 'Biometrics changed. Disable and re-enable to use new biometrics.';
+    }
+
+    return switch (biometricState) {
+      BiometricState.tpmUnsupported => 'Secure storage not available on this device',
+      BiometricState.tpmVersionIncompatible => 'Device security version incompatible',
+      BiometricState.hardwareUnavailable => 'Biometric authentication not supported',
+      BiometricState.notEnrolled => 'Please set up fingerprint/face in device settings',
+      BiometricState.disabledByPolicy => 'Biometric authentication disabled by administrator',
+      BiometricState.securityUpdateRequired => 'Security update required',
+      BiometricState.availableButDisabled => 'Enable biometric unlock',
+      BiometricState.enabled => 'Biometric unlock enabled',
+    };
+  }
 }
 
 class _AutoLockTimeoutTile extends StatelessWidget {
@@ -199,7 +214,7 @@ class _AutoLockTimeoutTile extends StatelessWidget {
     }
 
     final lockerBloc = context.read<LockerBloc>();
-    final isBiometricEnabled = lockerBloc.state.biometricState.isEnabled;
+    final isBiometricEnabled = lockerBloc.state.biometricState.isEnabled && !lockerBloc.state.isBiometricKeyInvalidated;
 
     if (isBiometricEnabled) {
       lockerBloc.add(
