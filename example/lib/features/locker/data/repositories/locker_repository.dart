@@ -95,6 +95,13 @@ abstract class LockerRepository {
   /// Disable biometric authentication (requires password confirmation)
   Future<void> disableBiometric({required String password});
 
+  /// Disable biometric authentication using password only.
+  ///
+  /// Use when the biometric key has been permanently invalidated and the
+  /// normal [disableBiometric] flow (which requires a biometric prompt)
+  /// cannot succeed.
+  Future<void> disableBiometricPasswordOnly({required String password});
+
   /// Unlock storage with biometric
   Future<void> unlockWithBiometric();
 
@@ -359,6 +366,17 @@ class LockerRepositoryImpl implements LockerRepository {
     await _locker.teardownBiometry(
       bioCipherFunc: bioCipherFunc,
       passwordCipherFunc: passwordCipherFunc,
+    );
+  }
+
+  @override
+  Future<void> disableBiometricPasswordOnly({required String password}) async {
+    await _ensureLockerInstance();
+    final passwordCipherFunc = await _securityProvider.authenticatePassword(password: password);
+
+    await _locker.teardownBiometryPasswordOnly(
+      passwordCipherFunc: passwordCipherFunc,
+      biometricKeyTag: AppConstants.biometricKeyTag,
     );
   }
 

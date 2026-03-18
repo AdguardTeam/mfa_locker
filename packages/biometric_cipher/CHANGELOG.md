@@ -55,6 +55,8 @@
 
 * Updated `SettingsBloc._onAutoLockTimeoutSelectedWithBiometric` to emit `biometricAuthenticationFailed(message: 'Biometrics have changed. Please use your password.')` and return early when `BiometricExceptionType.keyInvalidated` is caught, instead of falling through to the generic `'Failed to update timeout using biometric.'` message and snackbar. Affected file: `example/lib/features/settings/bloc/settings_bloc.dart`.
 
+* Completed the biometric key invalidation recovery flow. When `isBiometricKeyInvalidated` is `true`, toggling biometrics OFF in Settings now dispatches a new `disableBiometricPasswordOnlyRequested` event instead of `disableBiometricRequested`. The repository method `disableBiometricPasswordOnly` calls `MFALocker.teardownBiometryPasswordOnly` using password-only authentication — no biometric system dialog fires. On success, `isBiometricKeyInvalidated` is cleared and the Settings screen returns to its normal non-error state. The `isBiometricKeyInvalidated` flag is also cleared on successful biometric re-enable as an idempotent safety measure. The normal biometric disable path (when the key is valid) is unaffected. Affected files: `example/lib/features/locker/data/repositories/locker_repository.dart`, `example/lib/features/locker/bloc/locker_event.dart`, `example/lib/features/locker/bloc/locker_bloc.dart`, `example/lib/features/settings/views/settings_screen.dart`.
+
 ## 0.0.1
 
 * TODO: Describe initial release.

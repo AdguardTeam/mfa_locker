@@ -78,32 +78,32 @@ User changes biometrics in device settings (e.g., enrolls new fingerprint)
 
 ## Tasks
 
-- [ ] **8.1** Add `disableBiometricPasswordOnly` to repository
+- [x] **8.1** Add `disableBiometricPasswordOnly` to repository
   - File: `example/lib/features/locker/data/repositories/locker_repository.dart`
   - Add `Future<void> disableBiometricPasswordOnly({required String password})` to `LockerRepository` interface
   - Implement in `LockerRepositoryImpl`: `_securityProvider.authenticatePassword` → `_locker.teardownBiometryPasswordOnly(passwordCipherFunc, AppConstants.biometricKeyTag)`
 
-- [ ] **8.2** Add `disableBiometricPasswordOnlyRequested` event to `LockerEvent` (Freezed)
+- [x] **8.2** Add `disableBiometricPasswordOnlyRequested` event to `LockerEvent` (Freezed)
   - File: `example/lib/features/locker/bloc/locker_event.dart`
   - Add `const factory LockerEvent.disableBiometricPasswordOnlyRequested({required String password}) = _DisableBiometricPasswordOnlyRequested`
 
-- [ ] **8.3** Run `make g` for code generation
+- [x] **8.3** Run `make g` for code generation
   - Dir: `example/`
   - Regenerates `.freezed.dart` files for updated event class
 
-- [ ] **8.4** Register handler + implement `_onDisableBiometricPasswordOnlyRequested` in `LockerBloc`
+- [x] **8.4** Register handler + implement `_onDisableBiometricPasswordOnlyRequested` in `LockerBloc`
   - File: `example/lib/features/locker/bloc/locker_bloc.dart`
   - Register: `on<_DisableBiometricPasswordOnlyRequested>(_onDisableBiometricPasswordOnlyRequested)`
   - Implementation: set `loadState: loading` → call `repo.disableBiometricPasswordOnly` → `_refreshBiometricState` → clear `isBiometricKeyInvalidated` → show success
   - No `biometricOperationState` management (password-only, no system biometric dialog)
   - Error handling: `onDecryptFailed` for wrong password, `onError` for generic failure
 
-- [ ] **8.5** Update `SettingsScreen._handleBiometricToggle` — route to password-only event when invalidated
+- [x] **8.5** Update `SettingsScreen._handleBiometricToggle` — route to password-only event when invalidated
   - File: `example/lib/features/settings/views/settings_screen.dart`
   - When `value == false` (disabling) and `lockerBloc.state.isBiometricKeyInvalidated == true`:
     dispatch `LockerEvent.disableBiometricPasswordOnlyRequested(password:)` instead of `disableBiometricRequested`
 
-- [ ] **8.6** Clear `isBiometricKeyInvalidated` on successful enable
+- [x] **8.6** Clear `isBiometricKeyInvalidated` on successful enable
   - File: `example/lib/features/locker/bloc/locker_bloc.dart`
   - In `_onEnableBiometricRequested`, after successful `enableBiometric` and `_refreshBiometricState`:
     `emit(state.copyWith(isBiometricKeyInvalidated: false))`

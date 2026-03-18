@@ -40,6 +40,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     on<_CheckBiometricAvailabilityRequested>(_onCheckBiometricAvailabilityRequested);
     on<_EnableBiometricRequested>(_onEnableBiometricRequested);
     on<_DisableBiometricRequested>(_onDisableBiometricRequested);
+    on<_DisableBiometricPasswordOnlyRequested>(_onDisableBiometricPasswordOnlyRequested);
     on<_UnlockWithBiometricRequested>(_onUnlockWithBiometricRequested);
     on<_AddEntryWithBiometricRequested>(_onAddEntryWithBiometricRequested);
     on<_ReadEntryWithBiometricRequested>(_onReadEntryWithBiometricRequested);
@@ -349,6 +350,9 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         operation: () async {
           await _lockerRepository.enableBiometric(password: event.password);
           await _refreshBiometricState(emit, resetLoadState: true);
+          if (!isClosed) {
+            emit(state.copyWith(isBiometricKeyInvalidated: false));
+          }
           action(
             const LockerAction.showSuccess(
               message: 'Biometric authentication enabled',
@@ -458,6 +462,35 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         );
       }
     }
+  }
+
+  Future<void> _onDisableBiometricPasswordOnlyRequested(
+    _DisableBiometricPasswordOnlyRequested event,
+    Emitter<LockerState> emit,
+  ) async {
+    emit(state.copyWith(loadState: LoadState.loading));
+
+    await _handleVaultOperation(
+      operation: () async {
+        await _lockerRepository.disableBiometricPasswordOnly(password: event.password);
+        await _refreshBiometricState(emit, resetLoadState: true);
+
+        if (!isClosed) {
+          emit(state.copyWith(isBiometricKeyInvalidated: false));
+        }
+
+        action(const LockerAction.showSuccess(message: 'Biometric authentication disabled'));
+      },
+      onDecryptFailed: (error) => _handleDecryptFailure(
+        emit,
+        LockerAction.showError(message: 'Incorrect password: $error'),
+      ),
+      onError: (error) => _handleGenericFailure(
+        emit,
+        LockerAction.showError(message: 'Failed to disable biometric: $error'),
+      ),
+      operationDescription: 'disable biometric (password-only)',
+    );
   }
 
   Future<void> _onUnlockWithBiometricRequested(
