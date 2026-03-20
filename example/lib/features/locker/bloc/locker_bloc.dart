@@ -229,6 +229,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
             message: 'Unlocked successfully',
           ),
         );
+        await _autoDisableBiometricIfInvalidated(password: event.password, emit: emit);
       },
       onDecryptFailed: (error) => _handleDecryptFailure(
         emit,
@@ -287,6 +288,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
           ),
         );
         action(const LockerAction.navigateBack());
+        await _autoDisableBiometricIfInvalidated(password: event.password, emit: emit);
       },
       onDecryptFailed: (error) => _handleDecryptFailure(
         emit,
@@ -769,6 +771,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
             value: value,
           ),
         );
+        await _autoDisableBiometricIfInvalidated(password: event.password, emit: emit);
       },
       onDecryptFailed: (error) => _handleDecryptFailure(
         emit,
@@ -821,6 +824,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
           ),
         );
         action(const LockerAction.showSuccess(message: 'Entry deleted successfully'));
+        await _autoDisableBiometricIfInvalidated(password: event.password, emit: emit);
       },
       onDecryptFailed: (error) {
         if (isClosed) {
@@ -860,6 +864,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         emit(state.copyWith(loadState: LoadState.none));
         action(const LockerAction.showSuccess(message: 'Password changed successfully'));
         action(const LockerAction.navigateBack());
+        await _autoDisableBiometricIfInvalidated(password: event.newPassword, emit: emit);
       },
       onDecryptFailed: (error) {
         if (isClosed) {
@@ -1041,6 +1046,32 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     Emitter<LockerState> emit, {
     bool resetLoadState = false,
   }) => _determineBiometricStateAndEmit(emit, resetLoadState: resetLoadState);
+
+  Future<void> _autoDisableBiometricIfInvalidated({
+    required String password,
+    required Emitter<LockerState> emit,
+  }) async {
+    if (!state.isBiometricKeyInvalidated) {
+      return;
+    }
+
+    try {
+      await _lockerRepository.disableBiometricPasswordOnly(password: password);
+      await _refreshBiometricState(emit);
+
+      if (!isClosed) {
+        emit(state.copyWith(isBiometricKeyInvalidated: false));
+      }
+
+      action(
+        const LockerAction.showSuccess(
+          message: 'Biometrics were disabled due to enrollment changes. Re-enable in Settings.',
+        ),
+      );
+    } catch (e) {
+      logger.logWarning('Auto-disable biometric failed: $e');
+    }
+  }
 
   Future<void> _handleBiometricFailure(
     Emitter<LockerState> emit,
