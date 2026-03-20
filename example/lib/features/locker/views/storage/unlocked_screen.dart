@@ -89,7 +89,7 @@ class UnlockedScreen extends StatelessWidget {
 
   Future<void> _viewEntry(BuildContext context, EntryId entryId, String entryName) async {
     final bloc = context.read<LockerBloc>();
-    final isBiometricEnabled = bloc.state.biometricState.isEnabled;
+    final isBiometricEnabled = bloc.state.biometricState.isEnabled && !bloc.state.isBiometricKeyInvalidated;
 
     final result = await showModalBottomSheet<AuthenticationResult?>(
       context: context,
@@ -139,6 +139,7 @@ class UnlockedScreen extends StatelessWidget {
     }
 
     final bloc = context.read<LockerBloc>();
+    final showBiometric = bloc.state.biometricState.isEnabled && !bloc.state.isBiometricKeyInvalidated;
 
     final result = await showModalBottomSheet<AuthenticationResult?>(
       context: context,
@@ -147,9 +148,9 @@ class UnlockedScreen extends StatelessWidget {
       enableDrag: false,
       builder: (context) => AuthenticationBottomSheet(
         title: 'Unlock Storage',
-        showBiometricButton: bloc.state.biometricState.isEnabled,
+        showBiometricButton: showBiometric,
         biometricResultStream: bloc.biometricResultStream,
-        onBiometricPressed: bloc.state.biometricState.isEnabled
+        onBiometricPressed: showBiometric
             ? () => bloc.add(
                 LockerEvent.deleteEntryWithBiometricRequested(
                   id: entryId,

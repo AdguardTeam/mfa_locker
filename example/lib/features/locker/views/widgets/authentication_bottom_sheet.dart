@@ -31,6 +31,7 @@ class AuthenticationBottomSheet extends StatefulWidget {
 
 class _AuthenticationBottomSheetState extends State<AuthenticationBottomSheet> {
   bool _isLoading = false;
+  late bool _showBiometricButton = widget.showBiometricButton;
   String? _errorMessage;
   StreamSubscription<BiometricAuthResult>? _subscription;
 
@@ -46,7 +47,7 @@ class _AuthenticationBottomSheetState extends State<AuthenticationBottomSheet> {
     onAnimationComplete: _onAnimationComplete,
     child: AuthenticationBottomSheetContent(
       title: widget.title,
-      showBiometricButton: widget.showBiometricButton,
+      showBiometricButton: _showBiometricButton,
       onBiometricPressed: widget.onBiometricPressed,
       isLoading: _isLoading,
       errorMessage: _errorMessage,
@@ -79,6 +80,12 @@ class _AuthenticationBottomSheetState extends State<AuthenticationBottomSheet> {
           _isLoading = false;
           _errorMessage = message;
         });
+      case BiometricKeyInvalidated(:final message):
+        setState(() {
+          _isLoading = false;
+          _showBiometricButton = false;
+          _errorMessage = message;
+        });
       case BiometricNotAvailable():
         setState(() {
           _isLoading = false;
@@ -88,7 +95,7 @@ class _AuthenticationBottomSheetState extends State<AuthenticationBottomSheet> {
   }
 
   void _onAnimationComplete() {
-    if (widget.showBiometricButton && widget.onBiometricPressed != null) {
+    if (_showBiometricButton && widget.onBiometricPressed != null) {
       widget.onBiometricPressed!();
     }
   }
