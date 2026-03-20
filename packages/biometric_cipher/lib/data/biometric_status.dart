@@ -5,7 +5,8 @@ enum BiometricStatus {
   notConfiguredForUser(3),
   disabledByPolicy(4),
   deviceBusy(5),
-  androidBiometricErrorSecurityUpdateRequired(6);
+  androidBiometricErrorSecurityUpdateRequired(6)
+  ;
 
   final int status;
 

@@ -21,7 +21,12 @@ void main() {
 
       test('maps keyPermanentlyInvalidated to BiometricExceptionType.keyInvalidated', () async {
         // Arrange
-        when(() => mockCipher.decrypt(tag: any(named: 'tag'), data: any(named: 'data'))).thenThrow(
+        when(
+          () => mockCipher.decrypt(
+            tag: any(named: 'tag'),
+            data: any(named: 'data'),
+          ),
+        ).thenThrow(
           const BiometricCipherException(
             code: BiometricCipherExceptionCode.keyPermanentlyInvalidated,
             message: 'test',
@@ -39,7 +44,12 @@ void main() {
 
       test('maps authenticationError to BiometricExceptionType.failure', () async {
         // Arrange
-        when(() => mockCipher.decrypt(tag: any(named: 'tag'), data: any(named: 'data'))).thenThrow(
+        when(
+          () => mockCipher.decrypt(
+            tag: any(named: 'tag'),
+            data: any(named: 'data'),
+          ),
+        ).thenThrow(
           const BiometricCipherException(
             code: BiometricCipherExceptionCode.authenticationError,
             message: 'test',
@@ -57,7 +67,12 @@ void main() {
 
       test('maps authenticationUserCanceled to BiometricExceptionType.cancel', () async {
         // Arrange
-        when(() => mockCipher.decrypt(tag: any(named: 'tag'), data: any(named: 'data'))).thenThrow(
+        when(
+          () => mockCipher.decrypt(
+            tag: any(named: 'tag'),
+            data: any(named: 'data'),
+          ),
+        ).thenThrow(
           const BiometricCipherException(
             code: BiometricCipherExceptionCode.authenticationUserCanceled,
             message: 'test',

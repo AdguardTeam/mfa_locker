@@ -44,7 +44,8 @@ enum BiometricCipherExceptionCode {
   keyPermanentlyInvalidated,
 
   /// An unknown or unclassified error occurred.
-  unknown;
+  unknown
+  ;
 
   static BiometricCipherExceptionCode fromString(String code) => switch (code) {
     'INVALID_ARGUMENT' => invalidArgument,

@@ -47,7 +47,7 @@ make ci-build-ios     # iOS build (CI)
 make ci-build-windows # Windows build (CI)
 ```
 
-Flutter version is pinned via `.ci-flutter-version` → **3.35.1**. Use `fvm` to match.
+Flutter version is pinned via `.ci-flutter-version` → **3.41.4**. Use `fvm` to match.
 
 ## Architecture
 

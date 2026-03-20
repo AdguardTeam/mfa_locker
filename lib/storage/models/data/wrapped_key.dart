@@ -11,15 +11,15 @@ class WrappedKey {
   });
 
   KeyWrap getWrapForOrigin(Origin origin) => wraps.firstWhere(
-        (w) => w.origin == origin,
-        orElse: () => throw StateError('Wrap for origin $origin not found'),
-      );
+    (w) => w.origin == origin,
+    orElse: () => throw StateError('Wrap for origin $origin not found'),
+  );
 
   factory WrappedKey.fromJson(Map<String, Object?> json) => WrappedKey(
-        wraps: (json[_wrapsFieldName] as List).map((w) => KeyWrap.fromJson(w as Map<String, Object?>)).toList(),
-      );
+    wraps: (json[_wrapsFieldName] as List).map((w) => KeyWrap.fromJson(w as Map<String, Object?>)).toList(),
+  );
 
   Map<String, Object?> toJson() => {
-        _wrapsFieldName: wraps.map((x) => x.toJson()).toList(),
-      };
+    _wrapsFieldName: wraps.map((x) => x.toJson()).toList(),
+  };
 }

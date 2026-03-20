@@ -13,9 +13,9 @@ class BioCipherFunc extends CipherFunc {
 
   BioCipherFunc({
     required this.keyTag,
-  })  : assert(keyTag != '', 'keyTag cannot be empty'),
-        _secureProvider = BiometricCipherProviderImpl.instance,
-        super(origin: Origin.bio);
+  }) : assert(keyTag != '', 'keyTag cannot be empty'),
+       _secureProvider = BiometricCipherProviderImpl.instance,
+       super(origin: Origin.bio);
 
   @override
   Future<Uint8List> encrypt(ErasableByteArray data) async {

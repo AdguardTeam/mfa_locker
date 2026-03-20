@@ -110,22 +110,19 @@ class BiometricCipherProviderImpl implements BiometricCipherProvider {
   Future<void> deleteKey({required String tag}) => _biometricCipher.deleteKey(tag: tag);
 
   BiometricException _mapExceptionToBiometricException(BiometricCipherException e) => switch (e.code) {
-        BiometricCipherExceptionCode.keyNotFound => const BiometricException(BiometricExceptionType.keyNotFound),
-        BiometricCipherExceptionCode.keyAlreadyExists =>
-          const BiometricException(BiometricExceptionType.keyAlreadyExists),
-        BiometricCipherExceptionCode.keyPermanentlyInvalidated =>
-          const BiometricException(BiometricExceptionType.keyInvalidated),
-        BiometricCipherExceptionCode.authenticationUserCanceled =>
-          const BiometricException(BiometricExceptionType.cancel),
-        BiometricCipherExceptionCode.authenticationError ||
-        BiometricCipherExceptionCode.encryptionError ||
-        BiometricCipherExceptionCode.decryptionError =>
-          const BiometricException(BiometricExceptionType.failure),
-        BiometricCipherExceptionCode.biometricNotSupported ||
-        BiometricCipherExceptionCode.secureEnclaveUnavailable ||
-        BiometricCipherExceptionCode.tpmUnsupported =>
-          const BiometricException(BiometricExceptionType.notAvailable),
-        BiometricCipherExceptionCode.configureError => const BiometricException(BiometricExceptionType.notConfigured),
-        _ => BiometricException(BiometricExceptionType.failure, originalError: e),
-      };
+    BiometricCipherExceptionCode.keyNotFound => const BiometricException(BiometricExceptionType.keyNotFound),
+    BiometricCipherExceptionCode.keyAlreadyExists => const BiometricException(BiometricExceptionType.keyAlreadyExists),
+    BiometricCipherExceptionCode.keyPermanentlyInvalidated => const BiometricException(
+      BiometricExceptionType.keyInvalidated,
+    ),
+    BiometricCipherExceptionCode.authenticationUserCanceled => const BiometricException(BiometricExceptionType.cancel),
+    BiometricCipherExceptionCode.authenticationError ||
+    BiometricCipherExceptionCode.encryptionError ||
+    BiometricCipherExceptionCode.decryptionError => const BiometricException(BiometricExceptionType.failure),
+    BiometricCipherExceptionCode.biometricNotSupported ||
+    BiometricCipherExceptionCode.secureEnclaveUnavailable ||
+    BiometricCipherExceptionCode.tpmUnsupported => const BiometricException(BiometricExceptionType.notAvailable),
+    BiometricCipherExceptionCode.configureError => const BiometricException(BiometricExceptionType.notConfigured),
+    _ => BiometricException(BiometricExceptionType.failure, originalError: e),
+  };
 }

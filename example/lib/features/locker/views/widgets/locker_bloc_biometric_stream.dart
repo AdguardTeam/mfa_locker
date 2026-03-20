@@ -9,8 +9,7 @@ extension LockerBlocBiometricStream on LockerBloc {
           biometricAuthenticationSucceeded: (_) => const BiometricSuccess(),
           biometricAuthenticationCancelled: (_) => const BiometricCancelled(),
           biometricAuthenticationFailed: (a) => BiometricFailed(a.message),
-          biometricKeyInvalidated: (_) =>
-              const BiometricFailed('Biometrics have changed. Please use your password.'),
+          biometricKeyInvalidated: (_) => const BiometricFailed('Biometrics have changed. Please use your password.'),
           biometricNotAvailable: (_) => const BiometricNotAvailable(),
         ),
       )

@@ -10,8 +10,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: TPMScreen(),
-    );
+    return const MaterialApp(home: TPMScreen());
   }
 }

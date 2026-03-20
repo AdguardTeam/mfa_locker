@@ -22,7 +22,8 @@ enum BiometricState {
   availableButDisabled,
 
   /// Biometric enabled and ready to use
-  enabled;
+  enabled
+  ;
 
   /// Whether biometric is available for use (not an error state)
   bool get isAvailable => this == availableButDisabled || this == enabled;

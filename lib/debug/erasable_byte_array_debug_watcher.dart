@@ -20,12 +20,12 @@ class ErasableByteArrayDebugWatcher {
   ErasableByteArrayDebugWatcher({
     Duration? eraseWarningThreshold,
     Duration? checkInterval,
-  })  : assert(
-          (eraseWarningThreshold == null) == (checkInterval == null),
-          'Both eraseWarningThreshold and checkInterval must be provided or none of them',
-        ),
-        _checkInterval = checkInterval,
-        _eraseWarningThreshold = eraseWarningThreshold {
+  }) : assert(
+         (eraseWarningThreshold == null) == (checkInterval == null),
+         'Both eraseWarningThreshold and checkInterval must be provided or none of them',
+       ),
+       _checkInterval = checkInterval,
+       _eraseWarningThreshold = eraseWarningThreshold {
     _initCheckTimer();
   }
 

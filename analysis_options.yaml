@@ -22,12 +22,10 @@ linter:
   rules:
     avoid_print: true
     always_declare_return_types: true
-    always_require_non_null_named_parameters: true
     annotate_overrides: true
     avoid_empty_else: true
     avoid_function_literals_in_foreach_calls: true
     avoid_init_to_null: true
-    avoid_null_checks_in_equality_operators: true
     avoid_redundant_argument_values: true
     avoid_relative_lib_imports: true
     avoid_renaming_method_parameters: true

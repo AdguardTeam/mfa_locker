@@ -370,8 +370,8 @@ jobs:
 
 | Requirement | Version |
 |-------------|---------|
-| Dart SDK | >= 3.5.0 < 4.0.0 |
-| Flutter SDK | >= 3.35.0 |
+| Dart SDK | >= 3.11.0 < 4.0.0 |
+| Flutter SDK | >= 3.41.0 |
 | fvm | Latest |
 
 ---

@@ -76,9 +76,7 @@ class LockedScreen extends StatelessWidget {
         title: 'Unlock Storage',
         showBiometricButton: showBiometric,
         biometricResultStream: bloc.biometricResultStream,
-        onBiometricPressed: showBiometric
-            ? () => bloc.add(const LockerEvent.unlockWithBiometricRequested())
-            : null,
+        onBiometricPressed: showBiometric ? () => bloc.add(const LockerEvent.unlockWithBiometricRequested()) : null,
       ),
     );
 

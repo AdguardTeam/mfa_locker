@@ -10,8 +10,8 @@ class ErasableByteArray implements Erasable {
   ErasableByteArray(
     Uint8List bytes, {
     void Function()? onEraseCallback,
-  })  : _bytes = bytes,
-        _onEraseCallback = onEraseCallback;
+  }) : _bytes = bytes,
+       _onEraseCallback = onEraseCallback;
 
   /// Returns the underlying bytes
   /// Throws a StateError if the data has been erased
