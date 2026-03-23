@@ -89,7 +89,7 @@ class UnlockedScreen extends StatelessWidget {
 
   Future<void> _viewEntry(BuildContext context, EntryId entryId, String entryName) async {
     final bloc = context.read<LockerBloc>();
-    final isBiometricEnabled = bloc.state.biometricState.isEnabled && !bloc.state.isBiometricKeyInvalidated;
+    final isBiometricEnabled = bloc.state.canUseBiometric;
 
     final result = await showModalBottomSheet<AuthenticationResult?>(
       context: context,
@@ -139,7 +139,7 @@ class UnlockedScreen extends StatelessWidget {
     }
 
     final bloc = context.read<LockerBloc>();
-    final showBiometric = bloc.state.biometricState.isEnabled && !bloc.state.isBiometricKeyInvalidated;
+    final showBiometric = bloc.state.canUseBiometric;
 
     final result = await showModalBottomSheet<AuthenticationResult?>(
       context: context,

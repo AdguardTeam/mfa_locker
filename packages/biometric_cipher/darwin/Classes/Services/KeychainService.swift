@@ -56,8 +56,6 @@ class KeychainService: KeychainServiceProtocol {
                 switch errorCode {
                 case Int(errSecUserCanceled), Int(LAError.userCancel.rawValue):
                     throw KeychainServiceError.authenticationUserCanceled
-                case Int(errSecAuthFailed):
-                    throw KeychainServiceError.keyPermanentlyInvalidated
                 default:
                     throw KeychainServiceError.failedToDecryptData(cfError)
                 }

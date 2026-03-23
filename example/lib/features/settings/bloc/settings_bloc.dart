@@ -130,7 +130,7 @@ class SettingsBloc extends ActionBloc<SettingsEvent, SettingsState, SettingsActi
             return;
           case BiometricExceptionType.keyInvalidated:
             action(
-              const SettingsAction.biometricAuthenticationFailed(
+              const SettingsAction.biometricKeyInvalidated(
                 message: 'Biometrics have changed. Please use your password.',
               ),
             );

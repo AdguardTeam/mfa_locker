@@ -118,7 +118,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> with SingleTickerProvid
 
   Future<void> _showAuthenticationPrompt() async {
     final bloc = context.read<LockerBloc>();
-    final showBiometric = bloc.state.biometricState.isEnabled && !bloc.state.isBiometricKeyInvalidated;
+    final showBiometric = bloc.state.canUseBiometric;
 
     final result = await showModalBottomSheet<AuthenticationResult?>(
       context: context,

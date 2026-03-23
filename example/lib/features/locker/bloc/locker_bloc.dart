@@ -54,6 +54,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     on<_AppResumed>(_onAppResumed);
     on<_BiometricOperationStateChanged>(_onBiometricOperationStateChanged);
     on<_ActivityDetected>(_onActivityDetected);
+    on<_BiometricKeyInvalidationDetected>(_onBiometricKeyInvalidationDetected);
 
     _timerService.onLockCallback = _onTimerExpired;
     _createSub();
@@ -1070,6 +1071,11 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
       );
     } catch (e) {
       logger.logWarning('Auto-disable biometric failed: $e');
+      action(
+        const LockerAction.showError(
+          message: 'Could not auto-disable invalidated biometrics. Please disable manually in Settings.',
+        ),
+      );
     }
   }
 
@@ -1310,6 +1316,15 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     // so no appResumed event would be received.
     if (state.biometricOperationState == BiometricOperationState.awaitingResume) {
       emit(state.copyWith(biometricOperationState: BiometricOperationState.idle));
+    }
+  }
+
+  void _onBiometricKeyInvalidationDetected(
+    _BiometricKeyInvalidationDetected event,
+    Emitter<LockerState> emit,
+  ) {
+    if (!isClosed) {
+      emit(state.copyWith(isBiometricKeyInvalidated: true));
     }
   }
 

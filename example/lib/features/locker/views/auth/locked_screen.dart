@@ -49,9 +49,7 @@ class LockedScreen extends StatelessWidget {
                       ? null
                       : () => _showAuthenticationSheet(context, state),
                   child: Text(
-                    state.biometricState.isEnabled && !state.isBiometricKeyInvalidated
-                        ? 'Unlock Storage'
-                        : 'Unlock with Password',
+                    state.canUseBiometric ? 'Unlock Storage' : 'Unlock with Password',
                   ),
                 ),
               ],
@@ -65,7 +63,7 @@ class LockedScreen extends StatelessWidget {
 
   Future<void> _showAuthenticationSheet(BuildContext context, LockerState state) async {
     final bloc = context.read<LockerBloc>();
-    final showBiometric = state.biometricState.isEnabled && !state.isBiometricKeyInvalidated;
+    final showBiometric = state.canUseBiometric;
 
     final result = await showModalBottomSheet<AuthenticationResult?>(
       context: context,

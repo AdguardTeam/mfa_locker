@@ -176,8 +176,6 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
             decryptedData = try keychainService.decryptData(key: privateKey,
                                                             algorithm: algorithm,
                                                             data: encryptedData)
-        } catch KeychainServiceError.keyPermanentlyInvalidated {
-            throw SecureEnclaveManagerError.keyPermanentlyInvalidated
         }
 
         // Converting decrypted data to a string

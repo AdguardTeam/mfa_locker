@@ -47,6 +47,8 @@ class _SettingsViewState extends State<_SettingsView> {
     listener: (context, action) => action.whenOrNull(
       showError: context.showErrorSnackBar,
       showSuccess: context.showSuccessSnackBar,
+      biometricKeyInvalidated: (_) =>
+          context.read<LockerBloc>().add(const LockerEvent.biometricKeyInvalidationDetected()),
     ),
     child: Scaffold(
       appBar: AppBar(
@@ -94,8 +96,7 @@ class _SettingsViewState extends State<_SettingsView> {
                                     value: innerLockerState.biometricState.isEnabled,
                                     onChanged: _canToggleBiometric(innerLockerState) ? _handleBiometricToggle : null,
                                   ),
-                                  if (innerLockerState.biometricState.isEnabled &&
-                                      !innerLockerState.isBiometricKeyInvalidated)
+                                  if (innerLockerState.canUseBiometric)
                                     Padding(
                                       padding: const EdgeInsets.symmetric(horizontal: 16),
                                       child: Text(
@@ -140,23 +141,28 @@ class _SettingsViewState extends State<_SettingsView> {
       return;
     }
 
+    final password = result?.password;
+    if (password == null) {
+      return;
+    }
+
     final lockerBloc = context.read<LockerBloc>();
 
     if (value) {
       lockerBloc.add(
-        LockerEvent.enableBiometricRequested(password: result!.password!),
+        LockerEvent.enableBiometricRequested(password: password),
       );
     } else {
       if (lockerBloc.state.isBiometricKeyInvalidated) {
         lockerBloc.add(
-          LockerEvent.disableBiometricPasswordOnlyRequested(password: result!.password!),
+          LockerEvent.disableBiometricPasswordOnlyRequested(password: password),
         );
 
         return;
       }
 
       lockerBloc.add(
-        LockerEvent.disableBiometricRequested(password: result!.password!),
+        LockerEvent.disableBiometricRequested(password: password),
       );
     }
   }
@@ -222,7 +228,7 @@ class _AutoLockTimeoutTile extends StatelessWidget {
     }
 
     final lockerBloc = context.read<LockerBloc>();
-    final isBiometricEnabled = lockerBloc.state.biometricState.isEnabled && !lockerBloc.state.isBiometricKeyInvalidated;
+    final isBiometricEnabled = lockerBloc.state.canUseBiometric;
 
     if (isBiometricEnabled) {
       lockerBloc.add(

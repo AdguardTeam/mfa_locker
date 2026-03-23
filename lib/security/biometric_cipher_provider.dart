@@ -53,14 +53,14 @@ abstract class BiometricCipherProvider {
 
 /// Implementation of [BiometricCipherProvider] using the `biometric_cipher` package.
 class BiometricCipherProviderImpl implements BiometricCipherProvider {
+  static final BiometricCipherProvider instance = BiometricCipherProviderImpl._();
+
   final BiometricCipher _biometricCipher;
 
   BiometricCipherProviderImpl._() : _biometricCipher = BiometricCipher();
 
   @visibleForTesting
   BiometricCipherProviderImpl.forTesting(this._biometricCipher);
-
-  static final BiometricCipherProvider instance = BiometricCipherProviderImpl._();
 
   @override
   Future<void> configure(BiometricConfig config) => _biometricCipher.configure(config: config.toConfigData());

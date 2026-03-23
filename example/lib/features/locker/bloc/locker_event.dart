@@ -120,4 +120,7 @@ sealed class LockerEvent with _$LockerEvent {
 
   /// User activity detected - reset auto-lock timer
   const factory LockerEvent.activityDetected() = _ActivityDetected;
+
+  /// External notification that the biometric key has been invalidated (e.g. detected from settings flow).
+  const factory LockerEvent.biometricKeyInvalidationDetected() = _BiometricKeyInvalidationDetected;
 }
