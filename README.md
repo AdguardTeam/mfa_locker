@@ -44,6 +44,7 @@ import 'dart:typed_data';
 
 import 'package:locker/locker/mfa_locker.dart';
 import 'package:locker/security/models/password_cipher_func.dart';
+import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/erasable/erasable_byte_array.dart';
@@ -66,11 +67,16 @@ final initialEntryValue = EntryValue.fromErasable(
   erasable: ErasableByteArray(Uint8List.fromList(utf8.encode('secret_data_here'))),
 );
 
+// Wrap initial entry data
+final initialEntry = EntryAddInput(
+  meta: initialEntryMeta,
+  value: initialEntryValue,
+);
+
 // Initialize with password and first entry
 await locker.init(
   passwordCipherFunc: passwordCipherFunc,
-  initialEntryMeta: initialEntryMeta,
-  initialEntryValue: initialEntryValue,
+  initialEntries: [initialEntry],
   lockTimeout: Duration(minutes: 5),
 );
 ```
@@ -102,8 +108,7 @@ final entryValue = EntryValue.fromErasable(
 );
 
 final entryId = await locker.write(
-  entryMeta: entryMeta,
-  entryValue: entryValue,
+  input: EntryAddInput(meta: entryMeta, value: entryValue),
   cipherFunc: passwordCipherFunc,
 );
 
@@ -113,8 +118,9 @@ final value = await locker.readValue(
   cipherFunc: passwordCipherFunc,
 );
 
-// Load all metadata (locker must be unlocked)
-final allMeta = await locker.loadAllMeta(cipherFunc: passwordCipherFunc);
+// Load all metadata (unlocks the locker if locked)
+await locker.loadAllMeta(passwordCipherFunc);
+final allMeta = locker.allMeta;
 for (final entry in allMeta.entries) {
   print('Entry ID: ${entry.key}');
 }
@@ -156,6 +162,13 @@ await locker.setupBiometry(
 await locker.teardownBiometry(
   bioCipherFunc: bioCipherFunc,
   passwordCipherFunc: passwordCipherFunc,
+);
+
+// Disable biometric unlock when the biometric key has been invalidated
+// (e.g., after a biometric enrollment change) and the biometric prompt would fail
+await locker.teardownBiometryPasswordOnly(
+  passwordCipherFunc: passwordCipherFunc,
+  biometricKeyTag: 'com.myapp.biometric_key',
 );
 ```
 
