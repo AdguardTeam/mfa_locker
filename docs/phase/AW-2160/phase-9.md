@@ -50,17 +50,17 @@ No new files. All changes are additions to existing files.
 
 ## Tasks
 
-- [ ] **9.1** Add `isKeyValid(keyAlias)` to `SecureRepositoryImpl`
+- [x] **9.1** Add `isKeyValid(keyAlias)` to `SecureRepositoryImpl`
   - File: `packages/biometric_cipher/android/src/main/kotlin/…/SecureRepositoryImpl.kt`
   - Load `AndroidKeyStore`, get key by alias (return `false` if null)
   - `Cipher.getInstance(TRANSFORMATION)` → `cipher.init(Cipher.ENCRYPT_MODE, key)` → return `true`
   - Catch `KeyPermanentlyInvalidatedException` → return `false`
 
-- [ ] **9.2** Add `isKeyValid(tag)` delegation to `SecureServiceImpl`
+- [x] **9.2** Add `isKeyValid(tag)` delegation to `SecureServiceImpl`
   - File: `packages/biometric_cipher/android/src/main/kotlin/…/SecureServiceImpl.kt`
   - Delegate: `fun isKeyValid(tag: String): Boolean = secureRepository.isKeyValid(tag)`
 
-- [ ] **9.3** Add `"isKeyValid"` method channel handler to `SecureMethodCallHandlerImpl`
+- [x] **9.3** Add `"isKeyValid"` method channel handler to `SecureMethodCallHandlerImpl`
   - File: `packages/biometric_cipher/android/src/main/kotlin/…/handlers/SecureMethodCallHandlerImpl.kt`
   - Parse `tag` argument (error if missing)
   - Call `secureService.isKeyValid(tag)` → `result.success(Boolean)`

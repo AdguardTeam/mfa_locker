@@ -3,6 +3,7 @@ package com.adguard.cryptowallet.biometric_cipher.repositories
 import android.content.pm.PackageManager
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.annotation.RequiresApi
@@ -132,6 +133,21 @@ class SecureRepositoryImpl(
         keyStore.load(null)
 
         keyStore.deleteEntry(getKeyAliasFromTag(tag))
+    }
+
+    override fun isKeyValid(tag: String): Boolean {
+        val keyStore = KeyStore.getInstance(SecureObjects.ANDROID_KEYSTORE)
+        keyStore.load(null)
+
+        val key = keyStore.getKey(getKeyAliasFromTag(tag), null) ?: return false
+
+        return try {
+            val cipher = Cipher.getInstance(SecureObjects.TRANSFORMATION)
+            cipher.init(Cipher.ENCRYPT_MODE, key)
+            true
+        } catch (e: KeyPermanentlyInvalidatedException) {
+            false
+        }
     }
 
     private fun isStrongBoxAvailable(): Boolean =

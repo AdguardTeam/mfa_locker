@@ -146,6 +146,23 @@ class SecureMethodCallHandlerImpl(
                     })
             }
 
+            MethodName.IS_KEY_VALID.toString() -> {
+                if (!checkArgument(call, ArgumentName.TAG, result)) {
+                    return
+                }
+
+                val tag: String = call.argument<String>(ArgumentName.TAG.toString())!!
+
+                executeOperation(
+                    operationName = MethodName.IS_KEY_VALID.toString(),
+                    operation = { secureService.isKeyValid(tag) },
+                    onSuccess = { result.success(it) },
+                    onError = { errorCode, errorMessage ->
+                        result.error(errorCode, errorMessage, null)
+                    },
+                )
+            }
+
             MethodName.CONFIGURE.toString() -> {
                 val biometricPromptTitle: String =
                     call.argument<String?>(ArgumentName.BIOMETRIC_PROMPT_TITLE.toString()) ?: ""
