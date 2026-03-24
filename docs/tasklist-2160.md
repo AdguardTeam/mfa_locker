@@ -17,13 +17,13 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 | 7 | Example app: detect and display key invalidation | :white_check_mark: Done | |
 | 8 | Example app: password-only biometric disable | :white_check_mark: Done | |
 | 9 | Android: `isKeyValid(tag)` silent probe | :white_check_mark: Done | Section G |
-| 10 | iOS/macOS: `isKeyValid(tag)` silent probe | :white_large_square: Not started | Section G |
+| 10 | iOS/macOS: `isKeyValid(tag)` silent probe | :white_check_mark: Done | Section G |
 | 11 | Dart plugin: `BiometricCipher.isKeyValid(tag)` | :white_large_square: Not started | Section G |
 | 12 | Locker: `BiometricState.keyInvalidated` + proactive `determineBiometricState` | :white_large_square: Not started | Section G |
 | 13 | Tests for proactive detection | :white_large_square: Not started | Section G |
 | 14 | Example app: proactive detection integration | :white_large_square: Not started | Section G |
 
-**Current Phase:** 10
+**Current Phase:** 11
 
 ---
 
@@ -273,16 +273,16 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 **Ref:** `docs/idea-2160.md` Section G2
 
-- [ ] **10.1** Change `keyExists(tag:)` visibility from `private` to `internal` in `KeychainService`
+- [x] **10.1** Change `keyExists(tag:)` visibility from `private` to `internal` in `KeychainService`
   - File: `packages/biometric_cipher/darwin/Classes/Services/KeychainService.swift`
   - Change `private func keyExists(tag: String) -> Bool` to `func keyExists(tag: String) -> Bool`
   - Implementation unchanged — still uses `kSecUseAuthenticationUISkip`
 
-- [ ] **10.2** Add `isKeyValid(tag:)` to `SecureEnclaveManager`
+- [x] **10.2** Add `isKeyValid(tag:)` to `SecureEnclaveManager`
   - File: `packages/biometric_cipher/darwin/Classes/Managers/SecureEnclaveManager.swift`
   - Delegate: `func isKeyValid(tag: String) -> Bool { keychainService.keyExists(tag: tag) }`
 
-- [ ] **10.3** Add `"isKeyValid"` method channel handler to `BiometricCipherPlugin`
+- [x] **10.3** Add `"isKeyValid"` method channel handler to `BiometricCipherPlugin`
   - File: `packages/biometric_cipher/darwin/Classes/BiometricCipherPlugin.swift`
   - Parse `tag` from args (error if missing)
   - Call `secureEnclaveManager.isKeyValid(tag:)` → `result(Bool)`
