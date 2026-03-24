@@ -14,8 +14,8 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 | 4 | Locker: `keyInvalidated` exception type | :white_check_mark: Complete | |
 | 5 | Locker: `teardownBiometryPasswordOnly` method | :white_check_mark: Complete | |
 | 6 | Tests | :white_check_mark: Done | |
-| 7 | Example app: detect and display key invalidation | :white_large_square: Not started | |
-| 8 | Example app: password-only biometric disable | :white_large_square: Not started | |
+| 7 | Example app: detect and display key invalidation | :white_check_mark: Done | |
+| 8 | Example app: password-only biometric disable | :white_check_mark: Done | |
 | 9 | Android: `isKeyValid(tag)` silent probe | :white_large_square: Not started | Section G |
 | 10 | iOS/macOS: `isKeyValid(tag)` silent probe | :white_large_square: Not started | Section G |
 | 11 | Dart plugin: `BiometricCipher.isKeyValid(tag)` | :white_large_square: Not started | Section G |
@@ -23,7 +23,7 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 | 13 | Tests for proactive detection | :white_large_square: Not started | Section G |
 | 14 | Example app: proactive detection integration | :white_large_square: Not started | Section G |
 
-**Current Phase:** 7
+**Current Phase:** 9
 
 ---
 
@@ -153,29 +153,29 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 **Goal:** Wire the example app to detect `keyInvalidated` at runtime, display an inline message, and hide biometric UI when the key is invalidated.
 
-- [ ] **7.1** Add `isBiometricKeyInvalidated` flag to `LockerState` (Freezed)
+- [x] **7.1** Add `isBiometricKeyInvalidated` flag to `LockerState` (Freezed)
   - File: `example/lib/features/locker/bloc/locker_state.dart`
   - Add `@Default(false) bool isBiometricKeyInvalidated` to `LockerState`
 
-- [ ] **7.2** Add `biometricKeyInvalidated()` action to `LockerAction` (Freezed)
+- [x] **7.2** Add `biometricKeyInvalidated()` action to `LockerAction` (Freezed)
   - File: `example/lib/features/locker/bloc/locker_action.dart`
   - Add `const factory LockerAction.biometricKeyInvalidated() = BiometricKeyInvalidatedAction`
 
-- [ ] **7.3** Run `make g` for code generation
+- [x] **7.3** Run `make g` for code generation
   - Dir: `example/`
   - Regenerates `.freezed.dart` files for updated state, event, and action classes
 
-- [ ] **7.4** Separate `keyInvalidated` from `failure` in `_handleBiometricFailure`
+- [x] **7.4** Separate `keyInvalidated` from `failure` in `_handleBiometricFailure`
   - File: `example/lib/features/locker/bloc/locker_bloc.dart`
   - Split the `case BiometricExceptionType.failure: case BiometricExceptionType.keyInvalidated:` block
   - `keyInvalidated`: set `isBiometricKeyInvalidated: true`, emit `biometricKeyInvalidated()` action, reset to `BiometricOperationState.idle`, return early
   - `failure`: keep existing behavior (call `_determineBiometricStateAndEmit`, fall through)
 
-- [ ] **7.5** Map `biometricKeyInvalidated` action in biometric stream extension
+- [x] **7.5** Map `biometricKeyInvalidated` action in biometric stream extension
   - File: `example/lib/features/locker/views/widgets/locker_bloc_biometric_stream.dart`
   - Add `biometricKeyInvalidated: (_) => const BiometricFailed('Biometrics have changed. Please use your password.')` to the `mapOrNull` call
 
-- [ ] **7.6** Hide biometric button when `isBiometricKeyInvalidated` is true
+- [x] **7.6** Hide biometric button when `isBiometricKeyInvalidated` is true
   - File: `example/lib/features/locker/views/auth/locked_screen.dart`
     - Update `buildWhen` to include `isBiometricKeyInvalidated`
     - Update `showBiometricButton:` to `state.biometricState.isEnabled && !state.isBiometricKeyInvalidated`
@@ -184,7 +184,7 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
     - Update `buildWhen` to include `isBiometricKeyInvalidated`
     - Return `SizedBox.shrink()` when `state.isBiometricKeyInvalidated` is true
 
-- [ ] **7.7** Update `SettingsScreen` for invalidation display
+- [x] **7.7** Update `SettingsScreen` for invalidation display
   - File: `example/lib/features/settings/views/settings_screen.dart`
   - Update `_getBiometricStateDescription` to accept `isKeyInvalidated` parameter
   - When invalidated: return `'Biometrics changed. Disable and re-enable to use new biometrics.'`
@@ -193,11 +193,11 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
   - Update `buildWhen` to include `isBiometricKeyInvalidated`
   - Account for invalidation in `_AutoLockTimeoutTile` biometric check: `state.biometricState.isEnabled && !lockerBloc.state.isBiometricKeyInvalidated`
 
-- [ ] **7.8** Update `SettingsBloc` — specific `keyInvalidated` case in timeout-with-biometric handler
+- [x] **7.8** Update `SettingsBloc` — specific `keyInvalidated` case in timeout-with-biometric handler
   - File: `example/lib/features/settings/bloc/settings_bloc.dart`
   - In `_onAutoLockTimeoutSelectedWithBiometric` catch block: add `case BiometricExceptionType.keyInvalidated:` with message `'Biometrics have changed. Please use your password.'`, return early
 
-- [ ] **7.9** Clear `isBiometricKeyInvalidated` flag on erase
+- [x] **7.9** Clear `isBiometricKeyInvalidated` flag on erase
   - File: `example/lib/features/locker/bloc/locker_bloc.dart`
   - In `_onEraseStorageRequested`, after successful erase: `emit(state.copyWith(isBiometricKeyInvalidated: false))`
 
@@ -209,31 +209,31 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 **Goal:** Allow the user to disable biometrics using only their password when the biometric key has been invalidated.
 
-- [ ] **8.1** Add `disableBiometricPasswordOnly` to repository
+- [x] **8.1** Add `disableBiometricPasswordOnly` to repository
   - File: `example/lib/features/locker/data/repositories/locker_repository.dart`
   - Add `Future<void> disableBiometricPasswordOnly({required String password})` to `LockerRepository` interface
   - Implement in `LockerRepositoryImpl`: `_securityProvider.authenticatePassword` → `_locker.teardownBiometryPasswordOnly(passwordCipherFunc, AppConstants.biometricKeyTag)`
 
-- [ ] **8.2** Add `disableBiometricPasswordOnlyRequested` event to `LockerEvent` (Freezed)
+- [x] **8.2** Add `disableBiometricPasswordOnlyRequested` event to `LockerEvent` (Freezed)
   - File: `example/lib/features/locker/bloc/locker_event.dart`
   - Add `const factory LockerEvent.disableBiometricPasswordOnlyRequested({required String password}) = _DisableBiometricPasswordOnlyRequested`
 
-- [ ] **8.3** Run `make g` for code generation
+- [x] **8.3** Run `make g` for code generation
   - Dir: `example/`
 
-- [ ] **8.4** Register handler + implement `_onDisableBiometricPasswordOnlyRequested` in `LockerBloc`
+- [x] **8.4** Register handler + implement `_onDisableBiometricPasswordOnlyRequested` in `LockerBloc`
   - File: `example/lib/features/locker/bloc/locker_bloc.dart`
   - Register: `on<_DisableBiometricPasswordOnlyRequested>(_onDisableBiometricPasswordOnlyRequested)`
   - Implementation: set `loadState: loading` → call `repo.disableBiometricPasswordOnly` → `_refreshBiometricState` → clear `isBiometricKeyInvalidated` → show success
   - No `biometricOperationState` management (password-only, no system biometric dialog)
   - Error handling: `onDecryptFailed` for wrong password, `onError` for generic failure
 
-- [ ] **8.5** Update `SettingsScreen._handleBiometricToggle` — route to password-only event when invalidated
+- [x] **8.5** Update `SettingsScreen._handleBiometricToggle` — route to password-only event when invalidated
   - File: `example/lib/features/settings/views/settings_screen.dart`
   - When `value == false` (disabling) and `lockerBloc.state.isBiometricKeyInvalidated == true`:
     dispatch `LockerEvent.disableBiometricPasswordOnlyRequested(password:)` instead of `disableBiometricRequested`
 
-- [ ] **8.6** Clear `isBiometricKeyInvalidated` on successful enable
+- [x] **8.6** Clear `isBiometricKeyInvalidated` on successful enable
   - File: `example/lib/features/locker/bloc/locker_bloc.dart`
   - In `_onEnableBiometricRequested`, after successful `enableBiometric` and `_refreshBiometricState`:
     `emit(state.copyWith(isBiometricKeyInvalidated: false))`
