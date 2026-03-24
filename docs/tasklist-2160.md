@@ -16,14 +16,14 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 | 6 | Tests | :white_check_mark: Done | |
 | 7 | Example app: detect and display key invalidation | :white_check_mark: Done | |
 | 8 | Example app: password-only biometric disable | :white_check_mark: Done | |
-| 9 | Android: `isKeyValid(tag)` silent probe | :white_large_square: Not started | Section G |
+| 9 | Android: `isKeyValid(tag)` silent probe | :white_check_mark: Done | Section G |
 | 10 | iOS/macOS: `isKeyValid(tag)` silent probe | :white_large_square: Not started | Section G |
 | 11 | Dart plugin: `BiometricCipher.isKeyValid(tag)` | :white_large_square: Not started | Section G |
 | 12 | Locker: `BiometricState.keyInvalidated` + proactive `determineBiometricState` | :white_large_square: Not started | Section G |
 | 13 | Tests for proactive detection | :white_large_square: Not started | Section G |
 | 14 | Example app: proactive detection integration | :white_large_square: Not started | Section G |
 
-**Current Phase:** 9
+**Current Phase:** 10
 
 ---
 
@@ -248,17 +248,17 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 **Ref:** `docs/idea-2160.md` Section G1
 
-- [ ] **9.1** Add `isKeyValid(keyAlias)` to `SecureRepositoryImpl`
+- [x] **9.1** Add `isKeyValid(keyAlias)` to `SecureRepositoryImpl`
   - File: `packages/biometric_cipher/android/src/main/kotlin/…/SecureRepositoryImpl.kt`
   - Load `AndroidKeyStore`, get key by alias (return `false` if null)
   - `Cipher.getInstance(TRANSFORMATION)` → `cipher.init(Cipher.ENCRYPT_MODE, key)` → return `true`
   - Catch `KeyPermanentlyInvalidatedException` → return `false`
 
-- [ ] **9.2** Add `isKeyValid(tag)` delegation to `SecureServiceImpl`
+- [x] **9.2** Add `isKeyValid(tag)` delegation to `SecureServiceImpl`
   - File: `packages/biometric_cipher/android/src/main/kotlin/…/SecureServiceImpl.kt`
   - Delegate: `fun isKeyValid(tag: String): Boolean = secureRepository.isKeyValid(tag)`
 
-- [ ] **9.3** Add `"isKeyValid"` method channel handler to `SecureMethodCallHandlerImpl`
+- [x] **9.3** Add `"isKeyValid"` method channel handler to `SecureMethodCallHandlerImpl`
   - File: `packages/biometric_cipher/android/src/main/kotlin/…/handlers/SecureMethodCallHandlerImpl.kt`
   - Parse `tag` argument (error if missing)
   - Call `secureService.isKeyValid(tag)` → `result.success(Boolean)`
