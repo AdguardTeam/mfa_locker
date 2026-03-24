@@ -182,8 +182,15 @@ abstract interface class Locker {
 
   /// Determines the biometric state.
   ///
-  /// Returns the [BiometricState] state.
-  Future<BiometricState> determineBiometricState();
+  /// When [biometricKeyTag] is provided and biometrics are enabled in app
+  /// settings, silently checks whether the hardware key is still valid.
+  /// Returns [BiometricState.keyInvalidated] if the key has been permanently
+  /// invalidated (e.g., after a biometric enrollment change). No biometric
+  /// prompt is shown.
+  ///
+  /// When [biometricKeyTag] is omitted, the method returns the biometric state
+  /// based solely on hardware availability and app settings (existing behavior).
+  Future<BiometricState> determineBiometricState({String? biometricKeyTag});
 
   /// Completely erases all data from the storage.
   ///

@@ -317,7 +317,7 @@ class MFALocker implements Locker {
   Future<void> configureBiometricCipher(BiometricConfig config) => _secureProvider.configure(config);
 
   @override
-  Future<BiometricState> determineBiometricState() async {
+  Future<BiometricState> determineBiometricState({String? biometricKeyTag}) async {
     final tpmStatus = await _secureProvider.getTPMStatus();
     // TPM checks first
     if (tpmStatus == TPMStatus.unsupported) {
@@ -348,7 +348,19 @@ class MFALocker implements Locker {
     final isEnabledInSettings = await isBiometricEnabled;
 
     // Finally check app settings
-    return isEnabledInSettings ? BiometricState.enabled : BiometricState.availableButDisabled;
+    if (!isEnabledInSettings) {
+      return BiometricState.availableButDisabled;
+    }
+
+    // Proactive key validity check — no biometric prompt shown.
+    if (biometricKeyTag != null) {
+      final isValid = await _secureProvider.isKeyValid(tag: biometricKeyTag);
+      if (!isValid) {
+        return BiometricState.keyInvalidated;
+      }
+    }
+
+    return BiometricState.enabled;
   }
 
   /// Enable biometric authentication (requires password confirmation)

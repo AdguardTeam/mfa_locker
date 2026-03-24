@@ -43,24 +43,24 @@ MFALocker.determineBiometricState(biometricKeyTag: tag)  [Phase 12]
 
 ## Tasks
 
-- [ ] **12.1** Add `keyInvalidated` to `BiometricState` enum + `isKeyInvalidated` getter
+- [x] **12.1** Add `keyInvalidated` to `BiometricState` enum + `isKeyInvalidated` getter
   - File: `lib/locker/models/biometric_state.dart`
   - Add `keyInvalidated` value (after `enabled`)
   - Add `bool get isKeyInvalidated => this == keyInvalidated`
 
-- [ ] **12.2** Add `isKeyValid` to `BiometricCipherProvider` abstract class
+- [x] **12.2** Add `isKeyValid` to `BiometricCipherProvider` abstract class
   - File: `lib/security/biometric_cipher_provider.dart`
   - Add `Future<bool> isKeyValid({required String tag})`
 
-- [ ] **12.3** Implement `isKeyValid` in `BiometricCipherProviderImpl`
+- [x] **12.3** Implement `isKeyValid` in `BiometricCipherProviderImpl`
   - File: `lib/security/providers/biometric_cipher_provider_impl.dart`
   - Delegate: `_biometricCipher.isKeyValid(tag: tag)`
 
-- [ ] **12.4** Add optional `biometricKeyTag` parameter to `determineBiometricState` in `Locker` interface
+- [x] **12.4** Add optional `biometricKeyTag` parameter to `determineBiometricState` in `Locker` interface
   - File: `lib/locker/locker.dart`
   - Change signature to: `Future<BiometricState> determineBiometricState({String? biometricKeyTag})`
 
-- [ ] **12.5** Implement key validity check in `MFALocker.determineBiometricState`
+- [x] **12.5** Implement key validity check in `MFALocker.determineBiometricState`
   - File: `lib/locker/mfa_locker.dart`
   - After confirming biometrics are enabled in settings, before returning `enabled`:
   - If `biometricKeyTag != null`: call `_secureProvider.isKeyValid(tag: biometricKeyTag)`

@@ -49,6 +49,11 @@ abstract class BiometricCipherProvider {
   ///
   /// If the key does not exist, this operation should complete without error.
   Future<void> deleteKey({required String tag});
+
+  /// Returns `true` if the biometric key identified by [tag] exists and is valid.
+  ///
+  /// Does not trigger a biometric prompt.
+  Future<bool> isKeyValid({required String tag});
 }
 
 /// Implementation of [BiometricCipherProvider] using the `biometric_cipher` package.
@@ -108,6 +113,9 @@ class BiometricCipherProviderImpl implements BiometricCipherProvider {
 
   @override
   Future<void> deleteKey({required String tag}) => _biometricCipher.deleteKey(tag: tag);
+
+  @override
+  Future<bool> isKeyValid({required String tag}) => _biometricCipher.isKeyValid(tag: tag);
 
   BiometricException _mapExceptionToBiometricException(BiometricCipherException e) => switch (e.code) {
     BiometricCipherExceptionCode.keyNotFound => const BiometricException(BiometricExceptionType.keyNotFound),

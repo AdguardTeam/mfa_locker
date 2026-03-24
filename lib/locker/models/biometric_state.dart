@@ -22,7 +22,10 @@ enum BiometricState {
   availableButDisabled,
 
   /// Biometric enabled and ready to use
-  enabled
+  enabled,
+
+  /// Biometric hardware key permanently invalidated after biometric enrollment change
+  keyInvalidated,
   ;
 
   /// Whether biometric is available for use (not an error state)
@@ -30,4 +33,7 @@ enum BiometricState {
 
   /// Whether biometric is currently enabled
   bool get isEnabled => this == enabled;
+
+  /// Whether the biometric hardware key has been permanently invalidated
+  bool get isKeyInvalidated => this == keyInvalidated;
 }

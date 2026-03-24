@@ -181,6 +181,7 @@ class _SettingsViewState extends State<_SettingsView> {
       BiometricState.securityUpdateRequired => 'Security update required',
       BiometricState.availableButDisabled => 'Enable biometric unlock',
       BiometricState.enabled => 'Biometric unlock enabled',
+      BiometricState.keyInvalidated => 'Biometrics changed. Disable and re-enable to use new biometrics.',
     };
   }
 }
