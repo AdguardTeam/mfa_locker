@@ -52,7 +52,7 @@ When using MFA Locker:
 
 - MFA Locker stores encrypted data locally. The security of the data depends on the strength of the user's password and the security of the device
 - Biometric authentication delegates to platform-specific secure enclaves (TPM/Secure Enclave). The security depends on the platform implementation
-- The library uses industry-standard encryption algorithms (AES-GCM, PBKDF2, HMAC-SHA256)
+- The library uses industry-standard encryption algorithms (AES-GCM, Argon2id, HMAC-SHA256)
 - Memory is securely wiped using `ErasableByteArray` to prevent sensitive data from remaining in memory
 
 For more technical details about the security architecture, see [docs/MFA_Locker.md](docs/MFA_Locker.md).

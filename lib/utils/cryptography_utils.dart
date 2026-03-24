@@ -21,7 +21,10 @@ class CryptographyUtils {
   static const int macSizeBytes = 16;
   static const int saltSizeBytes = 16;
 
-  static const int pbkdf2Iterations = 600000;
+  /// Argon2id parameters (OWASP recommended) [https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html]
+  static const int argon2MemoryKB = 19456; // 19 MiB
+  static const int argon2Parallelism = 1;
+  static const int argon2Iterations = 2;
 
   static const _uuid = Uuid();
 
@@ -29,10 +32,11 @@ class CryptographyUtils {
   static final _random = Random.secure();
   static final _hmacAlgorithm = Hmac.sha256();
 
-  static final _pbkdf2 = Pbkdf2(
-    macAlgorithm: _hmacAlgorithm,
-    iterations: pbkdf2Iterations,
-    bits: aesKeySizeBits,
+  static final _argon2id = Argon2id(
+    memory: argon2MemoryKB,
+    parallelism: argon2Parallelism,
+    iterations: argon2Iterations,
+    hashLength: aesKeySizeBytes,
   );
 
   static Future<ErasableByteArray> generateAESKey() async {
@@ -166,7 +170,7 @@ class CryptographyUtils {
   }) async {
     final passwordKey = SecretKey(password.bytes);
 
-    final derivedKey = await _pbkdf2.deriveKey(
+    final derivedKey = await _argon2id.deriveKey(
       secretKey: passwordKey,
       nonce: salt,
     );
