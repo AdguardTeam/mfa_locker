@@ -48,6 +48,8 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
             generateKeyPair(arguments: call.arguments, result: result)
         case "deleteKey":
             deleteKey(arguments: call.arguments, result: result)
+        case "isKeyValid":
+            isKeyValid(arguments: call.arguments, result: result)
         case "encrypt":
             encrypt(arguments: call.arguments, result: result)
         case "decrypt":
@@ -264,6 +266,25 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
             let flutterError = getFlutterError(SecureEnclavePluginError.decryptionError(error: error))
             result(flutterError)
         }
+    }
+
+    /// Checks whether a Secure Enclave key with the given tag is valid (exists and has not been
+    /// invalidated) without triggering any biometric prompt.
+    ///
+    /// Expects `arguments` to contain a dictionary with the key `"tag"` (a `String`).
+    ///
+    /// - Parameters:
+    ///   - arguments: The arguments sent from Flutter, typically a dictionary with the `tag`.
+    ///   - result: A callback that returns `true` if the key is valid, `false` otherwise,
+    ///     or an error if the `tag` argument is missing.
+    private func isKeyValid(arguments: Any?, result: @escaping FlutterResult) {
+        guard let args = arguments as? [String: Any],
+              let tag = args["tag"] as? String else {
+            let flutterError = getFlutterError(SecureEnclavePluginError.invalidArgument)
+            result(flutterError)
+            return
+        }
+        result(secureEnclaveManager.isKeyValid(tag: tag))
     }
 
     /// Converts a `BaseError` into a `FlutterError`, suitable for returning to the Flutter layer.

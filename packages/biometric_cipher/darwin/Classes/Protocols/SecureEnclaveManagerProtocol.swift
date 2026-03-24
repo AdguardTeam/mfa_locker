@@ -3,6 +3,7 @@ protocol SecureEnclaveManagerProtocol{
     func isSecureEnclaveSupported() -> Bool
     func generateKeyPair(tag: String) throws
     func deleteKey(tag: String) throws
+    func isKeyValid(tag: String) -> Bool
     func encrypt(_ encryptionString: String, tag: String) throws -> Data
     func decrypt(_ encryptedData: Data, tag: String) throws -> String
 }

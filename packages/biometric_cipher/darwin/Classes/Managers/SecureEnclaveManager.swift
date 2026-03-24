@@ -111,6 +111,18 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         _ = try keychainService.deleteItem(query as CFDictionary)
     }
 
+    /// Checks whether a Secure Enclave key with the given tag exists in the keychain
+    /// without triggering any biometric prompt.
+    ///
+    /// - Parameter tag: A string representing the unique tag of the key to check.
+    /// - Returns: `true` if the key exists and has not been invalidated, `false` otherwise.
+    func isKeyValid(tag: String) -> Bool {
+        guard let tagData = try? getTagData(tag: tag) else {
+            return false
+        }
+        return keyExists(tag: tagData)
+    }
+
     /// Encrypts a string using the Secure Enclave's public key.
     ///
     /// - Parameter encryptionString: The string to be encrypted.
@@ -235,7 +247,7 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
     /// regardless of whether the caller can authenticate to use it.
     ///
     /// Uses `kSecUseAuthenticationUISkip` to suppress any biometric prompt.
-    private func keyExists(tag: Data) -> Bool {
+    func keyExists(tag: Data) -> Bool {
         let query: [String: Any] = [
             kSecClass as String:              kSecClassKey,
             kSecAttrKeyType as String:        kSecAttrKeyTypeECSECPrimeRandom,

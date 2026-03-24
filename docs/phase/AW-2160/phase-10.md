@@ -51,16 +51,17 @@ No new files. All changes are additions/modifications to existing files.
 
 ## Tasks
 
-- [ ] **10.1** Change `keyExists(tag:)` visibility from `private` to `internal` in `KeychainService`
-  - File: `packages/biometric_cipher/darwin/Classes/Services/KeychainService.swift`
-  - Change `private func keyExists(tag: String) -> Bool` to `func keyExists(tag: String) -> Bool`
+- [x] **10.1** Change `keyExists(tag:)` visibility from `private` to `internal` in `SecureEnclaveManager`
+  - File: `packages/biometric_cipher/darwin/Classes/Managers/SecureEnclaveManager.swift`
+  - Change `private func keyExists(tag: Data) -> Bool` to `func keyExists(tag: Data) -> Bool`
   - Implementation unchanged — still uses `kSecUseAuthenticationUISkip`
 
-- [ ] **10.2** Add `isKeyValid(tag:)` to `SecureEnclaveManager`
+- [x] **10.2** Add `isKeyValid(tag:)` to `SecureEnclaveManager` and `SecureEnclaveManagerProtocol`
   - File: `packages/biometric_cipher/darwin/Classes/Managers/SecureEnclaveManager.swift`
-  - Delegate: `func isKeyValid(tag: String) -> Bool { keychainService.keyExists(tag: tag) }`
+  - File: `packages/biometric_cipher/darwin/Classes/Protocols/SecureEnclaveManagerProtocol.swift`
+  - Delegate: `func isKeyValid(tag: String) -> Bool { keyExists(tag: getTagData(tag: tag)) }`
 
-- [ ] **10.3** Add `"isKeyValid"` method channel handler to `BiometricCipherPlugin`
+- [x] **10.3** Add `"isKeyValid"` method channel handler to `BiometricCipherPlugin`
   - File: `packages/biometric_cipher/darwin/Classes/BiometricCipherPlugin.swift`
   - Parse `tag` from args (error if missing)
   - Call `secureEnclaveManager.isKeyValid(tag:)` → `result(Bool)`
@@ -77,12 +78,12 @@ No new files. All changes are additions/modifications to existing files.
 ## Dependencies
 
 - Phase 9 complete (Android `isKeyValid` is done — same method name must match)
-- `keyExists(tag:)` already implemented in `KeychainService` (Phase 2, task 2.2) — only visibility change needed
+- `keyExists(tag:)` already implemented in `SecureEnclaveManager` (Phase 2, task 2.2) — only visibility change needed
 - Method name `"isKeyValid"` must match Android's channel method name and the Dart-side call in Phase 11
 
 ## Technical Details
 
-### Task 10.1 — `KeychainService.keyExists` visibility change
+### Task 10.1 — `SecureEnclaveManager.keyExists` visibility change
 
 Change the access modifier from `private` to `internal` (default in Swift — omit the keyword):
 
@@ -91,7 +92,7 @@ Change the access modifier from `private` to `internal` (default in Swift — om
 /// regardless of whether the caller can authenticate to use it.
 ///
 /// Uses `kSecUseAuthenticationUISkip` to suppress any biometric prompt.
-func keyExists(tag: String) -> Bool {  // was: private func
+func keyExists(tag: Data) -> Bool {  // was: private func
     // ... implementation unchanged from Phase 2 ...
 }
 ```
@@ -102,7 +103,10 @@ No logic change — this purely makes the method accessible to `SecureEnclaveMan
 
 ```swift
 func isKeyValid(tag: String) -> Bool {
-    return keychainService.keyExists(tag: tag)
+    guard let tagData = try? getTagData(tag: tag) else {
+        return false
+    }
+    return keyExists(tag: tagData)
 }
 ```
 
