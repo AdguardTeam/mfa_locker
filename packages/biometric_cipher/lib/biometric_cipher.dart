@@ -94,4 +94,23 @@ class BiometricCipher {
 
     return _instance.deleteKey(tag: tag);
   }
+
+  /// Checks whether the biometric key identified by [tag] exists and is still valid,
+  /// WITHOUT triggering a biometric prompt.
+  ///
+  /// Returns `true` if the key exists and is usable, `false` if it has been
+  /// permanently invalidated (e.g. due to a biometric enrollment change) or deleted.
+  ///
+  /// Throws [BiometricCipherException] with [BiometricCipherExceptionCode.invalidArgument]
+  /// if [tag] is empty.
+  Future<bool> isKeyValid({required String tag}) {
+    if (tag.isEmpty) {
+      throw const BiometricCipherException(
+        code: BiometricCipherExceptionCode.invalidArgument,
+        message: 'Tag cannot be empty',
+      );
+    }
+
+    return _instance.isKeyValid(tag: tag);
+  }
 }

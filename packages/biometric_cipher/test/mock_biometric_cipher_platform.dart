@@ -124,6 +124,12 @@ class MockBiometricCipherPlatform with MockPlatformInterfaceMixin implements Bio
     return data.replaceFirst('encrypted_', '');
   }
 
+  /// Returns `true` if a key associated with [tag] exists, `false` otherwise.
+  ///
+  /// Does not throw for empty [tag] — returns `false` immediately (no key can exist for an empty tag).
+  @override
+  Future<bool> isKeyValid({required String tag}) async => _storedKeys.containsKey(tag);
+
   /// Deletes the cryptographic key associated with the given [tag].
   ///
   /// Removes the key from the [_storedKeys] map.

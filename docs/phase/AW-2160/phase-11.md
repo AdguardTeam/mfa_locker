@@ -32,11 +32,11 @@ Phase 12 (`BiometricCipherProvider.isKeyValid`) will call `BiometricCipher.isKey
 
 ## Tasks
 
-- [ ] **11.1** Add `isKeyValid` to platform interface
+- [x] **11.1** Add `isKeyValid` to platform interface
   - File: `packages/biometric_cipher/lib/biometric_cipher_platform_interface.dart`
   - Add `Future<bool> isKeyValid({required String tag})`
 
-- [ ] **11.2** Add `isKeyValid` to `BiometricCipher`
+- [x] **11.2** Add `isKeyValid` to `BiometricCipher`
   - File: `packages/biometric_cipher/lib/biometric_cipher.dart`
   - Validate non-empty tag (throw `BiometricCipherException` with `invalidArgument` code if empty)
   - Delegate to `_instance.isKeyValid(tag: tag)`

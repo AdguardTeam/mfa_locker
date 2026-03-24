@@ -55,4 +55,8 @@ abstract class BiometricCipherPlatform extends PlatformInterface {
   Future<void> deleteKey({required String tag}) {
     throw UnimplementedError('deleteKey() has not been implemented.');
   }
+
+  Future<bool> isKeyValid({required String tag}) {
+    throw UnimplementedError('isKeyValid({required String tag}) has not been implemented.');
+  }
 }
