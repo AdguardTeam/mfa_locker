@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:biometric_cipher/data/biometric_status.dart';
+import 'package:biometric_cipher/data/tpm_status.dart';
 import 'package:locker/erasable/erasable.dart';
 import 'package:locker/locker/locker.dart';
 import 'package:locker/locker/mfa_locker.dart';
+import 'package:locker/locker/models/biometric_state.dart';
 import 'package:locker/security/models/cipher_func.dart';
 import 'package:locker/storage/models/data/origin.dart';
 import 'package:locker/storage/models/domain/entry_add_input.dart';
@@ -1401,6 +1404,69 @@ void main() {
             cipherFunc: newPwd,
           ),
         ).called(1);
+      });
+    });
+
+    group('determineBiometricState', () {
+      const biometricKeyTag = 'test-bio-key-tag';
+
+      late MockBiometricCipherProvider secureProvider;
+      late MockEncryptedStorage dsStorage;
+      late MFALocker dsLocker;
+
+      setUp(() {
+        secureProvider = MockBiometricCipherProvider();
+        dsStorage = MockEncryptedStorage();
+
+        dsLocker = MFALocker(
+          file: MockFile(),
+          storage: dsStorage,
+          secureProvider: secureProvider,
+        );
+
+        when(() => dsStorage.isInitialized).thenAnswer((_) async => true);
+        when(() => dsStorage.lockTimeout)
+            .thenAnswer((_) async => _Helpers.lockTimeout.inMilliseconds);
+
+        when(() => secureProvider.getTPMStatus())
+            .thenAnswer((_) async => TPMStatus.supported);
+        when(() => secureProvider.getBiometryStatus())
+            .thenAnswer((_) async => BiometricStatus.supported);
+        when(() => dsStorage.isBiometricEnabled).thenAnswer((_) async => true);
+      });
+
+      tearDown(() async {
+        dsLocker.dispose();
+      });
+
+      test('returns keyInvalidated when isKeyValid returns false', () async {
+        when(() => secureProvider.isKeyValid(tag: biometricKeyTag))
+            .thenAnswer((_) async => false);
+
+        final result = await dsLocker.determineBiometricState(
+          biometricKeyTag: biometricKeyTag,
+        );
+
+        expect(result, BiometricState.keyInvalidated);
+        verify(() => secureProvider.isKeyValid(tag: biometricKeyTag)).called(1);
+      });
+
+      test('returns enabled when isKeyValid returns true', () async {
+        when(() => secureProvider.isKeyValid(tag: biometricKeyTag))
+            .thenAnswer((_) async => true);
+
+        final result = await dsLocker.determineBiometricState(
+          biometricKeyTag: biometricKeyTag,
+        );
+
+        expect(result, BiometricState.enabled);
+      });
+
+      test('returns enabled without key check when biometricKeyTag is null', () async {
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.enabled);
+        verifyNever(() => secureProvider.isKeyValid(tag: any(named: 'tag')));
       });
     });
   });

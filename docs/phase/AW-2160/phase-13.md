@@ -40,20 +40,20 @@ Phase 13 verifies this entire path with unit tests:
 
 ## Tasks
 
-- [ ] **13.1** Test `BiometricState.keyInvalidated` enum value and `isKeyInvalidated` getter
+- [x] **13.1** Test `BiometricState.keyInvalidated` enum value and `isKeyInvalidated` getter
   - `BiometricState.keyInvalidated.isKeyInvalidated` → `true`
   - `BiometricState.enabled.isKeyInvalidated` → `false`
   - `BiometricState.keyInvalidated.isEnabled` → `false`
   - `BiometricState.keyInvalidated.isAvailable` → `false`
 
-- [ ] **13.2** Test `isKeyValid` delegation in `BiometricCipherProviderImpl`
+- [x] **13.2** Test `isKeyValid` delegation in `BiometricCipherProviderImpl`
   - Mock `BiometricCipher.isKeyValid` → verify delegation and return value pass-through
 
-- [ ] **13.3** Test `determineBiometricState(biometricKeyTag:)` returns `keyInvalidated` when key is invalid
+- [x] **13.3** Test `determineBiometricState(biometricKeyTag:)` returns `keyInvalidated` when key is invalid
   - Mock `isKeyValid` → `false`, biometrics enabled in settings
   - Expect `BiometricState.keyInvalidated`
 
-- [ ] **13.4** Test `determineBiometricState()` without `biometricKeyTag` retains existing behavior
+- [x] **13.4** Test `determineBiometricState()` without `biometricKeyTag` retains existing behavior
   - Biometrics enabled, no tag passed → expect `BiometricState.enabled` (no key validity check)
 
 ## Acceptance Criteria

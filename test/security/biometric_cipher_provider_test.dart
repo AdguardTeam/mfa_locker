@@ -88,5 +88,35 @@ void main() {
         );
       });
     });
+
+    group('isKeyValid', () {
+      late MockBiometricCipher mockCipher;
+      late BiometricCipherProviderImpl provider;
+
+      setUp(() {
+        mockCipher = MockBiometricCipher();
+        provider = BiometricCipherProviderImpl.forTesting(mockCipher);
+      });
+
+      test('returns true when cipher returns true', () async {
+        when(() => mockCipher.isKeyValid(tag: any(named: 'tag')))
+            .thenAnswer((_) async => true);
+
+        final result = await provider.isKeyValid(tag: 'my-key');
+
+        expect(result, isTrue);
+        verify(() => mockCipher.isKeyValid(tag: 'my-key')).called(1);
+      });
+
+      test('returns false when cipher returns false', () async {
+        when(() => mockCipher.isKeyValid(tag: any(named: 'tag')))
+            .thenAnswer((_) async => false);
+
+        final result = await provider.isKeyValid(tag: 'my-key');
+
+        expect(result, isFalse);
+        verify(() => mockCipher.isKeyValid(tag: 'my-key')).called(1);
+      });
+    });
   });
 }
