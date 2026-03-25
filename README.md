@@ -5,7 +5,7 @@ A secure storage library for Dart/Flutter applications that provides encrypted k
 ## Features
 
 - **AES-GCM Encryption** — All data is encrypted using industry-standard AES-GCM algorithm
-- **Password Protection** — PBKDF2 key derivation from user password
+- **Password Protection** — Argon2id key derivation from user password
 - **Biometric Authentication** — Optional biometric unlock via TPM/Secure Enclave (iOS, macOS, Android, Windows)
 - **HMAC Integrity Verification** — Detects storage tampering using HMAC-SHA256
 - **Auto-Lock** — Automatic locking after configurable inactivity timeout
@@ -405,7 +405,7 @@ Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to report issue
 ## Security
 
 See [docs/MFA_Locker.md](docs/MFA_Locker.md) for detailed information about:
-- Encryption algorithms (AES-GCM, HMAC-SHA256, PBKDF2)
+- Encryption algorithms (AES-GCM, HMAC-SHA256, Argon2id)
 - Storage file structure
 - Key derivation and wrapping
 - Biometric key management via TPM/Secure Enclave

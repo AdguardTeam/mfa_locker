@@ -64,7 +64,10 @@ void main() {
         );
 
         verifyNever(
-          () => mockProvider.encrypt(tag: any(named: 'tag'), data: any(named: 'data')),
+          () => mockProvider.encrypt(
+            tag: any(named: 'tag'),
+            data: any(named: 'data'),
+          ),
         );
       });
 
@@ -81,7 +84,10 @@ void main() {
         );
 
         verifyNever(
-          () => mockProvider.encrypt(tag: any(named: 'tag'), data: any(named: 'data')),
+          () => mockProvider.encrypt(
+            tag: any(named: 'tag'),
+            data: any(named: 'data'),
+          ),
         );
       });
 
@@ -90,7 +96,10 @@ void main() {
         final exception = Exception('provider error');
 
         when(
-          () => mockProvider.encrypt(tag: any(named: 'tag'), data: any(named: 'data')),
+          () => mockProvider.encrypt(
+            tag: any(named: 'tag'),
+            data: any(named: 'data'),
+          ),
         ).thenThrow(exception);
 
         await expectLater(
@@ -106,7 +115,10 @@ void main() {
         final decryptedBytes = Uint8List.fromList([1, 2, 3]);
 
         when(
-          () => mockProvider.decrypt(tag: any(named: 'tag'), data: any(named: 'data')),
+          () => mockProvider.decrypt(
+            tag: any(named: 'tag'),
+            data: any(named: 'data'),
+          ),
         ).thenAnswer((_) async => decryptedBytes);
 
         final result = await sut.decrypt(encryptedData);
@@ -123,7 +135,10 @@ void main() {
         );
 
         verifyNever(
-          () => mockProvider.decrypt(tag: any(named: 'tag'), data: any(named: 'data')),
+          () => mockProvider.decrypt(
+            tag: any(named: 'tag'),
+            data: any(named: 'data'),
+          ),
         );
       });
 
@@ -131,7 +146,10 @@ void main() {
         final exception = Exception('provider error');
 
         when(
-          () => mockProvider.decrypt(tag: any(named: 'tag'), data: any(named: 'data')),
+          () => mockProvider.decrypt(
+            tag: any(named: 'tag'),
+            data: any(named: 'data'),
+          ),
         ).thenThrow(exception);
 
         await expectLater(

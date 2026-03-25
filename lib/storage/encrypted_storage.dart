@@ -25,7 +25,7 @@ abstract interface class EncryptedStorage {
   /// Whether biometric authentication is enabled.
   Future<bool> get isBiometricEnabled;
 
-  /// The salt used for PBKDF2 key derivation.
+  /// The salt used for key derivation.
   Future<Uint8List?> get salt;
 
   /// The lock timeout in milliseconds.

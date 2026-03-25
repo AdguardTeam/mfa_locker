@@ -43,7 +43,10 @@ class PasswordCipherFunc extends CipherFunc {
   // trade-off (perf vs. memory exposure).
   @override
   Future<Uint8List> encrypt(ErasableByteArray data) async {
-    final passwordKey = await CryptographyUtils.deriveKeyFromPassword(password: password, salt: salt);
+    final passwordKey = await CryptographyUtils.deriveKeyFromPassword(
+      password: password,
+      salt: salt,
+    );
 
     try {
       final encrypted = await CryptographyUtils.encrypt(key: passwordKey, data: data);
