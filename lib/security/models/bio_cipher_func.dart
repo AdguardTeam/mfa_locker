@@ -6,6 +6,7 @@ import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/security/biometric_cipher_provider.dart';
 import 'package:locker/security/models/cipher_func.dart';
 import 'package:locker/storage/models/data/origin.dart';
+import 'package:meta/meta.dart';
 
 class BioCipherFunc extends CipherFunc {
   final String keyTag;
@@ -13,8 +14,9 @@ class BioCipherFunc extends CipherFunc {
 
   BioCipherFunc({
     required this.keyTag,
+    @visibleForTesting BiometricCipherProvider? secureProviderOverride,
   }) : assert(keyTag != '', 'keyTag cannot be empty'),
-       _secureProvider = BiometricCipherProviderImpl.instance,
+       _secureProvider = secureProviderOverride ?? BiometricCipherProviderImpl.instance,
        super(origin: Origin.bio);
 
   @override

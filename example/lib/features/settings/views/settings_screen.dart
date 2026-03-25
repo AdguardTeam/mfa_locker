@@ -35,7 +35,7 @@ class _SettingsViewState extends State<_SettingsView> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
+      if (!context.mounted) {
         return;
       }
       context.read<LockerBloc>().add(const LockerEvent.checkBiometricAvailabilityRequested());
@@ -85,7 +85,6 @@ class _SettingsViewState extends State<_SettingsView> {
                                     subtitle: Text(
                                       _getBiometricStateDescription(
                                         innerLockerState.biometricState,
-                                        isKeyInvalidated: innerLockerState.biometricState.isKeyInvalidated,
                                       ),
                                       style: innerLockerState.biometricState.isKeyInvalidated
                                           ? TextStyle(color: Theme.of(context).colorScheme.error)
@@ -166,23 +165,17 @@ class _SettingsViewState extends State<_SettingsView> {
     }
   }
 
-  String _getBiometricStateDescription(BiometricState biometricState, {required bool isKeyInvalidated}) {
-    if (isKeyInvalidated) {
-      return 'Biometrics changed. Disable and re-enable to use new biometrics.';
-    }
-
-    return switch (biometricState) {
-      BiometricState.tpmUnsupported => 'Secure storage not available on this device',
-      BiometricState.tpmVersionIncompatible => 'Device security version incompatible',
-      BiometricState.hardwareUnavailable => 'Biometric authentication not supported',
-      BiometricState.notEnrolled => 'Please set up fingerprint/face in device settings',
-      BiometricState.disabledByPolicy => 'Biometric authentication disabled by administrator',
-      BiometricState.securityUpdateRequired => 'Security update required',
-      BiometricState.availableButDisabled => 'Enable biometric unlock',
-      BiometricState.enabled => 'Biometric unlock enabled',
-      BiometricState.keyInvalidated => 'Biometrics changed. Disable and re-enable to use new biometrics.',
-    };
-  }
+  String _getBiometricStateDescription(BiometricState biometricState) => switch (biometricState) {
+    BiometricState.tpmUnsupported => 'Secure storage not available on this device',
+    BiometricState.tpmVersionIncompatible => 'Device security version incompatible',
+    BiometricState.hardwareUnavailable => 'Biometric authentication not supported',
+    BiometricState.notEnrolled => 'Please set up fingerprint/face in device settings',
+    BiometricState.disabledByPolicy => 'Biometric authentication disabled by administrator',
+    BiometricState.securityUpdateRequired => 'Security update required',
+    BiometricState.availableButDisabled => 'Enable biometric unlock',
+    BiometricState.enabled => 'Biometric unlock enabled',
+    BiometricState.keyInvalidated => 'Biometrics changed. Disable and re-enable to use new biometrics.',
+  };
 }
 
 class _AutoLockTimeoutTile extends StatelessWidget {
@@ -266,12 +259,15 @@ class _AutoLockTimeoutTile extends StatelessWidget {
     }
 
     if (context.mounted && result?.isBiometricSuccess == false && result.hasValidPassword) {
-      settingsBloc.add(
-        SettingsEvent.autoLockTimeoutSelected(
-          timeout,
-          result!.password!,
-        ),
-      );
+      final password = result?.password;
+      if (password != null) {
+        settingsBloc.add(
+          SettingsEvent.autoLockTimeoutSelected(
+            timeout,
+            password,
+          ),
+        );
+      }
     }
   }
 }

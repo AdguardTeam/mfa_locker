@@ -140,7 +140,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> with SingleTickerProvid
       ),
     );
 
-    if (!mounted) {
+    if (!context.mounted) {
       return;
     }
 

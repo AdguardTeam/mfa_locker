@@ -1463,6 +1463,81 @@ void main() {
         expect(result, BiometricState.enabled);
         verifyNever(() => secureProvider.isKeyValid(tag: any(named: 'tag')));
       });
+
+      test('returns tpmUnsupported when TPM is unsupported', () async {
+        when(() => secureProvider.getTPMStatus()).thenAnswer((_) async => TPMStatus.unsupported);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.tpmUnsupported);
+      });
+
+      test('returns tpmVersionIncompatible when TPM version is unsupported', () async {
+        when(() => secureProvider.getTPMStatus()).thenAnswer((_) async => TPMStatus.tpmVersionUnsupported);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.tpmVersionIncompatible);
+      });
+
+      test('returns hardwareUnavailable when biometric status is unsupported', () async {
+        when(() => secureProvider.getBiometryStatus()).thenAnswer((_) async => BiometricStatus.unsupported);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.hardwareUnavailable);
+      });
+
+      test('returns hardwareUnavailable when biometric status is deviceNotPresent', () async {
+        when(() => secureProvider.getBiometryStatus()).thenAnswer((_) async => BiometricStatus.deviceNotPresent);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.hardwareUnavailable);
+      });
+
+      test('returns hardwareUnavailable when biometric status is deviceBusy', () async {
+        when(() => secureProvider.getBiometryStatus()).thenAnswer((_) async => BiometricStatus.deviceBusy);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.hardwareUnavailable);
+      });
+
+      test('returns notEnrolled when user has not configured biometric', () async {
+        when(() => secureProvider.getBiometryStatus()).thenAnswer((_) async => BiometricStatus.notConfiguredForUser);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.notEnrolled);
+      });
+
+      test('returns disabledByPolicy when biometric is disabled by policy', () async {
+        when(() => secureProvider.getBiometryStatus()).thenAnswer((_) async => BiometricStatus.disabledByPolicy);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.disabledByPolicy);
+      });
+
+      test('returns securityUpdateRequired when Android security update is required', () async {
+        when(
+          () => secureProvider.getBiometryStatus(),
+        ).thenAnswer((_) async => BiometricStatus.androidBiometricErrorSecurityUpdateRequired);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.securityUpdateRequired);
+      });
+
+      test('returns availableButDisabled when biometric is not enabled in app settings', () async {
+        when(() => dsStorage.isBiometricEnabled).thenAnswer((_) async => false);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.availableButDisabled);
+        verifyNever(() => secureProvider.isKeyValid(tag: any(named: 'tag')));
+      });
     });
   });
 }

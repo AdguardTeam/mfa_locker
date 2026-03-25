@@ -1148,9 +1148,9 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
 
         case BiometricExceptionType.failure:
           await _determineBiometricStateAndEmit(emit);
+          break;
 
         case BiometricExceptionType.notConfigured:
-          // Fall through to generic error handling
           break;
       }
     }

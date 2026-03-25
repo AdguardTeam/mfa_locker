@@ -80,9 +80,10 @@ class LockedScreen extends StatelessWidget {
       return;
     }
 
-    if (result?.password != null) {
+    final password = result?.password;
+    if (password != null) {
       context.read<LockerBloc>().add(
-        LockerEvent.unlockPasswordSubmitted(password: result!.password!),
+        LockerEvent.unlockPasswordSubmitted(password: password),
       );
     }
   }

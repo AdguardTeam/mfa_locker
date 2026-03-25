@@ -59,7 +59,7 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
     return true;
   });
 
-  // TODO: (d.seloustev) A test needs to be added
+  // TODO(d.seloustev): A test needs to be added
   @override
   Future<bool> get isBiometricEnabled => _sync(() async {
     try {

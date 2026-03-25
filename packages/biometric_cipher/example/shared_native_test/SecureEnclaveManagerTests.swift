@@ -257,15 +257,45 @@ final class SecureEnclaveManagerTests: XCTestCase {
         }
     }
     
-    /// Negative scenario: no private key for the given tag => `.failedGetPrivateKey` when decrypting.
-    func testDecrypt_NoPrivateKey_ShouldThrow() throws {
+    /// Negative scenario: key does not exist in keychain when decrypting => `.keyPermanentlyInvalidated`.
+    ///
+    /// When `getPrivateKey` returns nil and `keyExists` finds no item in the keychain
+    /// (e.g., after a biometric enrollment change removed the key), `decrypt` must throw
+    /// `keyPermanentlyInvalidated` so the Flutter plugin can surface the correct error code.
+    func testDecrypt_KeyNotFoundInKeychain_ShouldThrowKeyPermanentlyInvalidated() throws {
         let tag = "test.sec.enclave.no_key_decrypt"
         let fakeEncryptedData = Data([0x01, 0x02, 0x03])
-        
+        // createRandomKeyResult is nil by default, so getPrivateKey returns nil.
+        // The key does not exist in the test keychain either, so keyExists returns false,
+        // which triggers the keyPermanentlyInvalidated path.
+
         XCTAssertThrowsError(try manager.decrypt(fakeEncryptedData, tag: tag)) { error in
-            guard let e = error as? SecureEnclaveManagerError, case .failedGetPrivateKey = e else {
-                return XCTFail("Expected SecureEnclaveManagerError.failedGetPrivateKey, got \(error)")
+            guard let e = error as? SecureEnclaveManagerError, case .keyPermanentlyInvalidated = e else {
+                return XCTFail("Expected SecureEnclaveManagerError.keyPermanentlyInvalidated, got \(error)")
             }
         }
     }
+
+    // MARK: - isKeyValid tests
+
+    /// Negative scenario: empty tag returns false immediately.
+    func testIsKeyValid_EmptyTag_ReturnsFalse() {
+        let result = manager.isKeyValid(tag: "")
+
+        XCTAssertFalse(result, "isKeyValid must return false for an empty tag.")
+    }
+
+    /// Negative scenario: a key that was never created is not found in the keychain.
+    ///
+    /// `SecItemCopyMatching` returns `errSecItemNotFound` for a non-existent key,
+    /// so `keyExists` returns false and `isKeyValid` returns false.
+    func testIsKeyValid_NonExistentKey_ReturnsFalse() {
+        let result = manager.isKeyValid(tag: "test.nonexistent.key.tag")
+
+        XCTAssertFalse(result, "isKeyValid must return false when the key does not exist in the keychain.")
+    }
+
+    /// Note: verifying `isKeyValid` returns `true` when the Secure Enclave returns
+    /// `errSecInteractionNotAllowed` (key exists but UI is suppressed) requires a
+    /// real Secure Enclave key and must be covered by an on-device integration test.
 }
