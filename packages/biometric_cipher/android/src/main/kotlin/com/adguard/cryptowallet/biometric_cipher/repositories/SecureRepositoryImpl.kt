@@ -87,10 +87,14 @@ class SecureRepositoryImpl(
 
     override fun getCipher(secretKey: SecretKey, optMode: Int, spec: GCMParameterSpec?): Cipher =
         Cipher.getInstance(SecureObjects.TRANSFORMATION).apply {
-            if (spec != null) {
-                init(optMode, secretKey, spec)
-            } else {
-                init(optMode, secretKey)
+            try {
+                if (spec != null) {
+                    init(optMode, secretKey, spec)
+                } else {
+                    init(optMode, secretKey)
+                }
+            } catch (e: KeyPermanentlyInvalidatedException) {
+                throw CryptographicException.KeyPermanentlyInvalidated(e)
             }
         }
 
