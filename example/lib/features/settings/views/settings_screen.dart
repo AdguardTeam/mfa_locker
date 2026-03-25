@@ -76,9 +76,7 @@ class _SettingsViewState extends State<_SettingsView> {
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             child: BlocBuilder<LockerBloc, LockerState>(
-                              buildWhen: (previous, current) =>
-                                  previous.biometricState != current.biometricState ||
-                                  previous.isBiometricKeyInvalidated != current.isBiometricKeyInvalidated,
+                              buildWhen: (previous, current) => previous.biometricState != current.biometricState,
                               builder: (context, innerLockerState) => Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -87,9 +85,9 @@ class _SettingsViewState extends State<_SettingsView> {
                                     subtitle: Text(
                                       _getBiometricStateDescription(
                                         innerLockerState.biometricState,
-                                        isKeyInvalidated: innerLockerState.isBiometricKeyInvalidated,
+                                        isKeyInvalidated: innerLockerState.biometricState.isKeyInvalidated,
                                       ),
-                                      style: innerLockerState.isBiometricKeyInvalidated
+                                      style: innerLockerState.biometricState.isKeyInvalidated
                                           ? TextStyle(color: Theme.of(context).colorScheme.error)
                                           : null,
                                     ),
@@ -123,7 +121,8 @@ class _SettingsViewState extends State<_SettingsView> {
   );
 
   bool _canToggleBiometric(LockerState state) =>
-      (state.biometricState.isAvailable || state.isBiometricKeyInvalidated) && state.loadState != LoadState.loading;
+      (state.biometricState.isAvailable || state.biometricState.isKeyInvalidated) &&
+      state.loadState != LoadState.loading;
 
   Future<void> _handleBiometricToggle(bool value) async {
     final result = await showModalBottomSheet<AuthenticationResult?>(
@@ -153,7 +152,7 @@ class _SettingsViewState extends State<_SettingsView> {
         LockerEvent.enableBiometricRequested(password: password),
       );
     } else {
-      if (lockerBloc.state.isBiometricKeyInvalidated) {
+      if (lockerBloc.state.biometricState.isKeyInvalidated) {
         lockerBloc.add(
           LockerEvent.disableBiometricPasswordOnlyRequested(password: password),
         );

@@ -21,7 +21,7 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 | 11 | Dart plugin: `BiometricCipher.isKeyValid(tag)` | :white_large_square: Not started | Section G |
 | 12 | Locker: `BiometricState.keyInvalidated` + proactive `determineBiometricState` | :white_large_square: Not started | Section G |
 | 13 | Tests for proactive detection | :white_large_square: Not started | Section G |
-| 14 | Example app: proactive detection integration | :white_large_square: Not started | Section G |
+| 14 | Example app: proactive detection integration | :white_check_mark: Complete | Section G |
 
 **Current Phase:** 13
 
@@ -374,20 +374,20 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 **Ref:** `docs/idea-2160.md` Sections G7, G8
 
-- [ ] **14.1** Pass `biometricKeyTag` in repository's `determineBiometricState` call
+- [x] **14.1** Pass `biometricKeyTag` in repository's `determineBiometricState` call
   - File: `example/lib/features/locker/data/repositories/locker_repository.dart`
   - Update the `determineBiometricState()` call to pass `biometricKeyTag: AppConstants.biometricKeyTag`
 
-- [ ] **14.2** Handle `BiometricState.keyInvalidated` in `LockerBloc`
+- [x] **14.2** Handle `BiometricState.keyInvalidated` in `LockerBloc`
   - File: `example/lib/features/locker/bloc/locker_bloc.dart`
   - When `determineBiometricState` returns `keyInvalidated`: set `isBiometricKeyInvalidated: true` on state
 
-- [ ] **14.3** Update locked screen biometric button visibility to use `biometricState.isKeyInvalidated`
+- [x] **14.3** Update locked screen biometric button visibility to use `biometricState.isKeyInvalidated`
   - File: `example/lib/features/locker/views/auth/locked_screen.dart`
   - Update `showBiometricButton:` to also check `!state.biometricState.isKeyInvalidated`
   - This provides init-time hiding (no button flash) alongside the runtime flag
 
-- [ ] **14.4** Update `BiometricUnlockButton` to check `biometricState.isKeyInvalidated`
+- [x] **14.4** Update `BiometricUnlockButton` to check `biometricState.isKeyInvalidated`
   - File: `example/lib/features/locker/views/widgets/biometric_unlock_button.dart`
   - Add `state.biometricState.isKeyInvalidated` check alongside existing `isBiometricKeyInvalidated` check
 

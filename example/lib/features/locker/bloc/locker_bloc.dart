@@ -353,9 +353,6 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         operation: () async {
           await _lockerRepository.enableBiometric(password: event.password);
           await _refreshBiometricState(emit, resetLoadState: true);
-          if (!isClosed) {
-            emit(state.copyWith(isBiometricKeyInvalidated: false));
-          }
           action(
             const LockerAction.showSuccess(
               message: 'Biometric authentication enabled',
@@ -477,11 +474,6 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
       operation: () async {
         await _lockerRepository.disableBiometricPasswordOnly(password: event.password);
         await _refreshBiometricState(emit, resetLoadState: true);
-
-        if (!isClosed) {
-          emit(state.copyWith(isBiometricKeyInvalidated: false));
-        }
-
         action(const LockerAction.showSuccess(message: 'Biometric authentication disabled'));
       },
       onDecryptFailed: (error) => _handleDecryptFailure(
@@ -927,7 +919,6 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         emit(
           state.copyWith(
             status: LockerStatus.notInitialized,
-            isBiometricKeyInvalidated: false,
             entries: {},
             loadState: LoadState.none,
           ),
@@ -1052,18 +1043,13 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     required String password,
     required Emitter<LockerState> emit,
   }) async {
-    if (!state.isBiometricKeyInvalidated) {
+    if (!state.biometricState.isKeyInvalidated) {
       return;
     }
 
     try {
       await _lockerRepository.disableBiometricPasswordOnly(password: password);
       await _refreshBiometricState(emit);
-
-      if (!isClosed) {
-        emit(state.copyWith(isBiometricKeyInvalidated: false));
-      }
-
       action(
         const LockerAction.showSuccess(
           message: 'Biometrics were disabled due to enrollment changes. Re-enable in Settings.',
@@ -1150,7 +1136,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
           return;
 
         case BiometricExceptionType.keyInvalidated:
-          emit(state.copyWith(isBiometricKeyInvalidated: true));
+          emit(state.copyWith(biometricState: BiometricState.keyInvalidated));
           action(const LockerAction.biometricKeyInvalidated());
           add(
             const LockerEvent.biometricOperationStateChanged(
@@ -1324,7 +1310,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     Emitter<LockerState> emit,
   ) {
     if (!isClosed) {
-      emit(state.copyWith(isBiometricKeyInvalidated: true));
+      emit(state.copyWith(biometricState: BiometricState.keyInvalidated));
     }
   }
 

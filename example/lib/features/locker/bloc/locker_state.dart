@@ -11,14 +11,12 @@ abstract class LockerState with _$LockerState {
     @Default(BiometricState.hardwareUnavailable) BiometricState biometricState,
     @Default(BiometricOperationState.idle) BiometricOperationState biometricOperationState,
     @Default(false) bool enableBiometricAfterInit,
-    @Default(false) bool isBiometricKeyInvalidated,
   }) = _LockerState;
 
   const LockerState._();
 
   /// Whether biometric authentication can be used for operations.
-  /// True when biometrics are enabled and the key has not been invalidated.
-  bool get canUseBiometric => biometricState.isEnabled && !isBiometricKeyInvalidated;
+  bool get canUseBiometric => biometricState.isEnabled;
 }
 
 /// Status of the locker

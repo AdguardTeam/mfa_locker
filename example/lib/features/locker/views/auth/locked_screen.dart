@@ -18,9 +18,7 @@ class LockedScreen extends StatelessWidget {
     ),
     body: BlocBuilder<LockerBloc, LockerState>(
       buildWhen: (previous, current) =>
-          previous.loadState != current.loadState ||
-          previous.biometricState != current.biometricState ||
-          previous.isBiometricKeyInvalidated != current.isBiometricKeyInvalidated,
+          previous.loadState != current.loadState || previous.biometricState != current.biometricState,
       builder: (context, state) => Stack(
         children: [
           SingleChildScrollView(

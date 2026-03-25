@@ -99,8 +99,7 @@ void main() {
       });
 
       test('returns true when cipher returns true', () async {
-        when(() => mockCipher.isKeyValid(tag: any(named: 'tag')))
-            .thenAnswer((_) async => true);
+        when(() => mockCipher.isKeyValid(tag: any(named: 'tag'))).thenAnswer((_) async => true);
 
         final result = await provider.isKeyValid(tag: 'my-key');
 
@@ -109,8 +108,7 @@ void main() {
       });
 
       test('returns false when cipher returns false', () async {
-        when(() => mockCipher.isKeyValid(tag: any(named: 'tag')))
-            .thenAnswer((_) async => false);
+        when(() => mockCipher.isKeyValid(tag: any(named: 'tag'))).thenAnswer((_) async => false);
 
         final result = await provider.isKeyValid(tag: 'my-key');
 

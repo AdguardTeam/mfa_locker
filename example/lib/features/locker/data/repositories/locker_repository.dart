@@ -330,7 +330,7 @@ class LockerRepositoryImpl implements LockerRepository {
   Future<BiometricState> determineBiometricState() async {
     await _ensureLockerInstance();
 
-    return _locker.determineBiometricState();
+    return _locker.determineBiometricState(biometricKeyTag: AppConstants.biometricKeyTag);
   }
 
   @override

@@ -1425,13 +1425,10 @@ void main() {
         );
 
         when(() => dsStorage.isInitialized).thenAnswer((_) async => true);
-        when(() => dsStorage.lockTimeout)
-            .thenAnswer((_) async => _Helpers.lockTimeout.inMilliseconds);
+        when(() => dsStorage.lockTimeout).thenAnswer((_) async => _Helpers.lockTimeout.inMilliseconds);
 
-        when(() => secureProvider.getTPMStatus())
-            .thenAnswer((_) async => TPMStatus.supported);
-        when(() => secureProvider.getBiometryStatus())
-            .thenAnswer((_) async => BiometricStatus.supported);
+        when(() => secureProvider.getTPMStatus()).thenAnswer((_) async => TPMStatus.supported);
+        when(() => secureProvider.getBiometryStatus()).thenAnswer((_) async => BiometricStatus.supported);
         when(() => dsStorage.isBiometricEnabled).thenAnswer((_) async => true);
       });
 
@@ -1440,8 +1437,7 @@ void main() {
       });
 
       test('returns keyInvalidated when isKeyValid returns false', () async {
-        when(() => secureProvider.isKeyValid(tag: biometricKeyTag))
-            .thenAnswer((_) async => false);
+        when(() => secureProvider.isKeyValid(tag: biometricKeyTag)).thenAnswer((_) async => false);
 
         final result = await dsLocker.determineBiometricState(
           biometricKeyTag: biometricKeyTag,
@@ -1452,8 +1448,7 @@ void main() {
       });
 
       test('returns enabled when isKeyValid returns true', () async {
-        when(() => secureProvider.isKeyValid(tag: biometricKeyTag))
-            .thenAnswer((_) async => true);
+        when(() => secureProvider.isKeyValid(tag: biometricKeyTag)).thenAnswer((_) async => true);
 
         final result = await dsLocker.determineBiometricState(
           biometricKeyTag: biometricKeyTag,
