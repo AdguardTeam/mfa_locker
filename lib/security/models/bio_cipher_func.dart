@@ -6,6 +6,7 @@ import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/security/biometric_cipher_provider.dart';
 import 'package:locker/security/models/cipher_func.dart';
 import 'package:locker/security/models/exceptions/biometric_exception.dart';
+import 'package:locker/security/models/key_validity_status.dart';
 import 'package:locker/storage/models/data/origin.dart';
 import 'package:meta/meta.dart';
 
@@ -58,7 +59,8 @@ class BioCipherFunc extends CipherFunc {
       // Some platforms report a generic failure instead of keyInvalidated
       // when biometric enrollment changes. Verify key validity as a fallback.
       if (error.type == BiometricExceptionType.failure) {
-        if (!await _isKeyValid()) {
+        final keyStatus = await _checkKeyValidity();
+        if (keyStatus == KeyValidityStatus.invalid) {
           Error.throwWithStackTrace(
             const BiometricException(BiometricExceptionType.keyInvalidated),
             stackTrace,
@@ -77,11 +79,17 @@ class BioCipherFunc extends CipherFunc {
     }
   }
 
-  Future<bool> _isKeyValid() async {
+  Future<KeyValidityStatus> _checkKeyValidity() async {
     try {
-      return await _secureProvider.isKeyValid(tag: keyTag);
-    } catch (_) {
-      return true;
+      final isValid = await _secureProvider.isKeyValid(tag: keyTag);
+      return isValid ? KeyValidityStatus.valid : KeyValidityStatus.invalid;
+    } catch (error, stackTrace) {
+      logger.logError(
+        'BioCipherFunc: Failed to check key validity',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return KeyValidityStatus.unknown;
     }
   }
 

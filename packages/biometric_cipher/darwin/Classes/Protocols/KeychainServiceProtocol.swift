@@ -7,4 +7,5 @@ protocol KeychainServiceProtocol {
     func isAlgorithmSupported(key: SecKey, operation: SecKeyOperationType, algorithm: SecKeyAlgorithm) -> Bool
     func encryptData(key: SecKey, algorithm: SecKeyAlgorithm, data: Data) throws -> Data
     func decryptData(key: SecKey, algorithm: SecKeyAlgorithm, data: Data) throws -> Data
+    func itemExists(_ query: CFDictionary) -> Bool
 }

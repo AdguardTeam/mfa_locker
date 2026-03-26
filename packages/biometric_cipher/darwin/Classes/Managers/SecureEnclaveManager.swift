@@ -206,11 +206,10 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
             if case .authenticationUserCanceled = error {
                 throw error
             }
-            // After successful biometric auth (getPrivateKey returned a key),
-            // a decryption failure means the key material is permanently
-            // inaccessible — typically because biometric enrollment changed
-            // and the key uses .biometryCurrentSet access control policy.
-            throw SecureEnclaveManagerError.keyPermanentlyInvalidated
+            if !isKeyValid(tag: tag) {
+                throw SecureEnclaveManagerError.keyPermanentlyInvalidated
+            }
+            throw error
         }
 
         // Converting decrypted data to a string
@@ -279,11 +278,10 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
             kSecUseAuthenticationUI as String: kSecUseAuthenticationUISkip,
             kSecReturnAttributes as String:   true,
         ]
-        let status = SecItemCopyMatching(query as CFDictionary, nil)
         // errSecSuccess              -> item found and accessible -> key still present
         // errSecInteractionNotAllowed -> item exists but requires auth UI (suppressed) -> key still present
         // errSecItemNotFound          -> item deleted by OS after biometric change -> key gone
-        return status == errSecSuccess || status == errSecInteractionNotAllowed
+        return keychainService.itemExists(query as CFDictionary)
     }
 
     // MARK: - Biometric enrollment state tracking

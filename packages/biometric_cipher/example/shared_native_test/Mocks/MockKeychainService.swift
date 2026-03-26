@@ -25,6 +25,7 @@ final class MockKeychainService: KeychainServiceProtocol {
     var encryptDataResult: Data?
     var decryptDataResult: Data?
     var decryptDataError: KeychainServiceError? = nil
+    var itemExistsResult: Bool = false
     
     // MARK: - KeychainServiceProtocol Methods
     
@@ -85,5 +86,9 @@ final class MockKeychainService: KeychainServiceProtocol {
             throw KeychainServiceError.failedToDecryptData(nil)
         }
         return decryptedData
+    }
+
+    func itemExists(_ query: CFDictionary) -> Bool {
+        return itemExistsResult
     }
 }

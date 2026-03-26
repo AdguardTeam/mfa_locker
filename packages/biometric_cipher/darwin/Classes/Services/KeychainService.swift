@@ -64,4 +64,9 @@ class KeychainService: KeychainServiceProtocol {
         }
         return decryptedData as Data
     }
+
+    func itemExists(_ query: CFDictionary) -> Bool {
+        let status = SecItemCopyMatching(query, nil)
+        return status == errSecSuccess || status == errSecInteractionNotAllowed
+    }
 }

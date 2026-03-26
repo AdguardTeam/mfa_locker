@@ -290,10 +290,37 @@ final class SecureEnclaveManagerTests: XCTestCase {
         }
         mockKeychain.getPrivateKeyResult = tempKey
         // decryptDataResult is nil → decryptData throws failedToDecryptData
+        // Key does not exist in keychain (simulates OS removing key after enrollment change)
+        mockKeychain.itemExistsResult = false
 
         XCTAssertThrowsError(try manager.decrypt(fakeEncryptedData, tag: tag)) { error in
             guard let e = error as? SecureEnclaveManagerError, case .keyPermanentlyInvalidated = e else {
                 return XCTFail("Expected SecureEnclaveManagerError.keyPermanentlyInvalidated, got \(error)")
+            }
+        }
+    }
+
+    /// When decryption fails but the key is still valid (e.g., wrong biometrics on macOS
+    /// where auth is deferred to SecKeyCreateDecryptedData), the original error should be
+    /// re-thrown instead of keyPermanentlyInvalidated.
+    func testDecrypt_DecryptionFailsButKeyStillValid_ShouldRethrowOriginalError() throws {
+        let tag = "test.sec.enclave.decrypt.authfail"
+        let fakeEncryptedData = Data([0x01, 0x02, 0x03])
+
+        // getPrivateKey succeeds (key reference obtained; on macOS biometric auth is deferred)
+        guard let tempKey = createTemporarySecKey() else {
+            XCTFail("Failed to create a temporary SecKey")
+            return
+        }
+        mockKeychain.getPrivateKeyResult = tempKey
+        // decryptData throws failedToDecryptData (simulates wrong biometrics)
+        mockKeychain.decryptDataError = .failedToDecryptData(nil)
+        // Key exists in keychain (not invalidated)
+        mockKeychain.itemExistsResult = true
+
+        XCTAssertThrowsError(try manager.decrypt(fakeEncryptedData, tag: tag)) { error in
+            guard let e = error as? KeychainServiceError, case .failedToDecryptData = e else {
+                return XCTFail("Expected KeychainServiceError.failedToDecryptData, got \(error)")
             }
         }
     }
