@@ -68,23 +68,27 @@ lib/
 │   ├── mfa_locker.dart          # MFALocker — main implementation
 │   └── models/biometric_state.dart
 ├── security/
-│   ├── cipher_func.dart         # Abstract CipherFunc (encrypt/decrypt)
-│   ├── password_cipher_func.dart  # PBKDF2-derived AES-GCM cipher
-│   ├── bio_cipher_func.dart       # TPM-backed biometric cipher
 │   ├── biometric_cipher_provider.dart  # Platform biometric operations
-│   └── models/biometric_config.dart
+│   ├── security_provider.dart          # BiometricCipher + SecurityStorage facade
+│   └── models/
+│       ├── cipher_func.dart         # Abstract CipherFunc (encrypt/decrypt)
+│       ├── password_cipher_func.dart  # Argon2id-derived AES-GCM cipher
+│       ├── bio_cipher_func.dart       # TPM-backed biometric cipher
+│       ├── biometric_config.dart
+│       └── exceptions/biometric_exception.dart
 ├── storage/
 │   ├── encrypted_storage.dart       # EncryptedStorage interface
 │   ├── encrypted_storage_impl.dart  # JSON file-backed implementation
 │   ├── hmac_storage_mixin.dart      # HMAC-SHA256 integrity verification
 │   └── models/
-│       ├── data/        # StorageData, StorageEntry, WrappedKey, KeyWrap, Origin
-│       └── domain/      # EntryId, EntryMeta, EntryValue
+│       ├── data/           # StorageData, StorageEntry, WrappedKey, KeyWrap, Origin
+│       ├── domain/         # EntryId, EntryMeta, EntryValue, EntryAddInput, EntryUpdateInput
+│       └── exceptions/     # StorageException, DecryptFailedException
 ├── erasable/
 │   ├── erasable.dart              # Erasable interface
 │   └── erasable_byte_array.dart   # Zeroes memory on erase()
 └── utils/
-    ├── cryptography_utils.dart    # AES-GCM encrypt/decrypt, PBKDF2
+    ├── cryptography_utils.dart    # AES-GCM encrypt/decrypt, Argon2id
     ├── sync.dart                  # Reentrant lock wrapper (Sync)
     └── list_extensions.dart
 ```
@@ -92,7 +96,7 @@ lib/
 **Key design decisions:**
 
 - **Master key wrapping**: A random master key encrypts all entries. The master key itself is encrypted ("wrapped") per authentication method (password or biometric), stored as `WrappedKey` with multiple `KeyWrap` entries identified by `Origin` (`pwd` or `bio`).
-- **`CipherFunc`**: Abstraction over an authentication method. `PasswordCipherFunc` derives a key via PBKDF2 on every encrypt/decrypt call (intentional — minimizes derived key lifetime in memory). `BioCipherFunc` delegates to the TPM/Secure Enclave.
+- **`CipherFunc`**: Abstraction over an authentication method. `PasswordCipherFunc` derives a key via Argon2id on every encrypt/decrypt call (intentional — minimizes derived key lifetime in memory). `BioCipherFunc` delegates to the TPM/Secure Enclave.
 - **`ErasableByteArray`**: Overwrites bytes to zero on `erase()`. All sensitive data (`CipherFunc`, `EntryMeta`, `EntryValue`) implements `Erasable`. Every `MFALocker` operation calls `erase()` on its arguments in `finally` via `_executeWithCleanup`.
 - **`Sync`**: Reentrant `synchronized` lock guards all `MFALocker` and `EncryptedStorageImpl` state mutations.
 - **Metadata cache**: After unlock, `EntryMeta` objects are cached in `_metaCache`. Values (`EntryValue`) are never cached — fetched and erased on demand.
@@ -109,6 +113,10 @@ example/lib/
 │   └── settings/  # Settings feature
 ├── core/          # Shared widgets, utilities
 └── di/            # Dependency injection
+
+example/packages/
+├── action_bloc/       # Custom flutter_bloc extension adding side-effect Actions
+└── package_info_plus/  # Platform integration
 ```
 
 State management uses `action_bloc` + Freezed:
@@ -118,7 +126,7 @@ State management uses `action_bloc` + Freezed:
 
 The **Repository** layer is responsible for creating `CipherFunc` objects and wrapping all MFALocker exceptions. BLoCs receive plain types (e.g., `String password`) and never interact with `CipherFunc` directly.
 
-Key example app dependencies: `flutter_bloc` + `action_bloc` (state management), `freezed` (immutable models), `build_runner` (code generation).
+Key example app dependencies: `flutter_bloc` + `action_bloc` (local package in `example/packages/`, not from pub.dev), `freezed` (immutable models), `build_runner` (code generation). The `biometric_cipher` plugin is also a local path dependency (`packages/biometric_cipher/`).
 
 ## Dart MCP Tools
 
@@ -141,7 +149,7 @@ All rules from `docs/code-style-guide.md` and `docs/conventions.md` apply. Key p
 
 - **Line length**: 120 characters (`dart format --line-length 120`)
 - **Trailing commas**: Required on all multi-line function calls/constructors
-- **Curly braces**: Always on control flow structures
+- **Curly braces**: Not required on control flow structures (`curly_braces_in_flow_control_structures: false`)
 - **Single quotes**: Use `'` not `"`
 - **Abstract class naming**: no prefix for interface, `Impl` suffix for main implementation
 - **Class member order**: static → constructor fields → constructor → other private fields → public methods → private methods
