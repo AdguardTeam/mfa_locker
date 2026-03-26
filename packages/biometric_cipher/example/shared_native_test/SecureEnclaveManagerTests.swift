@@ -279,9 +279,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
 
     // MARK: - Decrypt: key invalidation detection tests
 
-    /// When `getPrivateKey()` succeeds but `decryptData()` throws a non-cancel error,
-    /// the manager should throw `keyPermanentlyInvalidated` because the key material
-    /// is inaccessible (e.g., biometric enrollment changed on macOS).
     func testDecrypt_DecryptionFailsAfterKeyRetrieval_ShouldThrowKeyPermanentlyInvalidated() throws {
         let tag = "test.sec.enclave.decrypt.invalidated"
         let fakeEncryptedData = Data([0x01, 0x02, 0x03])
@@ -301,8 +298,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
         }
     }
 
-    /// When the user cancels the biometric prompt during decryption,
-    /// the cancel error should propagate (not be converted to keyPermanentlyInvalidated).
     func testDecrypt_UserCancelsDuringDecryption_ShouldRethrowCancellation() throws {
         let tag = "test.sec.enclave.decrypt.cancel"
         let fakeEncryptedData = Data([0x01, 0x02, 0x03])
@@ -323,7 +318,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
 
     // MARK: - isKeyValid: enrollment state tests
 
-    /// When biometric enrollment has changed since key generation, `isKeyValid` should return `false`.
     func testIsKeyValid_EnrollmentChanged_ReturnsFalse() throws {
         let tag = "test.enrollment.changed"
 
@@ -343,9 +337,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
         // Simulate biometric enrollment change
         mockLAContext.evaluatedPolicyDomainStateValue = Data([0xCC, 0xDD])
 
-        // isKeyValid also checks keyExists() which calls real SecItemCopyMatching.
-        // In tests the key doesn't exist in the real Keychain, so keyExists returns false.
-        // This test verifies the enrollment state is correctly saved and compared.
         let tagData = ("\(AppConstants.privateKeyTag).\(tag)").data(using: .utf8)!
         let enrollmentKey = AppConstants.enrollmentStateKeyPrefix + tagData.base64EncodedString()
         let savedState = testDefaults.data(forKey: enrollmentKey)

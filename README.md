@@ -7,6 +7,7 @@ A secure storage library for Dart/Flutter applications that provides encrypted k
 - **AES-GCM Encryption** — All data is encrypted using industry-standard AES-GCM algorithm
 - **Password Protection** — Argon2id key derivation from user password
 - **Biometric Authentication** — Optional biometric unlock via TPM/Secure Enclave (iOS, macOS, Android, Windows)
+- **Biometric Key Invalidation Detection** — Proactive detection of hardware key invalidation after biometric enrollment changes, with silent key validity probes (no biometric prompt)
 - **HMAC Integrity Verification** — Detects storage tampering using HMAC-SHA256
 - **Auto-Lock** — Automatic locking after configurable inactivity timeout
 - **Secure Memory Management** — Erasable byte arrays that securely wipe sensitive data from memory
@@ -161,16 +162,20 @@ await locker.configureBiometricCipher(
 
 // Check biometric availability
 final biometricState = await locker.determineBiometricState();
-if (biometricState == BiometricState.availableButDisabled) {
-  // Biometrics available, can be enabled
+if (biometricState.isAvailable) {
+  // Biometrics available (availableButDisabled or enabled)
 }
 
-// Check biometric availability with key validation
+// Check biometric availability with key validation (no biometric prompt)
 final state = await locker.determineBiometricState(
   biometricKeyTag: 'com.myapp.biometric_key',
 );
-if (state == BiometricState.keyInvalidated) {
+if (state.isKeyInvalidated) {
   // Key was invalidated by biometric enrollment change — disable and re-setup
+  await locker.teardownBiometry(
+    passwordCipherFunc: passwordCipherFunc,
+    biometricKeyTag: 'com.myapp.biometric_key',
+  );
 }
 
 // Check if biometric unlock is currently enabled
@@ -250,22 +255,22 @@ locker.dispose();
 ```
 locker/
 ├── lib/
-│   ├── locker/           # Core locker interface and implementation
-│   ├── security/         # Cipher functions, biometric config
-│   ├── storage/          # Encrypted storage implementation
-│   ├── erasable/         # Secure memory management
-│   └── utils/            # Utilities
+│   ├── locker/           # Core locker interface (Locker) and implementation (MFALocker)
+│   ├── security/         # Cipher functions, biometric config, BiometricCipherProvider
+│   ├── storage/          # Encrypted storage interface and JSON file-backed implementation
+│   ├── erasable/         # Secure memory management (ErasableByteArray)
+│   └── utils/            # Cryptography utilities, reentrant lock (Sync), extensions
 ├── packages/
-│   └── biometric_cipher/  # TPM/biometric plugin (iOS, macOS, Android, Windows)
-├── example/              # Demo Flutter app (mfa_demo)
-└── test/                 # Unit tests
+│   └── biometric_cipher/  # Native Flutter plugin wrapping TPM/Secure Enclave (iOS, macOS, Android, Windows)
+├── example/              # Demo Flutter app (mfa_demo) — UI → BLoC → Repository → MFALocker
+└── test/                 # Unit tests (mocktail)
 ```
 
 ## Example App
 
 The `example/` directory contains a full Flutter demo app showcasing:
 - Password-based storage initialization
-- Biometric authentication setup
+- Biometric authentication setup and key invalidation recovery
 - Entry CRUD operations
 - Auto-lock behavior
 - Settings management
@@ -274,12 +279,12 @@ To run the example:
 
 ```bash
 cd example
-flutter pub get
+fvm flutter pub get
 
 # Generate freezed classes (required)
-dart run build_runner build --delete-conflicting-outputs
+fvm dart run build_runner build --delete-conflicting-outputs
 
-flutter run
+fvm flutter run
 ```
 
 ---
@@ -408,9 +413,11 @@ jobs:
 
 | Requirement | Version |
 |-------------|---------|
-| Dart SDK | >= 3.11.0 < 4.0.0 |
-| Flutter SDK | >= 3.41.4 |
+| Dart SDK | ^3.11.0 |
+| Flutter SDK | ^3.41.4 |
 | fvm | Latest |
+
+Flutter version is pinned via `.ci-flutter-version` (currently **3.41.4**). Use `fvm` to match.
 
 ---
 
@@ -435,6 +442,7 @@ The library implements the following security measures:
 - **Integrity verification**: HMAC-SHA256 detects storage tampering
 - **Master key wrapping**: Random master key encrypted per auth method (password/biometric)
 - **Biometric key management**: TPM/Secure Enclave hardware-backed keys via the `biometric_cipher` plugin
+- **Biometric key invalidation**: Proactive detection via silent `isKeyValid` probe when biometric enrollment changes (no biometric prompt); `BioCipherFunc` also performs fallback key validity checks during decrypt failures
 - **Memory safety**: `ErasableByteArray` zeroes sensitive data on `erase()`; all operations auto-erase arguments in `finally` blocks
 
 ## License

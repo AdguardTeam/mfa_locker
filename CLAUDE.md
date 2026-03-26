@@ -34,7 +34,7 @@ fvm flutter analyze --fatal-warnings --fatal-infos --no-pub .
 fvm dart format . --line-length 120
 ```
 
-### Example App (`cd example` first)
+### Example App (`cd example` first, or use root Makefile which proxies all targets)
 
 ```bash
 make in        # pub get + build_runner (quick start)
@@ -54,6 +54,8 @@ make ci-build-windows # Windows build (CI)
 fvm flutter test                                   # run plugin tests
 fvm flutter analyze --fatal-warnings --fatal-infos --no-pub .
 ```
+
+Native Swift tests live in `packages/biometric_cipher/example/shared_native_test/` and run via Xcode test targets (iOS/macOS), not via `fvm flutter test`.
 
 Flutter version is pinned via `.ci-flutter-version` → **3.41.4**. Use `fvm` to match.
 
