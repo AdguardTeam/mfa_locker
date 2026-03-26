@@ -3,9 +3,6 @@ import LocalAuthentication
 
 @testable import biometric_cipher
 
-/// Unit tests for `SecureEnclaveManager`.
-/// This class covers both positive (happy path) and negative scenarios.
-/// Negative scenarios often require mocking Keychain/Secure Enclave calls.
 final class SecureEnclaveManagerTests: XCTestCase {
     
     // MARK: - Properties
@@ -35,7 +32,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
     
     // MARK: - Support functions
     
-    /// Creates a temporary SecKey for testing purposes.
     func createTemporarySecKey() -> SecKey? {
         let attributes: [CFString: Any] = [
             kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
@@ -52,14 +48,12 @@ final class SecureEnclaveManagerTests: XCTestCase {
         return SecKeyCreateRandomKey(attributes as CFDictionary, &error)
     }
     
-    /// Creates an error corresponding to `BaseError`.
     func createBaseError(code: String, description: String? = nil) -> BaseError {
         return MockError(code: code, errorDescription: description ?? "An error occurred.")
     }
     
     // MARK: - Configuration tests
     
-    /// Positive scenario: correctly setting `authTitle`.
     func testConfigureAuthTitle_SetsCorrectly() {
         let authTitle = "Authenticate to Access Secure Enclave"
         
@@ -67,8 +61,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
         XCTAssertEqual(manager.authTitle, authTitle, "authTitle must be set correctly.")
     }
     
-    /// Negative scenario: setting an empty `authTitle`.
-    /// Expects `SecureEnclaveManagerError.invalidAuthTitle`.
     func testConfigureAuthTitle_InvalidAuthTitle() {
         let authTitle = ""
         
@@ -82,7 +74,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
     
     // MARK: - Secure Enclave support verification tests
     
-    /// Positive scenario: Secure Enclave is supported.
     func testIsSecureEnclaveSupported_Supported() {
         // Configure mockKeychain for successful key creation
         guard let tempKey = createTemporarySecKey() else {
@@ -96,7 +87,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
         XCTAssertTrue(supported, "Secure Enclave must be supported.")
     }
     
-    /// Negative scenario: Secure Enclave is not supported.
     func testIsSecureEnclaveSupported_NotSupported() {
         mockLAContext.canEvaluatePolicyResult = false
         mockLAContext.evaluatePolicySuccess = false
@@ -113,7 +103,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
     
     // MARK: - Key pair generation tests
     
-    /// Positive scenario: successful generation of a new key pair.
     func testGenerateKeyPair_NewKey() throws {
         let tag = "test.sec.enclave.newkey"
         
@@ -131,8 +120,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
         XCTAssertNoThrow(try manager.generateKeyPair(tag: tag), "There should be no error when a key pair is successfully created.")
     }
     
-    /// Negative scenario: forced `createRandomKey` crash.
-    /// Expects `KeychainServiceError.failedToCreateRandomKey`.
     func testGenerateKeyPair_FailureMock() throws {
         let tag = "mock.tag"
         
@@ -155,8 +142,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
         }
     }
     
-    /// Negative scenario: attempt to generate a key pair with an invalid tag.
-    /// Expects `SecureEnclaveManagerError.invalidTag`.
     func testGenerateKeyPair_InvalidTag() throws {
         let tag = "" // Empty tag is considered invalid
         
@@ -170,15 +155,12 @@ final class SecureEnclaveManagerTests: XCTestCase {
     
     // MARK: - Key deletion tests
     
-    /// Positive scenario: successful key removal.
     func testDeleteKey_Success() throws {
         let tag = "test.delete.key"
         
         XCTAssertNoThrow(try manager.deleteKey(tag: tag), "There should be no error when the key is successfully deleted.")
     }
     
-    /// Negative scenario: error when deleting a key.
-    /// Expects `KeychainServiceError.failedToDeleteItem`.
     func testDeleteKey_Failure() throws {
         let tag = "test.delete.key.failure"
         
@@ -196,8 +178,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
         }
     }
     
-    /// Negative scenario: attempt to delete a key with an invalid tag.
-    /// Expects `SecureEnclaveManagerError.invalidTag`.
     func testDeleteKey_InvalidTag() throws {
         let tag = "" // Empty tag is considered invalid
         
@@ -211,7 +191,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
     
     // MARK: - Encryption tests
     
-    /// Positive scenario: encrypting and decrypting data (Round Trip).
     func testEncryptAndDecrypt_RoundTrip() throws {
         let tag = "test.sec.enclave.roundtrip"
         let originalString = "Hello, Secure Enclave!"
@@ -246,7 +225,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
         XCTAssertEqual(decryptedString, originalString, "The decrypted text should match the original.")
     }
     
-    /// Negative scenario: no private key for the given tag => `.failedGetPrivateKey`.
     func testEncrypt_NoPrivateKey_ShouldThrow() throws {
         let tag = "test.sec.enclave.no_key"
         
@@ -257,11 +235,7 @@ final class SecureEnclaveManagerTests: XCTestCase {
         }
     }
     
-    /// Negative scenario: key does not exist in keychain when decrypting => `.keyPermanentlyInvalidated`.
-    ///
-    /// When `getPrivateKey` returns nil and `keyExists` finds no item in the keychain
-    /// (e.g., after a biometric enrollment change removed the key), `decrypt` must throw
-    /// `keyPermanentlyInvalidated` so the Flutter plugin can surface the correct error code.
+    /// Triggers `keyPermanentlyInvalidated` when the key is missing from keychain (e.g., after biometric re-enrollment).
     func testDecrypt_KeyNotFoundInKeychain_ShouldThrowKeyPermanentlyInvalidated() throws {
         let tag = "test.sec.enclave.no_key_decrypt"
         let fakeEncryptedData = Data([0x01, 0x02, 0x03])
@@ -278,24 +252,17 @@ final class SecureEnclaveManagerTests: XCTestCase {
 
     // MARK: - isKeyValid tests
 
-    /// Negative scenario: empty tag returns false immediately.
     func testIsKeyValid_EmptyTag_ReturnsFalse() {
         let result = manager.isKeyValid(tag: "")
 
         XCTAssertFalse(result, "isKeyValid must return false for an empty tag.")
     }
 
-    /// Negative scenario: a key that was never created is not found in the keychain.
-    ///
-    /// `SecItemCopyMatching` returns `errSecItemNotFound` for a non-existent key,
-    /// so `keyExists` returns false and `isKeyValid` returns false.
     func testIsKeyValid_NonExistentKey_ReturnsFalse() {
         let result = manager.isKeyValid(tag: "test.nonexistent.key.tag")
 
         XCTAssertFalse(result, "isKeyValid must return false when the key does not exist in the keychain.")
     }
 
-    /// Note: verifying `isKeyValid` returns `true` when the Secure Enclave returns
-    /// `errSecInteractionNotAllowed` (key exists but UI is suppressed) requires a
-    /// real Secure Enclave key and must be covered by an on-device integration test.
+    /// `isKeyValid == true` requires a real Secure Enclave key; covered by on-device integration tests.
 }
