@@ -291,7 +291,7 @@ final class SecureEnclaveManagerTests: XCTestCase {
             XCTFail("Failed to create a temporary SecKey")
             return
         }
-        mockKeychain.createRandomKeyResult = tempKey
+        mockKeychain.getPrivateKeyResult = tempKey
         // decryptDataResult is nil → decryptData throws failedToDecryptData
 
         XCTAssertThrowsError(try manager.decrypt(fakeEncryptedData, tag: tag)) { error in
@@ -311,7 +311,7 @@ final class SecureEnclaveManagerTests: XCTestCase {
             XCTFail("Failed to create a temporary SecKey")
             return
         }
-        mockKeychain.createRandomKeyResult = tempKey
+        mockKeychain.getPrivateKeyResult = tempKey
         mockKeychain.decryptDataError = .authenticationUserCanceled
 
         XCTAssertThrowsError(try manager.decrypt(fakeEncryptedData, tag: tag)) { error in

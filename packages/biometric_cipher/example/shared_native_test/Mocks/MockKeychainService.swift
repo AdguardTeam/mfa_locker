@@ -9,6 +9,10 @@ final class MockKeychainService: KeychainServiceProtocol {
     var createRandomKeyError: KeychainServiceError? = nil
     
     var deleteItemError: KeychainServiceError? = nil
+
+    /// Tracks whether `createRandomKey` has been called successfully.
+    /// Used by `getPrivateKey` fallback to simulate realistic keychain behavior.
+    private(set) var keyCreated = false
     
     var copyPublicKeyResult: SecKey?
     
@@ -31,6 +35,7 @@ final class MockKeychainService: KeychainServiceProtocol {
         guard let key = createRandomKeyResult else {
             throw KeychainServiceError.failedToCreateRandomKey(nil)
         }
+        keyCreated = true
         return key
     }
     
@@ -38,7 +43,7 @@ final class MockKeychainService: KeychainServiceProtocol {
         if let error = deleteItemError {
             throw error
         }
-        // Successful deletion does not require any action
+        keyCreated = false
     }
     
     func getPrivateKey(_ query: CFDictionary) -> SecKey? {
@@ -48,7 +53,7 @@ final class MockKeychainService: KeychainServiceProtocol {
         if createRandomKeyError != nil {
             return nil
         }
-        guard let key = createRandomKeyResult else {
+        guard keyCreated, let key = createRandomKeyResult else {
             return nil
         }
         return key
