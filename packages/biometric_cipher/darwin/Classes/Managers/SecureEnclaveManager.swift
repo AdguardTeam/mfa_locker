@@ -12,11 +12,14 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
 
     private let keychainService: KeychainServiceProtocol
     private let laContextFactory: LAContextFactoryProtocol
+    private let userDefaults: UserDefaults
 
     init(keychainService: KeychainServiceProtocol = KeychainService(),
-         laContextFactory: LAContextFactoryProtocol = LAContextFactory()) {
+         laContextFactory: LAContextFactoryProtocol = LAContextFactory(),
+         userDefaults: UserDefaults = .standard) {
         self.keychainService = keychainService
         self.laContextFactory = laContextFactory
+        self.userDefaults = userDefaults
     }
 
     /// Configures a Secure Enclave with the specified header for biometric authentication.
@@ -93,6 +96,7 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
 
         // Generating a key pair
         _ = try keychainService.createRandomKey(attributes as CFDictionary)
+        saveEnrollmentState(tag: privateKeyTag)
     }
 
     /// Deletes a cryptographic key from the Keychain.
@@ -109,6 +113,7 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         ]
 
         _ = try keychainService.deleteItem(query as CFDictionary)
+        deleteEnrollmentState(tag: privateKeyTag)
     }
 
     /// Checks whether a Secure Enclave key with the given tag exists in the keychain
@@ -120,7 +125,16 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         guard let tagData = try? getTagData(tag: tag) else {
             return false
         }
-        return keyExists(tag: tagData)
+        guard keyExists(tag: tagData) else {
+            return false
+        }
+        // On macOS, invalidated Secure Enclave keys may remain in the Keychain
+        // with status errSecInteractionNotAllowed, indistinguishable from valid
+        // keys. Detect enrollment changes via LAContext domain state.
+        if hasEnrollmentChanged(tag: tagData) {
+            return false
+        }
+        return true
     }
 
     /// Encrypts a string using the Secure Enclave's public key.
@@ -188,6 +202,15 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
             decryptedData = try keychainService.decryptData(key: privateKey,
                                                             algorithm: algorithm,
                                                             data: encryptedData)
+        } catch let error as KeychainServiceError {
+            if case .authenticationUserCanceled = error {
+                throw error
+            }
+            // After successful biometric auth (getPrivateKey returned a key),
+            // a decryption failure means the key material is permanently
+            // inaccessible — typically because biometric enrollment changed
+            // and the key uses .biometryCurrentSet access control policy.
+            throw SecureEnclaveManagerError.keyPermanentlyInvalidated
         }
 
         // Converting decrypted data to a string
@@ -261,5 +284,48 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         // errSecInteractionNotAllowed -> item exists but requires auth UI (suppressed) -> key still present
         // errSecItemNotFound          -> item deleted by OS after biometric change -> key gone
         return status == errSecSuccess || status == errSecInteractionNotAllowed
+    }
+
+    // MARK: - Biometric enrollment state tracking
+
+    /// Saves the current biometric enrollment state for the given key tag.
+    ///
+    /// Uses `LAContext.evaluatedPolicyDomainState` to capture a snapshot of the
+    /// biometric enrollment. This is compared later in `isKeyValid()` to detect
+    /// enrollment changes that invalidate `.biometryCurrentSet` keys.
+    private func saveEnrollmentState(tag: Data) {
+        let laContext = laContextFactory.createContext()
+        var error: NSError?
+        guard laContext.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error),
+              let domainState = laContext.evaluatedPolicyDomainState else {
+            return
+        }
+        let key = AppConstants.enrollmentStateKeyPrefix + tag.base64EncodedString()
+        userDefaults.set(domainState, forKey: key)
+    }
+
+    /// Returns `true` if biometric enrollment has changed since the key was created.
+    ///
+    /// Compares the current `evaluatedPolicyDomainState` with the snapshot saved
+    /// during key generation. On macOS, this is the only reliable way to detect
+    /// key invalidation without triggering a biometric prompt.
+    private func hasEnrollmentChanged(tag: Data) -> Bool {
+        let laContext = laContextFactory.createContext()
+        var error: NSError?
+        guard laContext.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error),
+              let currentState = laContext.evaluatedPolicyDomainState else {
+            return false
+        }
+        let key = AppConstants.enrollmentStateKeyPrefix + tag.base64EncodedString()
+        guard let savedState = userDefaults.data(forKey: key) else {
+            return false
+        }
+        return savedState != currentState
+    }
+
+    /// Removes the stored enrollment state for the given key tag.
+    private func deleteEnrollmentState(tag: Data) {
+        let key = AppConstants.enrollmentStateKeyPrefix + tag.base64EncodedString()
+        userDefaults.removeObject(forKey: key)
     }
 }

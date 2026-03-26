@@ -3,6 +3,7 @@ import LocalAuthentication
 /// A protocol describing the required functionality of the LAContext.
 protocol LAContextProtocol {
     var localizedReason: String? { get set }
+    var evaluatedPolicyDomainState: Data? { get }
     func canEvaluatePolicy(_ policy: LAPolicy, error: NSErrorPointer) -> Bool
     func evaluatePolicy(_ policy: LAPolicy, localizedReason: String, reply: @escaping (Bool, Error?) -> Void)
 }

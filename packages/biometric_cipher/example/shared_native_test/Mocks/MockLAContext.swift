@@ -7,7 +7,12 @@ class MockLAContext: LAContextProtocol {
     var canEvaluatePolicyResult: Bool = true
     var evaluatePolicySuccess: Bool = true
     var evaluatePolicyError: NSError? = nil
-    
+    var evaluatedPolicyDomainStateValue: Data? = nil
+
+    var evaluatedPolicyDomainState: Data? {
+        return evaluatedPolicyDomainStateValue
+    }
+
     func canEvaluatePolicy(_ policy: LAPolicy, error: NSErrorPointer) -> Bool {
         if let errorPointer = error, let error = evaluatePolicyError {
             errorPointer.pointee = error

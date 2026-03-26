@@ -14,8 +14,13 @@ final class MockKeychainService: KeychainServiceProtocol {
     
     var isAlgorithmSupportedResult: Bool = true
     
+    /// Controls what `getPrivateKey` returns. When non-nil, takes priority.
+    /// When nil, falls back to `createRandomKeyResult` for backward compatibility.
+    var getPrivateKeyResult: SecKey?
+
     var encryptDataResult: Data?
     var decryptDataResult: Data?
+    var decryptDataError: KeychainServiceError? = nil
     
     // MARK: - KeychainServiceProtocol Methods
     
@@ -37,6 +42,9 @@ final class MockKeychainService: KeychainServiceProtocol {
     }
     
     func getPrivateKey(_ query: CFDictionary) -> SecKey? {
+        if let result = getPrivateKeyResult {
+            return result
+        }
         if createRandomKeyError != nil {
             return nil
         }
@@ -65,6 +73,9 @@ final class MockKeychainService: KeychainServiceProtocol {
     }
     
     func decryptData(key: SecKey, algorithm: SecKeyAlgorithm, data: Data) throws -> Data {
+        if let error = decryptDataError {
+            throw error
+        }
         guard let decryptedData = decryptDataResult else {
             throw KeychainServiceError.failedToDecryptData(nil)
         }

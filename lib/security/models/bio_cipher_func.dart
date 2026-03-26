@@ -5,6 +5,7 @@ import 'package:adguard_logger/adguard_logger.dart';
 import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/security/biometric_cipher_provider.dart';
 import 'package:locker/security/models/cipher_func.dart';
+import 'package:locker/security/models/exceptions/biometric_exception.dart';
 import 'package:locker/storage/models/data/origin.dart';
 import 'package:meta/meta.dart';
 
@@ -47,6 +48,25 @@ class BioCipherFunc extends CipherFunc {
       final decrypted = await _secureProvider.decrypt(tag: keyTag, data: data);
 
       return ErasableByteArray(decrypted);
+    } on BiometricException catch (error, stackTrace) {
+      logger.logError(
+        'BioCipherFunc: Failed to decrypt data with biometrics',
+        error: error,
+        stackTrace: stackTrace,
+      );
+
+      // Some platforms report a generic failure instead of keyInvalidated
+      // when biometric enrollment changes. Verify key validity as a fallback.
+      if (error.type == BiometricExceptionType.failure) {
+        if (!await _isKeyValid()) {
+          Error.throwWithStackTrace(
+            const BiometricException(BiometricExceptionType.keyInvalidated),
+            stackTrace,
+          );
+        }
+      }
+
+      rethrow;
     } catch (error, stackTrace) {
       logger.logError(
         'BioCipherFunc: Failed to decrypt data with biometrics',
@@ -54,6 +74,14 @@ class BioCipherFunc extends CipherFunc {
         stackTrace: stackTrace,
       );
       rethrow;
+    }
+  }
+
+  Future<bool> _isKeyValid() async {
+    try {
+      return await _secureProvider.isKeyValid(tag: keyTag);
+    } catch (_) {
+      return true;
     }
   }
 

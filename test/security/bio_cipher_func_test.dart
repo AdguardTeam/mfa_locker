@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/security/models/bio_cipher_func.dart';
+import 'package:locker/security/models/exceptions/biometric_exception.dart';
 import 'package:locker/storage/models/data/origin.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
@@ -153,6 +154,74 @@ void main() {
           () => sut.decrypt(Uint8List.fromList([4, 5, 6])),
           throwsA(same(exception)),
         );
+      });
+
+      test('rethrows as keyInvalidated when failure occurs and key is invalid', () async {
+        when(
+          () => mockProvider.decrypt(tag: any(named: 'tag'), data: any(named: 'data')),
+        ).thenThrow(const BiometricException(BiometricExceptionType.failure));
+
+        when(
+          () => mockProvider.isKeyValid(tag: any(named: 'tag')),
+        ).thenAnswer((_) async => false);
+
+        await expectLater(
+          () => sut.decrypt(Uint8List.fromList([4, 5, 6])),
+          throwsA(
+            isA<BiometricException>().having((e) => e.type, 'type', BiometricExceptionType.keyInvalidated),
+          ),
+        );
+
+        verify(() => mockProvider.isKeyValid(tag: 'test-key')).called(1);
+      });
+
+      test('rethrows original failure when key is still valid', () async {
+        const originalException = BiometricException(BiometricExceptionType.failure);
+
+        when(
+          () => mockProvider.decrypt(tag: any(named: 'tag'), data: any(named: 'data')),
+        ).thenThrow(originalException);
+
+        when(
+          () => mockProvider.isKeyValid(tag: any(named: 'tag')),
+        ).thenAnswer((_) async => true);
+
+        await expectLater(
+          () => sut.decrypt(Uint8List.fromList([4, 5, 6])),
+          throwsA(same(originalException)),
+        );
+      });
+
+      test('rethrows original failure when isKeyValid throws', () async {
+        const originalException = BiometricException(BiometricExceptionType.failure);
+
+        when(
+          () => mockProvider.decrypt(tag: any(named: 'tag'), data: any(named: 'data')),
+        ).thenThrow(originalException);
+
+        when(
+          () => mockProvider.isKeyValid(tag: any(named: 'tag')),
+        ).thenThrow(Exception('isKeyValid failed'));
+
+        await expectLater(
+          () => sut.decrypt(Uint8List.fromList([4, 5, 6])),
+          throwsA(same(originalException)),
+        );
+      });
+
+      test('does not check key validity for non-failure BiometricExceptions', () async {
+        when(
+          () => mockProvider.decrypt(tag: any(named: 'tag'), data: any(named: 'data')),
+        ).thenThrow(const BiometricException(BiometricExceptionType.cancel));
+
+        await expectLater(
+          () => sut.decrypt(Uint8List.fromList([4, 5, 6])),
+          throwsA(
+            isA<BiometricException>().having((e) => e.type, 'type', BiometricExceptionType.cancel),
+          ),
+        );
+
+        verifyNever(() => mockProvider.isKeyValid(tag: any(named: 'tag')));
       });
     });
   });

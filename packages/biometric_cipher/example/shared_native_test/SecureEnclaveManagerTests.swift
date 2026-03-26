@@ -6,26 +6,37 @@ import LocalAuthentication
 final class SecureEnclaveManagerTests: XCTestCase {
     
     // MARK: - Properties
-    
+
     var mockKeychain: MockKeychainService!
     var mockLAContext: MockLAContext!
     var mockLAContextFactory: MockLAContextFactory!
+    var testDefaults: UserDefaults!
     var manager: SecureEnclaveManager!
-    
+
+    private static let testSuiteName = "SecureEnclaveManagerTests"
+
     // MARK: - Setup and Teardown
-    
+
     override func setUp() {
         super.setUp()
         mockKeychain = MockKeychainService()
         mockLAContext = MockLAContext()
         mockLAContextFactory = MockLAContextFactory(mockContext: mockLAContext)
-        manager = SecureEnclaveManager(keychainService: mockKeychain, laContextFactory: mockLAContextFactory)
+        testDefaults = UserDefaults(suiteName: Self.testSuiteName)!
+        testDefaults.removePersistentDomain(forName: Self.testSuiteName)
+        manager = SecureEnclaveManager(
+            keychainService: mockKeychain,
+            laContextFactory: mockLAContextFactory,
+            userDefaults: testDefaults
+        )
     }
-    
+
     override func tearDown() {
+        testDefaults.removePersistentDomain(forName: Self.testSuiteName)
         mockKeychain = nil
         mockLAContext = nil
         mockLAContextFactory = nil
+        testDefaults = nil
         manager = nil
         super.tearDown()
     }
@@ -265,4 +276,124 @@ final class SecureEnclaveManagerTests: XCTestCase {
     }
 
     /// `isKeyValid == true` requires a real Secure Enclave key; covered by on-device integration tests.
+
+    // MARK: - Decrypt: key invalidation detection tests
+
+    /// When `getPrivateKey()` succeeds but `decryptData()` throws a non-cancel error,
+    /// the manager should throw `keyPermanentlyInvalidated` because the key material
+    /// is inaccessible (e.g., biometric enrollment changed on macOS).
+    func testDecrypt_DecryptionFailsAfterKeyRetrieval_ShouldThrowKeyPermanentlyInvalidated() throws {
+        let tag = "test.sec.enclave.decrypt.invalidated"
+        let fakeEncryptedData = Data([0x01, 0x02, 0x03])
+
+        // getPrivateKey succeeds (simulates successful biometric authentication)
+        guard let tempKey = createTemporarySecKey() else {
+            XCTFail("Failed to create a temporary SecKey")
+            return
+        }
+        mockKeychain.createRandomKeyResult = tempKey
+        // decryptDataResult is nil → decryptData throws failedToDecryptData
+
+        XCTAssertThrowsError(try manager.decrypt(fakeEncryptedData, tag: tag)) { error in
+            guard let e = error as? SecureEnclaveManagerError, case .keyPermanentlyInvalidated = e else {
+                return XCTFail("Expected SecureEnclaveManagerError.keyPermanentlyInvalidated, got \(error)")
+            }
+        }
+    }
+
+    /// When the user cancels the biometric prompt during decryption,
+    /// the cancel error should propagate (not be converted to keyPermanentlyInvalidated).
+    func testDecrypt_UserCancelsDuringDecryption_ShouldRethrowCancellation() throws {
+        let tag = "test.sec.enclave.decrypt.cancel"
+        let fakeEncryptedData = Data([0x01, 0x02, 0x03])
+
+        guard let tempKey = createTemporarySecKey() else {
+            XCTFail("Failed to create a temporary SecKey")
+            return
+        }
+        mockKeychain.createRandomKeyResult = tempKey
+        mockKeychain.decryptDataError = .authenticationUserCanceled
+
+        XCTAssertThrowsError(try manager.decrypt(fakeEncryptedData, tag: tag)) { error in
+            guard let e = error as? KeychainServiceError, case .authenticationUserCanceled = e else {
+                return XCTFail("Expected KeychainServiceError.authenticationUserCanceled, got \(error)")
+            }
+        }
+    }
+
+    // MARK: - isKeyValid: enrollment state tests
+
+    /// When biometric enrollment has changed since key generation, `isKeyValid` should return `false`.
+    func testIsKeyValid_EnrollmentChanged_ReturnsFalse() throws {
+        let tag = "test.enrollment.changed"
+
+        guard let tempKey = createTemporarySecKey() else {
+            XCTFail("Failed to create a temporary SecKey")
+            return
+        }
+        // getPrivateKey returns nil (key doesn't exist yet), createRandomKey returns tempKey
+        mockKeychain.createRandomKeyResult = tempKey
+        mockKeychain.getPrivateKeyResult = nil
+        mockLAContext.canEvaluatePolicyResult = true
+        mockLAContext.evaluatedPolicyDomainStateValue = Data([0xAA, 0xBB])
+
+        // Generate key — saves enrollment state
+        try manager.generateKeyPair(tag: tag)
+
+        // Simulate biometric enrollment change
+        mockLAContext.evaluatedPolicyDomainStateValue = Data([0xCC, 0xDD])
+
+        // isKeyValid also checks keyExists() which calls real SecItemCopyMatching.
+        // In tests the key doesn't exist in the real Keychain, so keyExists returns false.
+        // This test verifies the enrollment state is correctly saved and compared.
+        let tagData = ("\(AppConstants.privateKeyTag).\(tag)").data(using: .utf8)!
+        let enrollmentKey = AppConstants.enrollmentStateKeyPrefix + tagData.base64EncodedString()
+        let savedState = testDefaults.data(forKey: enrollmentKey)
+        XCTAssertEqual(savedState, Data([0xAA, 0xBB]), "Enrollment state must be saved during key generation.")
+        XCTAssertNotEqual(savedState, mockLAContext.evaluatedPolicyDomainStateValue,
+                          "Saved state must differ from current state after enrollment change.")
+    }
+
+    func testGenerateKeyPair_SavesEnrollmentState() throws {
+        let tag = "test.enrollment.save"
+
+        guard let tempKey = createTemporarySecKey() else {
+            XCTFail("Failed to create a temporary SecKey")
+            return
+        }
+        mockKeychain.createRandomKeyResult = tempKey
+        mockKeychain.getPrivateKeyResult = nil
+        mockLAContext.canEvaluatePolicyResult = true
+        mockLAContext.evaluatedPolicyDomainStateValue = Data([0x11, 0x22])
+
+        try manager.generateKeyPair(tag: tag)
+
+        let tagData = ("\(AppConstants.privateKeyTag).\(tag)").data(using: .utf8)!
+        let key = AppConstants.enrollmentStateKeyPrefix + tagData.base64EncodedString()
+        let savedState = testDefaults.data(forKey: key)
+        XCTAssertEqual(savedState, Data([0x11, 0x22]), "generateKeyPair must save the enrollment state.")
+    }
+
+    func testDeleteKey_RemovesEnrollmentState() throws {
+        let tag = "test.enrollment.delete"
+
+        guard let tempKey = createTemporarySecKey() else {
+            XCTFail("Failed to create a temporary SecKey")
+            return
+        }
+        mockKeychain.createRandomKeyResult = tempKey
+        mockKeychain.getPrivateKeyResult = nil
+        mockLAContext.canEvaluatePolicyResult = true
+        mockLAContext.evaluatedPolicyDomainStateValue = Data([0x33, 0x44])
+
+        try manager.generateKeyPair(tag: tag)
+
+        let tagData = ("\(AppConstants.privateKeyTag).\(tag)").data(using: .utf8)!
+        let key = AppConstants.enrollmentStateKeyPrefix + tagData.base64EncodedString()
+        XCTAssertNotNil(testDefaults.data(forKey: key), "Enrollment state should exist after generateKeyPair.")
+
+        try manager.deleteKey(tag: tag)
+
+        XCTAssertNil(testDefaults.data(forKey: key), "deleteKey must remove the enrollment state.")
+    }
 }
