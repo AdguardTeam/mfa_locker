@@ -71,16 +71,13 @@ void main() {
         );
       });
 
-      // Note: BioCipherFunc.encrypt accesses data.bytes inside the ArgumentError.value
-      // constructor even when data.isErased is true, causing a StateError instead of
-      // ArgumentError. This test documents the current behavior.
-      test('throws StateError when data is erased', () async {
+      test('throws ArgumentError when data is erased', () async {
         final data = ErasableByteArray(Uint8List.fromList([1, 2, 3]));
         data.erase();
 
         await expectLater(
           () => sut.encrypt(data),
-          throwsA(isA<StateError>()),
+          throwsA(isA<ArgumentError>()),
         );
 
         verifyNever(
