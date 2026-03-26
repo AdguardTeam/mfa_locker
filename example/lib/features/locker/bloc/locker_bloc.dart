@@ -40,7 +40,6 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     on<_CheckBiometricAvailabilityRequested>(_onCheckBiometricAvailabilityRequested);
     on<_EnableBiometricRequested>(_onEnableBiometricRequested);
     on<_DisableBiometricRequested>(_onDisableBiometricRequested);
-    on<_DisableBiometricPasswordOnlyRequested>(_onDisableBiometricPasswordOnlyRequested);
     on<_UnlockWithBiometricRequested>(_onUnlockWithBiometricRequested);
     on<_AddEntryWithBiometricRequested>(_onAddEntryWithBiometricRequested);
     on<_ReadEntryWithBiometricRequested>(_onReadEntryWithBiometricRequested);
@@ -413,66 +412,11 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     _DisableBiometricRequested event,
     Emitter<LockerState> emit,
   ) async {
-    emit(
-      state.copyWith(
-        loadState: LoadState.loading,
-        biometricOperationState: BiometricOperationState.inProgress,
-      ),
-    );
-
-    try {
-      await _handleVaultOperation(
-        operation: () async {
-          await _lockerRepository.disableBiometric(password: event.password);
-          await _refreshBiometricState(emit, resetLoadState: true);
-          action(
-            const LockerAction.showSuccess(
-              message: 'Biometric authentication disabled',
-            ),
-          );
-          // Reset biometric operation state after success (processed after finally block)
-          if (!isClosed) {
-            add(
-              const LockerEvent.biometricOperationStateChanged(
-                biometricOperationState: BiometricOperationState.idle,
-              ),
-            );
-          }
-        },
-        onDecryptFailed: (error) => _handleDecryptFailure(
-          emit,
-          LockerAction.showError(
-            message: 'Incorrect password: $error',
-          ),
-        ),
-        onError: (error) => _handleBiometricFailure(
-          emit,
-          error,
-          fallbackMessage: 'Failed to disable biometric: $error',
-        ),
-        operationDescription: 'disable biometric authentication',
-      );
-    } finally {
-      if (!isClosed) {
-        emit(
-          state.copyWith(
-            loadState: LoadState.none,
-            biometricOperationState: BiometricOperationState.awaitingResume,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _onDisableBiometricPasswordOnlyRequested(
-    _DisableBiometricPasswordOnlyRequested event,
-    Emitter<LockerState> emit,
-  ) async {
     emit(state.copyWith(loadState: LoadState.loading));
 
     await _handleVaultOperation(
       operation: () async {
-        await _lockerRepository.disableBiometricPasswordOnly(password: event.password);
+        await _lockerRepository.disableBiometric(password: event.password);
         await _refreshBiometricState(emit, resetLoadState: true);
         action(const LockerAction.showSuccess(message: 'Biometric authentication disabled'));
       },
@@ -484,7 +428,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         emit,
         LockerAction.showError(message: 'Failed to disable biometric: $error'),
       ),
-      operationDescription: 'disable biometric (password-only)',
+      operationDescription: 'disable biometric authentication',
     );
   }
 
@@ -1048,7 +992,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     }
 
     try {
-      await _lockerRepository.disableBiometricPasswordOnly(password: password);
+      await _lockerRepository.disableBiometric(password: password);
       await _refreshBiometricState(emit);
       action(
         const LockerAction.showSuccess(

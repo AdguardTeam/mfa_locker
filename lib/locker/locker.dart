@@ -151,25 +151,15 @@ abstract interface class Locker {
     required PasswordCipherFunc passwordCipherFunc,
   });
 
-  /// Disable biometric authentication (requires password confirmation)
-  /// This method handles storage update and key deletion.
+  /// Disable biometric authentication using password confirmation.
+  ///
+  /// Removes the biometric wrap from storage. When [biometricKeyTag] is
+  /// provided, attempts to delete the hardware key afterwards; errors during
+  /// key deletion are suppressed because the key may already be inaccessible
+  /// or deleted by the OS.
   Future<void> teardownBiometry({
-    required BioCipherFunc bioCipherFunc,
     required PasswordCipherFunc passwordCipherFunc,
-  });
-
-  /// Removes the biometric wrap using password authentication only.
-  ///
-  /// Use this when the biometric hardware key has been permanently invalidated
-  /// (e.g., after a biometric enrollment change) and [teardownBiometry] cannot
-  /// be called because the biometric prompt would fail.
-  ///
-  /// Attempts to delete the hardware key identified by [biometricKeyTag] after
-  /// removing the wrap; errors during key deletion are suppressed because the
-  /// key may already be inaccessible or deleted by the OS.
-  Future<void> teardownBiometryPasswordOnly({
-    required PasswordCipherFunc passwordCipherFunc,
-    required String biometricKeyTag,
+    String? biometricKeyTag,
   });
 
   /// Updates the lock timeout.

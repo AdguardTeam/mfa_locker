@@ -293,11 +293,10 @@ class MFALocker implements Locker {
 
   @visibleForTesting
   Future<void> disableBiometry({
-    required BioCipherFunc bioCipherFunc,
     required PasswordCipherFunc passwordCipherFunc,
   }) => _sync(
     () => _executeWithCleanup(
-      erasables: [bioCipherFunc, passwordCipherFunc],
+      erasables: [passwordCipherFunc],
       callback: () async {
         await loadAllMetaIfLocked(passwordCipherFunc);
         await _storage.deleteWrap(originToDelete: Origin.bio, cipherFunc: passwordCipherFunc);
@@ -425,41 +424,10 @@ class MFALocker implements Locker {
     ),
   );
 
-  /// Disable biometric authentication (requires password confirmation)
-  /// This method handles storage update and key deletion.
   @override
   Future<void> teardownBiometry({
-    required BioCipherFunc bioCipherFunc,
     required PasswordCipherFunc passwordCipherFunc,
-  }) => _sync(
-    () => _executeWithCleanup(
-      erasables: [bioCipherFunc, passwordCipherFunc],
-      callback: () async {
-        // Disable biometry in locker
-        await disableBiometry(
-          bioCipherFunc: bioCipherFunc,
-          passwordCipherFunc: passwordCipherFunc,
-        );
-
-        // Delete biometric key from secure storage
-        await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
-      },
-    ),
-  );
-
-  /// Removes the biometric wrap using password authentication only.
-  ///
-  /// Use this when the biometric hardware key has been permanently invalidated
-  /// (e.g., after a biometric enrollment change) and [teardownBiometry] cannot
-  /// be called because the biometric prompt would fail.
-  ///
-  /// Attempts to delete the hardware key identified by [biometricKeyTag] after
-  /// removing the wrap; errors during key deletion are suppressed because the
-  /// key may already be inaccessible or deleted by the OS.
-  @override
-  Future<void> teardownBiometryPasswordOnly({
-    required PasswordCipherFunc passwordCipherFunc,
-    required String biometricKeyTag,
+    String? biometricKeyTag,
   }) async {
     await _sync(
       () => _executeWithCleanup(
@@ -470,10 +438,12 @@ class MFALocker implements Locker {
         },
       ),
     );
-    try {
-      await _secureProvider.deleteKey(tag: biometricKeyTag);
-    } catch (_) {
-      logger.logWarning('teardownBiometryPasswordOnly: failed to delete biometric key, suppressing');
+    if (biometricKeyTag != null) {
+      try {
+        await _secureProvider.deleteKey(tag: biometricKeyTag);
+      } catch (_) {
+        logger.logWarning('teardownBiometry: failed to delete biometric key, suppressing');
+      }
     }
   }
 

@@ -55,11 +55,6 @@ sealed class LockerEvent with _$LockerEvent {
     required String password,
   }) = _DisableBiometricRequested;
 
-  /// Request to disable biometric authentication using password only (key invalidated scenario)
-  const factory LockerEvent.disableBiometricPasswordOnlyRequested({
-    required String password,
-  }) = _DisableBiometricPasswordOnlyRequested;
-
   /// Request to unlock using biometric authentication
   const factory LockerEvent.unlockWithBiometricRequested() = _UnlockWithBiometricRequested;
 

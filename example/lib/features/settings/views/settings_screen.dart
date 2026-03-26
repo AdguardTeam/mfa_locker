@@ -151,14 +151,6 @@ class _SettingsViewState extends State<_SettingsView> {
         LockerEvent.enableBiometricRequested(password: password),
       );
     } else {
-      if (lockerBloc.state.biometricState.isKeyInvalidated) {
-        lockerBloc.add(
-          LockerEvent.disableBiometricPasswordOnlyRequested(password: password),
-        );
-
-        return;
-      }
-
       lockerBloc.add(
         LockerEvent.disableBiometricRequested(password: password),
       );
