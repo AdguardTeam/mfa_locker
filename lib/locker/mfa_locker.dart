@@ -428,24 +428,22 @@ class MFALocker implements Locker {
   Future<void> teardownBiometry({
     required PasswordCipherFunc passwordCipherFunc,
     String? biometricKeyTag,
-  }) async {
-    await _sync(
-      () => _executeWithCleanup(
-        erasables: [passwordCipherFunc],
-        callback: () async {
-          await loadAllMetaIfLocked(passwordCipherFunc);
-          await _storage.deleteWrap(originToDelete: Origin.bio, cipherFunc: passwordCipherFunc);
-        },
-      ),
-    );
-    if (biometricKeyTag != null) {
-      try {
-        await _secureProvider.deleteKey(tag: biometricKeyTag);
-      } catch (_) {
-        logger.logWarning('teardownBiometry: failed to delete biometric key, suppressing');
-      }
-    }
-  }
+  }) => _sync(
+    () => _executeWithCleanup(
+      erasables: [passwordCipherFunc],
+      callback: () async {
+        await loadAllMetaIfLocked(passwordCipherFunc);
+        await _storage.deleteWrap(originToDelete: Origin.bio, cipherFunc: passwordCipherFunc);
+        if (biometricKeyTag != null) {
+          try {
+            await _secureProvider.deleteKey(tag: biometricKeyTag);
+          } catch (_) {
+            logger.logWarning('teardownBiometry: failed to delete biometric key, suppressing');
+          }
+        }
+      },
+    ),
+  );
 
   Future<T> _executeWithCleanup<T>({
     required List<Erasable> erasables,

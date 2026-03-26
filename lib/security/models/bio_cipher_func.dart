@@ -21,19 +21,8 @@ class BioCipherFunc extends CipherFunc {
 
   @override
   Future<Uint8List> encrypt(ErasableByteArray data) async {
-    if (data.isErased) {
-      throw ArgumentError.value(
-        null,
-        'data',
-        'Data must not be erased',
-      );
-    }
-    if (data.bytes.isEmpty) {
-      throw ArgumentError.value(
-        data.bytes,
-        'data',
-        'Data must not be empty',
-      );
+    if (data.isErased || data.bytes.isEmpty) {
+      throw ArgumentError('Data must not be erased or empty');
     }
 
     try {
@@ -51,11 +40,7 @@ class BioCipherFunc extends CipherFunc {
   @override
   Future<ErasableByteArray> decrypt(Uint8List data) async {
     if (data.isEmpty) {
-      throw ArgumentError.value(
-        data,
-        'data',
-        'Encrypted data must not be empty',
-      );
+      throw ArgumentError('Encrypted data must not be empty');
     }
 
     try {
