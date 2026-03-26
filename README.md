@@ -46,6 +46,7 @@ import 'package:locker/locker/mfa_locker.dart';
 import 'package:locker/security/models/password_cipher_func.dart';
 import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_meta.dart';
+import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/erasable/erasable_byte_array.dart';
 
@@ -125,8 +126,20 @@ for (final entry in allMeta.entries) {
   print('Entry ID: ${entry.key}');
 }
 
+// Update an entry (meta, value, or both)
+final updatedMeta = EntryMeta.fromErasable(
+  erasable: ErasableByteArray(Uint8List.fromList(utf8.encode('Updated API Key'))),
+);
+await locker.update(
+  input: EntryUpdateInput(id: entryId, meta: updatedMeta),
+  cipherFunc: passwordCipherFunc,
+);
+
 // Delete an entry
 await locker.delete(id: entryId, cipherFunc: passwordCipherFunc);
+
+// Erase all storage data (irreversible)
+await locker.eraseStorage();
 ```
 
 ### 4. Configure Biometric Authentication
@@ -134,6 +147,7 @@ await locker.delete(id: entryId, cipherFunc: passwordCipherFunc);
 ```dart
 import 'package:locker/security/models/biometric_config.dart';
 import 'package:locker/security/models/bio_cipher_func.dart';
+import 'package:locker/locker/models/biometric_state.dart';
 
 // Configure biometrics (call once at app startup)
 await locker.configureBiometricCipher(
@@ -151,6 +165,17 @@ if (biometricState == BiometricState.availableButDisabled) {
   // Biometrics available, can be enabled
 }
 
+// Check biometric availability with key validation
+final state = await locker.determineBiometricState(
+  biometricKeyTag: 'com.myapp.biometric_key',
+);
+if (state == BiometricState.keyInvalidated) {
+  // Key was invalidated by biometric enrollment change — disable and re-setup
+}
+
+// Check if biometric unlock is currently enabled
+final isEnabled = await locker.isBiometricEnabled;
+
 // Enable biometric unlock (requires password confirmation)
 final bioCipherFunc = BioCipherFunc(keyTag: 'com.myapp.biometric_key');
 await locker.setupBiometry(
@@ -158,15 +183,13 @@ await locker.setupBiometry(
   passwordCipherFunc: passwordCipherFunc,
 );
 
-// Disable biometric unlock
+// Disable biometric unlock (password-only, no biometric prompt)
 await locker.teardownBiometry(
-  bioCipherFunc: bioCipherFunc,
   passwordCipherFunc: passwordCipherFunc,
 );
 
-// Disable biometric unlock when the biometric key has been invalidated
-// (e.g., after a biometric enrollment change) and the biometric prompt would fail
-await locker.teardownBiometryPasswordOnly(
+// Disable biometric unlock and delete the hardware key
+await locker.teardownBiometry(
   passwordCipherFunc: passwordCipherFunc,
   biometricKeyTag: 'com.myapp.biometric_key',
 );
@@ -177,6 +200,9 @@ await locker.teardownBiometryPasswordOnly(
 ```dart
 // Manual lock
 locker.lock();
+
+// Read current lock timeout
+final timeout = await locker.lockTimeout;
 
 // Update auto-lock timeout
 await locker.updateLockTimeout(
@@ -232,8 +258,7 @@ locker/
 ├── packages/
 │   └── biometric_cipher/  # TPM/biometric plugin (iOS, macOS, Android, Windows)
 ├── example/              # Demo Flutter app (mfa_demo)
-├── test/                 # Unit tests
-└── docs/                 # Documentation
+└── test/                 # Unit tests
 ```
 
 ## Example App
@@ -384,7 +409,7 @@ jobs:
 | Requirement | Version |
 |-------------|---------|
 | Dart SDK | >= 3.11.0 < 4.0.0 |
-| Flutter SDK | >= 3.41.0 |
+| Flutter SDK | >= 3.41.4 |
 | fvm | Latest |
 
 ---
@@ -404,11 +429,13 @@ Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to report issue
 
 ## Security
 
-See [docs/MFA_Locker.md](docs/MFA_Locker.md) for detailed information about:
-- Encryption algorithms (AES-GCM, HMAC-SHA256, Argon2id)
-- Storage file structure
-- Key derivation and wrapping
-- Biometric key management via TPM/Secure Enclave
+The library implements the following security measures:
+- **Encryption**: AES-GCM for all data at rest
+- **Key derivation**: Argon2id password hashing with per-vault salt
+- **Integrity verification**: HMAC-SHA256 detects storage tampering
+- **Master key wrapping**: Random master key encrypted per auth method (password/biometric)
+- **Biometric key management**: TPM/Secure Enclave hardware-backed keys via the `biometric_cipher` plugin
+- **Memory safety**: `ErasableByteArray` zeroes sensitive data on `erase()`; all operations auto-erase arguments in `finally` blocks
 
 ## License
 
