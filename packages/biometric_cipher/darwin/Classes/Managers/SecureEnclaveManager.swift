@@ -22,9 +22,6 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         self.userDefaults = userDefaults
     }
 
-    /// Configures a Secure Enclave with the specified header for biometric authentication.
-    ///
-    /// - Parameter authTitle: Title to display to the user during authentication.
     func configure(authTitle: String) throws {
         if (authTitle.isEmpty){
             throw SecureEnclaveManagerError.invalidAuthTitle
@@ -33,10 +30,6 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         self.authTitle = authTitle
     }
 
-    /// Checks if the Secure Enclave is available on the device.
-    ///
-    /// - Returns: `true` if the Secure Enclave is supported, otherwise `false`.
-    /// - Note: This method attempts to create a test key to verify Secure Enclave support.
     func isSecureEnclaveSupported()  -> Bool {
         let laContext = laContextFactory.createContext()
         guard let accessControl = try? AuthenticationManager.getAccessControl(laContext) else {
@@ -62,11 +55,6 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         return key != nil
     }
 
-    /// Generates a cryptographic key pair in the Secure Enclave.
-    ///
-    /// If a key pair already exists with the specified tag, the method does nothing.
-    ///
-    /// - Throws: An error if key pair generation fails or if the Secure Enclave is unavailable.
     func generateKeyPair(tag: String) throws {
         let privateKeyTag = try getTagData(tag: tag)
 
@@ -99,10 +87,6 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         saveEnrollmentState(tag: privateKeyTag)
     }
 
-    /// Deletes a cryptographic key from the Keychain.
-    ///
-    /// - Parameter tag: A string representing the unique tag of the key to delete.
-    /// - Throws: An error if the tag is invalid or if the key deletion fails.
     func deleteKey(tag: String) throws {
         let privateKeyTag = try getTagData(tag: tag)
 
@@ -116,11 +100,6 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         deleteEnrollmentState(tag: privateKeyTag)
     }
 
-    /// Checks whether a Secure Enclave key with the given tag exists in the keychain
-    /// without triggering any biometric prompt.
-    ///
-    /// - Parameter tag: A string representing the unique tag of the key to check.
-    /// - Returns: `true` if the key exists and has not been invalidated, `false` otherwise.
     func isKeyValid(tag: String) -> Bool {
         guard let tagData = try? getTagData(tag: tag) else {
             return false
@@ -137,11 +116,6 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         return true
     }
 
-    /// Encrypts a string using the Secure Enclave's public key.
-    ///
-    /// - Parameter encryptionString: The string to be encrypted.
-    /// - Returns: The encrypted data in `Data` format.
-    /// - Throws: An error if the encryption fails or if the Secure Enclave is unavailable.
     func encrypt(_ encryptionString: String, tag: String) throws -> Data {
         let privateKeyTag = try getTagData(tag: tag)
 
@@ -173,11 +147,6 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         return encryptedData as Data
     }
 
-    /// Decrypts encrypted data using the Secure Enclave's private key.
-    ///
-    /// - Parameter encryptedData: The encrypted data in `Data` format.
-    /// - Returns: The decrypted string.
-    /// - Throws: An error if the decryption fails or if the Secure Enclave is unavailable.
     func decrypt(_ encryptedData: Data, tag: String) throws -> String {
         let privateKeyTag = try getTagData(tag: tag)
 
@@ -236,19 +205,10 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         return decryptedString
     }
 
-    /// Retrieves the public key corresponding to the provided private key.
-    ///
-    /// - Parameter privateKey: The private key stored in the Secure Enclave.
-    /// - Returns: The public key as a `SecKey` object.
-    /// - Throws: An error if the public key cannot be retrieved.
     private func getPublicKey(privateKey: SecKey) throws -> SecKey? {
         return try keychainService.copyPublicKey(privateKey)
     }
 
-    /// Retrieves the private key stored in the Secure Enclave.
-    ///
-    /// - Returns: The private key as a `SecKey` object, or `nil` if the key does not exist.
-    /// - Throws: An error if the private key cannot be retrieved.
     private func getPrivateKey(tag: Data) -> SecKey? {
         var query: [String: Any] = [
             kSecClass as String:                kSecClassKey,
@@ -281,10 +241,6 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         return privateKeyTag
     }
 
-    /// Returns `true` if a Secure Enclave key item with the given tag exists in the keychain,
-    /// regardless of whether the caller can authenticate to use it.
-    ///
-    /// Uses `kSecUseAuthenticationUISkip` to suppress any biometric prompt.
     func keyExists(tag: Data) -> Bool {
         let query: [String: Any] = [
             kSecClass as String:              kSecClassKey,
@@ -299,11 +255,6 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
 
     // MARK: - Biometric enrollment state tracking
 
-    /// Saves the current biometric enrollment state for the given key tag.
-    ///
-    /// Uses `LAContext.evaluatedPolicyDomainState` to capture a snapshot of the
-    /// biometric enrollment. This is compared later in `isKeyValid()` to detect
-    /// enrollment changes that invalidate `.biometryCurrentSet` keys.
     private func saveEnrollmentState(tag: Data) {
         let laContext = laContextFactory.createContext()
         var error: NSError?
@@ -315,11 +266,6 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         userDefaults.set(domainState, forKey: key)
     }
 
-    /// Returns `true` if biometric enrollment has changed since the key was created.
-    ///
-    /// Compares the current `evaluatedPolicyDomainState` with the snapshot saved
-    /// during key generation. On macOS, this is the only reliable way to detect
-    /// key invalidation without triggering a biometric prompt.
     private func hasEnrollmentChanged(tag: Data) -> Bool {
         let laContext = laContextFactory.createContext()
         var error: NSError?
@@ -334,13 +280,11 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         return savedState != currentState
     }
 
-    /// Removes the stored enrollment state for the given key tag.
     private func deleteEnrollmentState(tag: Data) {
         let key = AppConstants.enrollmentStateKeyPrefix + tag.base64EncodedString()
         userDefaults.removeObject(forKey: key)
     }
 
-    /// Returns `true` if an enrollment state snapshot exists for the given key tag.
     private func enrollmentStateExists(tag: Data) -> Bool {
         let key = AppConstants.enrollmentStateKeyPrefix + tag.base64EncodedString()
         return userDefaults.data(forKey: key) != nil
