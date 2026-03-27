@@ -250,9 +250,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
     func testDecrypt_KeyNotFoundInKeychain_ShouldThrowKeyPermanentlyInvalidated() throws {
         let tag = "test.sec.enclave.no_key_decrypt"
         let fakeEncryptedData = Data([0x01, 0x02, 0x03])
-        // createRandomKeyResult is nil by default, so getPrivateKey returns nil.
-        // The key does not exist in the test keychain either, so keyExists returns false,
-        // which triggers the keyPermanentlyInvalidated path.
 
         XCTAssertThrowsError(try manager.decrypt(fakeEncryptedData, tag: tag)) { error in
             guard let e = error as? SecureEnclaveManagerError, case .keyPermanentlyInvalidated = e else {
@@ -274,8 +271,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
 
         XCTAssertFalse(result, "isKeyValid must return false when the key does not exist in the keychain.")
     }
-
-    /// `isKeyValid == true` requires a real Secure Enclave key; covered by on-device integration tests.
 
     // MARK: - Decrypt: key invalidation detection tests
 
@@ -300,9 +295,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
         }
     }
 
-    /// When decryption fails but the key is still valid (e.g., wrong biometrics on macOS
-    /// where auth is deferred to SecKeyCreateDecryptedData), should throw authenticationFailed
-    /// instead of keyPermanentlyInvalidated.
     func testDecrypt_DecryptionFailsButKeyStillValid_ShouldThrowAuthenticationFailed() throws {
         let tag = "test.sec.enclave.decrypt.authfail"
         let fakeEncryptedData = Data([0x01, 0x02, 0x03])
@@ -326,8 +318,6 @@ final class SecureEnclaveManagerTests: XCTestCase {
         }
     }
 
-    /// When decryption fails with a non-auth error and the key is still valid,
-    /// the original KeychainServiceError should be re-thrown.
     func testDecrypt_DecryptionFailsWithNonAuthError_ShouldRethrowOriginalError() throws {
         let tag = "test.sec.enclave.decrypt.othererror"
         let fakeEncryptedData = Data([0x01, 0x02, 0x03])
