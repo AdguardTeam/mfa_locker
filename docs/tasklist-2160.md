@@ -18,12 +18,13 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 | 8 | Example app: password-only biometric disable | :white_check_mark: Done | |
 | 9 | Android: `isKeyValid(tag)` silent probe | :white_check_mark: Done | Section G |
 | 10 | iOS/macOS: `isKeyValid(tag)` silent probe | :white_check_mark: Done | Section G |
-| 11 | Dart plugin: `BiometricCipher.isKeyValid(tag)` | :white_large_square: Not started | Section G |
-| 12 | Locker: `BiometricState.keyInvalidated` + proactive `determineBiometricState` | :white_large_square: Not started | Section G |
-| 13 | Tests for proactive detection | :white_large_square: Not started | Section G |
-| 14 | Example app: proactive detection integration | :white_check_mark: Complete | Section G |
+| 11 | Windows: `isKeyValid(tag)` silent probe | :white_large_square: Not started | Section G |
+| 12 | Dart plugin: `BiometricCipher.isKeyValid(tag)` | :white_large_square: Not started | Section G |
+| 13 | Locker: `BiometricState.keyInvalidated` + proactive `determineBiometricState` | :white_large_square: Not started | Section G |
+| 14 | Tests for proactive detection | :white_large_square: Not started | Section G |
+| 15 | Example app: proactive detection integration | :white_check_mark: Complete | Section G |
 
-**Current Phase:** 13
+**Current Phase:** 11
 
 ---
 
@@ -291,17 +292,54 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 ---
 
-## Iteration 11 — Dart plugin: `BiometricCipher.isKeyValid(tag)`
+## Iteration 11 — Windows: `isKeyValid(tag)` silent probe
+
+**Goal:** Add a platform method to probe key validity on Windows without showing a Windows Hello prompt. `KeyCredentialManager::OpenAsync(tag)` queries credential metadata — `KeyCredentialStatus::NotFound` means the key is gone, `Success` means it exists and is usable. No signing operation is performed, so no biometric prompt is triggered.
+
+**Ref:** `docs/idea-2160.md` Section G2b
+
+- [ ] **11.1** Add `IsKeyValidAsync` to `WindowsHelloRepository` interface
+  - File: `packages/biometric_cipher/windows/include/biometric_cipher/repositories/windows_hello_repository.h`
+  - Add `virtual IAsyncOperation<bool> IsKeyValidAsync(const winrt::hstring tag) const = 0;`
+
+- [ ] **11.2** Implement `IsKeyValidAsync` in `WindowsHelloRepositoryImpl`
+  - File: `packages/biometric_cipher/windows/include/biometric_cipher/repositories/windows_hello_repository_impl.h` (declaration)
+  - File: `packages/biometric_cipher/windows/windows_hello_repository_impl.cpp` (implementation)
+  - Call `CheckWindowsHelloIsStatusAsync()` → `m_HelloWrapper->OpenAsync(tag)` → return `status == KeyCredentialStatus::Success`
+
+- [ ] **11.3** Add `IsKeyValidAsync` to `BiometricCipherService`
+  - File: `packages/biometric_cipher/windows/include/biometric_cipher/services/biometric_cipher_service.h` (declaration)
+  - File: `packages/biometric_cipher/windows/biometric_cipher_service.cpp` (implementation)
+  - Delegate: convert tag to `hstring`, call `m_WindowsHelloRepository->IsKeyValidAsync(hTag)`
+
+- [ ] **11.4** Add `kIsKeyValid` to `MethodName` enum and mapping
+  - File: `packages/biometric_cipher/windows/include/biometric_cipher/enums/method_name.h`
+  - Add `kIsKeyValid` before `kNotImplemented`
+  - File: `packages/biometric_cipher/windows/method_name.cpp`
+  - Add `{"isKeyValid", MethodName::kIsKeyValid}` to `METHOD_NAME_MAP`
+
+- [ ] **11.5** Add `isKeyValid` method channel handler to `BiometricCipherPlugin`
+  - File: `packages/biometric_cipher/windows/biometric_cipher_plugin.h` (declaration)
+  - File: `packages/biometric_cipher/windows/biometric_cipher_plugin.cpp` (implementation)
+  - Add `case MethodName::kIsKeyValid:` to `HandleMethodCall` switch
+  - Parse `tag` argument, call `IsKeyValidCoroutine(tag, std::move(result))`
+  - `IsKeyValidCoroutine`: call `m_SecureService->IsKeyValidAsync(tag)` → `result->Success(bool)`
+
+**Verify:** Build Windows (`fvm flutter build windows --debug`).
+
+---
+
+## Iteration 12 — Dart plugin: `BiometricCipher.isKeyValid(tag)`
 
 **Goal:** Expose the native key validity check through the Dart plugin API.
 
 **Ref:** `docs/idea-2160.md` Section G3
 
-- [ ] **11.1** Add `isKeyValid` to platform interface
+- [ ] **12.1** Add `isKeyValid` to platform interface
   - File: `packages/biometric_cipher/lib/biometric_cipher_platform_interface.dart`
   - Add `Future<bool> isKeyValid({required String tag})`
 
-- [ ] **11.2** Add `isKeyValid` to `BiometricCipher`
+- [ ] **12.2** Add `isKeyValid` to `BiometricCipher`
   - File: `packages/biometric_cipher/lib/biometric_cipher.dart`
   - Validate non-empty tag (throw `BiometricCipherException` with `invalidArgument` code if empty)
   - Delegate to `_instance.isKeyValid(tag: tag)`
@@ -310,30 +348,30 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 ---
 
-## Iteration 12 — Locker: `BiometricState.keyInvalidated` + proactive `determineBiometricState`
+## Iteration 13 — Locker: `BiometricState.keyInvalidated` + proactive `determineBiometricState`
 
 **Goal:** Add proactive key validity detection at init time — `determineBiometricState()` returns `BiometricState.keyInvalidated` when the hardware key is permanently invalidated, without triggering a biometric prompt.
 
 **Ref:** `docs/idea-2160.md` Sections G4, G5, G6
 
-- [ ] **12.1** Add `keyInvalidated` to `BiometricState` enum + `isKeyInvalidated` getter
+- [ ] **13.1** Add `keyInvalidated` to `BiometricState` enum + `isKeyInvalidated` getter
   - File: `lib/locker/models/biometric_state.dart`
   - Add `keyInvalidated` value (after `enabled`)
   - Add `bool get isKeyInvalidated => this == keyInvalidated`
 
-- [ ] **12.2** Add `isKeyValid` to `BiometricCipherProvider` abstract class
+- [ ] **13.2** Add `isKeyValid` to `BiometricCipherProvider` abstract class
   - File: `lib/security/biometric_cipher_provider.dart`
   - Add `Future<bool> isKeyValid({required String tag})`
 
-- [ ] **12.3** Implement `isKeyValid` in `BiometricCipherProviderImpl`
+- [ ] **13.3** Implement `isKeyValid` in `BiometricCipherProviderImpl`
   - File: `lib/security/providers/biometric_cipher_provider_impl.dart`
   - Delegate: `_biometricCipher.isKeyValid(tag: tag)`
 
-- [ ] **12.4** Add optional `biometricKeyTag` parameter to `determineBiometricState` in `Locker` interface
+- [ ] **13.4** Add optional `biometricKeyTag` parameter to `determineBiometricState` in `Locker` interface
   - File: `lib/locker/locker.dart`
   - Change signature to: `Future<BiometricState> determineBiometricState({String? biometricKeyTag})`
 
-- [ ] **12.5** Implement key validity check in `MFALocker.determineBiometricState`
+- [ ] **13.5** Implement key validity check in `MFALocker.determineBiometricState`
   - File: `lib/locker/mfa_locker.dart`
   - After confirming biometrics are enabled in settings, before returning `enabled`:
   - If `biometricKeyTag != null`: call `_secureProvider.isKeyValid(tag: biometricKeyTag)`
@@ -344,50 +382,50 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 ---
 
-## Iteration 13 — Tests for proactive detection
+## Iteration 14 — Tests for proactive detection
 
 **Goal:** Unit tests for `isKeyValid` delegation, `BiometricState.keyInvalidated`, and proactive `determineBiometricState`.
 
-- [ ] **13.1** Test `BiometricState.keyInvalidated` enum value and `isKeyInvalidated` getter
+- [ ] **14.1** Test `BiometricState.keyInvalidated` enum value and `isKeyInvalidated` getter
   - `BiometricState.keyInvalidated.isKeyInvalidated` → `true`
   - `BiometricState.enabled.isKeyInvalidated` → `false`
   - `BiometricState.keyInvalidated.isEnabled` → `false`
   - `BiometricState.keyInvalidated.isAvailable` → `false`
 
-- [ ] **13.2** Test `isKeyValid` delegation in `BiometricCipherProviderImpl`
+- [ ] **14.2** Test `isKeyValid` delegation in `BiometricCipherProviderImpl`
   - Mock `BiometricCipher.isKeyValid` → verify delegation and return value pass-through
 
-- [ ] **13.3** Test `determineBiometricState(biometricKeyTag:)` returns `keyInvalidated` when key is invalid
+- [ ] **14.3** Test `determineBiometricState(biometricKeyTag:)` returns `keyInvalidated` when key is invalid
   - Mock `isKeyValid` → `false`, biometrics enabled in settings
   - Expect `BiometricState.keyInvalidated`
 
-- [ ] **13.4** Test `determineBiometricState()` without `biometricKeyTag` retains existing behavior
+- [ ] **14.4** Test `determineBiometricState()` without `biometricKeyTag` retains existing behavior
   - Biometrics enabled, no tag passed → expect `BiometricState.enabled` (no key validity check)
 
 **Verify:** `fvm flutter test` — all green.
 
 ---
 
-## Iteration 14 — Example app: proactive detection integration
+## Iteration 15 — Example app: proactive detection integration
 
 **Goal:** Use `BiometricState.keyInvalidated` from `determineBiometricState` to hide biometric UI at init time — eliminating the brief biometric button flash before a failed attempt hides it.
 
 **Ref:** `docs/idea-2160.md` Sections G7, G8
 
-- [x] **14.1** Pass `biometricKeyTag` in repository's `determineBiometricState` call
+- [x] **15.1** Pass `biometricKeyTag` in repository's `determineBiometricState` call
   - File: `example/lib/features/locker/data/repositories/locker_repository.dart`
   - Update the `determineBiometricState()` call to pass `biometricKeyTag: AppConstants.biometricKeyTag`
 
-- [x] **14.2** Handle `BiometricState.keyInvalidated` in `LockerBloc`
+- [x] **15.2** Handle `BiometricState.keyInvalidated` in `LockerBloc`
   - File: `example/lib/features/locker/bloc/locker_bloc.dart`
   - When `determineBiometricState` returns `keyInvalidated`: set `isBiometricKeyInvalidated: true` on state
 
-- [x] **14.3** Update locked screen biometric button visibility to use `biometricState.isKeyInvalidated`
+- [x] **15.3** Update locked screen biometric button visibility to use `biometricState.isKeyInvalidated`
   - File: `example/lib/features/locker/views/auth/locked_screen.dart`
   - Update `showBiometricButton:` to also check `!state.biometricState.isKeyInvalidated`
   - This provides init-time hiding (no button flash) alongside the runtime flag
 
-- [x] **14.4** Update `BiometricUnlockButton` to check `biometricState.isKeyInvalidated`
+- [x] **15.4** Update `BiometricUnlockButton` to check `biometricState.isKeyInvalidated`
   - File: `example/lib/features/locker/views/widgets/biometric_unlock_button.dart`
   - Add `state.biometricState.isKeyInvalidated` check alongside existing `isBiometricKeyInvalidated` check
 

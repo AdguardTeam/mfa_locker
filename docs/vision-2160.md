@@ -16,11 +16,13 @@ No new technologies or dependencies. All changes use the existing stack:
 
 - **Kotlin** — Android native (`ErrorType`, `SecureMethodCallHandlerImpl`)
 - **Swift** — iOS/macOS native (`KeychainService`, `SecureEnclaveManager`, plugin error types)
+- **C++/WinRT** — Windows native (`BiometricCipherService`, `WindowsHelloRepository`, plugin method handler)
 - **Dart** — Flutter plugin enums + locker library mappings
 
 Platform APIs used are already available:
 - Android: `KeyPermanentlyInvalidatedException` (Android SDK), `Cipher.init()` for silent key probe
 - iOS/macOS: `errSecAuthFailed`, `SecItemCopyMatching` with `kSecUseAuthenticationUISkip` (Security framework)
+- Windows: `KeyCredentialManager::OpenAsync()` status check (WinRT `Windows.Security.Credentials`)
 
 ---
 
@@ -53,6 +55,19 @@ packages/biometric_cipher/
 │   ├── SecureEnclaveManager.swift                # rewrite decrypt()
 │   ├── SecureEnclavePluginError.swift            # + .keyPermanentlyInvalidated case
 │   └── BiometricCipherPlugin.swift               # + catch → FlutterError mapping
+├── windows/
+│   ├── include/…/repositories/
+│   │   ├── windows_hello_repository.h            # + IsKeyValidAsync interface method
+│   │   └── windows_hello_repository_impl.h       # + IsKeyValidAsync declaration
+│   ├── include/…/services/
+│   │   └── biometric_cipher_service.h            # + IsKeyValidAsync method
+│   ├── include/…/enums/
+│   │   └── method_name.h                         # + kIsKeyValid enum value
+│   ├── windows_hello_repository_impl.cpp         # + IsKeyValidAsync implementation
+│   ├── biometric_cipher_service.cpp              # + IsKeyValidAsync implementation
+│   ├── method_name.cpp                           # + "isKeyValid" → kIsKeyValid mapping
+│   ├── biometric_cipher_plugin.h                 # + IsKeyValidCoroutine declaration
+│   └── biometric_cipher_plugin.cpp               # + kIsKeyValid case + IsKeyValidCoroutine
 ├── lib/
 │   └── biometric_cipher_platform_interface.dart  # + isKeyValid(tag) signature
 └── lib/data/
@@ -96,7 +111,7 @@ example/lib/
 │           └── settings_screen.dart              # invalidation description, toggle routing, timeout tile
 ```
 
-**Total: 34 existing files modified, 0 new files** (24 library + 10 example app).
+**Total: 43 existing files modified, 0 new files** (33 library + 10 example app).
 
 ---
 
@@ -165,14 +180,17 @@ determineBiometricState(biometricKeyTag: "biometric")
         │     ├── Android: Cipher.init(ENCRYPT_MODE, key) — no BiometricPrompt
         │     │   └── KeyPermanentlyInvalidatedException → false
         │     │
-        │     └── iOS/macOS: keyExists(tag) with kSecUseAuthenticationUISkip
-        │         └── errSecItemNotFound → false
+        │     ├── iOS/macOS: keyExists(tag) with kSecUseAuthenticationUISkip
+        │     │   └── errSecItemNotFound → false
+        │     │
+        │     └── Windows: KeyCredentialManager.OpenAsync(tag) — no signing
+        │         └── KeyCredentialStatus::NotFound → false
         │
         ├── isValid == false → return BiometricState.keyInvalidated
         └── isValid == true  → return BiometricState.enabled
 ```
 
-**Key property:** `isKeyValid()` never triggers a biometric prompt on any platform. On Android, `Cipher.init()` with the secret key fails synchronously for invalidated keys. On iOS/macOS, `SecItemCopyMatching` with `kSecUseAuthenticationUISkip` suppresses all authentication UI.
+**Key property:** `isKeyValid()` never triggers a biometric prompt on any platform. On Android, `Cipher.init()` with the secret key fails synchronously for invalidated keys. On iOS/macOS, `SecItemCopyMatching` with `kSecUseAuthenticationUISkip` suppresses all authentication UI. On Windows, `KeyCredentialManager::OpenAsync()` queries credential metadata without requesting a signing operation.
 
 **Backwards compatibility:** `biometricKeyTag` is optional. Callers that don't pass it get the existing behavior (no key validity check). `LockerBiometricMixin` passes the tag automatically.
 
@@ -304,6 +322,7 @@ App starts / lock screen mounts
     → Key validity check: isKeyValid(tag) — NO biometric prompt
       → Android: Cipher.init() throws KeyPermanentlyInvalidatedException → false
       → iOS/macOS: keyExists() returns false (OS deleted key) → false
+      → Windows: OpenAsync() returns NotFound (credential removed) → false
     → Returns BiometricState.keyInvalidated
   → App receives keyInvalidated at init time
   → Lock screen immediately shows password-only mode (no biometric button flash)
@@ -346,7 +365,7 @@ No logging for enum mappings — pure transformations with no side effects worth
 3. `BiometricExceptionType.keyInvalidated` is surfaced from the locker layer when the underlying cipher code is `keyPermanentlyInvalidated`.
 4. `MFALocker.teardownBiometryPasswordOnly` removes the `Origin.bio` wrap using password auth alone, without triggering a biometric prompt.
 5. Generic auth failures (wrong fingerprint, lockout, cancel) continue producing `failure` / `cancel` — not reclassified as `keyInvalidated`.
-6. `BiometricCipher.isKeyValid(tag)` returns `false` for permanently invalidated keys without triggering a biometric prompt on any platform.
-7. `BiometricCipher.isKeyValid(tag)` returns `true` for valid keys without triggering a biometric prompt.
+6. `BiometricCipher.isKeyValid(tag)` returns `false` for permanently invalidated keys without triggering a biometric prompt on any platform (Android, iOS/macOS, Windows).
+7. `BiometricCipher.isKeyValid(tag)` returns `true` for valid keys without triggering a biometric prompt on any platform.
 8. `determineBiometricState(biometricKeyTag: tag)` returns `BiometricState.keyInvalidated` when the key is invalid — enabling proactive detection at init time.
 9. `determineBiometricState()` without `biometricKeyTag` retains existing behavior for backwards compatibility.
