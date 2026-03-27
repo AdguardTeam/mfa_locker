@@ -1,96 +1,222 @@
-# Phase 11: Dart Plugin — `BiometricCipher.isKeyValid(tag)`
+# Phase 11: Windows — `isKeyValid(tag)` Silent Probe
 
-**Goal:** Expose the native key validity check through the Dart plugin API, bridging the platform channel calls from Phase 9 (Android) and Phase 10 (iOS/macOS) to a typed Dart method.
+**Goal:** Add a platform method to probe key validity on Windows without showing a Windows Hello prompt. `KeyCredentialManager::OpenAsync(tag)` queries credential metadata — `KeyCredentialStatus::NotFound` means the key is gone, `Success` means it exists and is usable. No signing operation is performed, so no biometric prompt is triggered.
 
 ## Context
 
 ### Feature Motivation
 
-Phases 9 and 10 added `"isKeyValid"` method channel handlers on Android and iOS/macOS. Phase 11 is the Dart-side bridge: it adds the method to the platform interface and the public `BiometricCipher` class so the Dart locker library (Phase 12) can call it.
+Phases 1–8 implement **reactive** detection: `keyInvalidated` is discovered only when the user triggers a biometric operation. This causes the lock screen to briefly show the biometric button before hiding it.
 
-The method must **never trigger a biometric prompt** — the platform implementations use silent probes (`Cipher.init()` on Android, `SecItemCopyMatching` with `kSecUseAuthenticationUISkip` on iOS/macOS). The Dart layer simply forwards the call.
+Iterations 9–14 add **proactive** detection: `determineBiometricState()` checks key validity at init time without triggering any biometric prompt. The lock screen can immediately hide the biometric button when the key is invalidated — no button flash.
 
-### Call Path (Complete — Phases 9–11)
+This iteration is the Windows half of the platform method (Android was Phase 9, iOS/macOS was Phase 10).
+
+### Why Windows Can Do This Silently
+
+On Windows, `KeyCredentialManager::OpenAsync(tag)` returns a `KeyCredentialRetrievalResult` whose `Status()` property indicates whether the credential exists and is accessible. This call **does not** request a signing operation, so no Windows Hello biometric prompt is triggered — it only queries credential metadata.
+
+- `KeyCredentialStatus::NotFound` → credential does not exist or has been removed → `false`
+- `KeyCredentialStatus::Success` → credential exists and is usable → `true`
+
+Unlike Android (where `Cipher.init()` throws `KeyPermanentlyInvalidatedException` for invalidated keys) and iOS/macOS (where the OS deletes the Secure Enclave key on biometric enrollment change), Windows Hello credentials are tied to the user account, not biometric enrollment. However, credentials can be deleted externally (e.g., via `certutil`, device reset, or TPM clear). `isKeyValid` on Windows checks whether the credential still exists and is openable.
+
+### Windows Method Channel Path (New)
 
 ```
-BiometricCipher.isKeyValid(tag: tag)   [Phase 11 — biometric_cipher.dart]
-  → _instance.isKeyValid(tag: tag)     [Phase 11 — platform interface]
-  → MethodChannel("isKeyValid", tag)   [existing channel infrastructure]
-  → Android: Cipher.init() probe       [Phase 9]
-  → iOS/macOS: keyExists() probe       [Phase 10]
+WindowsHelloRepositoryImpl::IsKeyValidAsync(tag)
+  → calls CheckWindowsHelloIsStatusAsync() + m_HelloWrapper->OpenAsync(tag)
+  → BiometricCipherService::IsKeyValidAsync(tag)   [new: delegate]
+  → MethodName::kIsKeyValid handler                [new: channel handler]
+  → Flutter method channel → Dart
 ```
 
-### Consumer (Phase 12)
+### How isKeyValid Differs from decrypt/encrypt
 
-Phase 12 (`BiometricCipherProvider.isKeyValid`) will call `BiometricCipher.isKeyValid(tag: tag)` directly. Phase 11 must be complete before Phase 12 can implement.
+The existing `encrypt`/`decrypt` paths involve `WindowsHelloRepositoryImpl` requesting a signing or encryption operation via `Windows.Security.Credentials.KeyCredential::RequestSignAsync` or equivalent, which triggers a Windows Hello prompt. The new `isKeyValid` path:
+- Only calls `KeyCredentialManager::OpenAsync(tag)` — a metadata query
+- Never triggers any authentication prompt or UI
+- Returns a `bool` result via coroutine
 
-### Validation
+### Project Structure — Files Changed
 
-- Empty `tag` → throw `BiometricCipherException(code: invalidArgument)` before reaching the channel.
-- Non-empty `tag` → delegate to `_instance.isKeyValid(tag: tag)`.
-- No other validation. The platform handles key-not-found by returning `false`, not by throwing.
+```
+packages/biometric_cipher/windows/
+├── include/biometric_cipher/repositories/
+│   ├── windows_hello_repository.h         # + IsKeyValidAsync interface method
+│   └── windows_hello_repository_impl.h    # + IsKeyValidAsync declaration
+├── include/biometric_cipher/services/
+│   └── biometric_cipher_service.h         # + IsKeyValidAsync method
+├── include/biometric_cipher/enums/
+│   └── method_name.h                      # + kIsKeyValid enum value
+├── windows_hello_repository_impl.cpp      # + IsKeyValidAsync implementation
+├── biometric_cipher_service.cpp           # + IsKeyValidAsync implementation
+├── method_name.cpp                        # + "isKeyValid" → kIsKeyValid mapping
+├── biometric_cipher_plugin.h              # + IsKeyValidCoroutine declaration
+└── biometric_cipher_plugin.cpp            # + kIsKeyValid case + IsKeyValidCoroutine
+```
+
+No new files. All changes are additions to existing files.
 
 ## Tasks
 
-- [x] **11.1** Add `isKeyValid` to platform interface
-  - File: `packages/biometric_cipher/lib/biometric_cipher_platform_interface.dart`
-  - Add `Future<bool> isKeyValid({required String tag})`
+- [ ] **11.1** Add `IsKeyValidAsync` to `WindowsHelloRepository` interface
+  - File: `packages/biometric_cipher/windows/include/biometric_cipher/repositories/windows_hello_repository.h`
+  - Add `virtual IAsyncOperation<bool> IsKeyValidAsync(const winrt::hstring tag) const = 0;`
 
-- [x] **11.2** Add `isKeyValid` to `BiometricCipher`
-  - File: `packages/biometric_cipher/lib/biometric_cipher.dart`
-  - Validate non-empty tag (throw `BiometricCipherException` with `invalidArgument` code if empty)
-  - Delegate to `_instance.isKeyValid(tag: tag)`
+- [ ] **11.2** Implement `IsKeyValidAsync` in `WindowsHelloRepositoryImpl`
+  - File: `packages/biometric_cipher/windows/include/biometric_cipher/repositories/windows_hello_repository_impl.h` (declaration)
+  - File: `packages/biometric_cipher/windows/windows_hello_repository_impl.cpp` (implementation)
+  - Call `CheckWindowsHelloIsStatusAsync()` → `m_HelloWrapper->OpenAsync(tag)` → return `status == KeyCredentialStatus::Success`
+
+- [ ] **11.3** Add `IsKeyValidAsync` to `BiometricCipherService`
+  - File: `packages/biometric_cipher/windows/include/biometric_cipher/services/biometric_cipher_service.h` (declaration)
+  - File: `packages/biometric_cipher/windows/biometric_cipher_service.cpp` (implementation)
+  - Delegate: convert tag to `hstring`, call `m_WindowsHelloRepository->IsKeyValidAsync(hTag)`
+
+- [ ] **11.4** Add `kIsKeyValid` to `MethodName` enum and mapping
+  - File: `packages/biometric_cipher/windows/include/biometric_cipher/enums/method_name.h`
+  - Add `kIsKeyValid` before `kNotImplemented`
+  - File: `packages/biometric_cipher/windows/method_name.cpp`
+  - Add `{"isKeyValid", MethodName::kIsKeyValid}` to `METHOD_NAME_MAP`
+
+- [ ] **11.5** Add `isKeyValid` method channel handler to `BiometricCipherPlugin`
+  - File: `packages/biometric_cipher/windows/biometric_cipher_plugin.h` (declaration)
+  - File: `packages/biometric_cipher/windows/biometric_cipher_plugin.cpp` (implementation)
+  - Add `case MethodName::kIsKeyValid:` to `HandleMethodCall` switch
+  - Parse `tag` argument, call `IsKeyValidCoroutine(tag, std::move(result))`
+  - `IsKeyValidCoroutine`: call `m_SecureService->IsKeyValidAsync(tag)` → `result->Success(bool)`
 
 ## Acceptance Criteria
 
-**Test:** `cd packages/biometric_cipher && fvm flutter analyze --fatal-warnings --fatal-infos --no-pub .`
+**Test:** Build Windows (`fvm flutter build windows --debug`) — build succeeds with no compilation errors.
 
-- `BiometricCipher.isKeyValid(tag: '')` throws `BiometricCipherException` with `invalidArgument` code (client-side guard, no channel call).
-- `BiometricCipher.isKeyValid(tag: 'biometric')` invokes the channel and returns the platform bool.
-- Method is present on the platform interface — no `UnimplementedError` on any platform.
+- `isKeyValid` is callable from the Flutter method channel with a `tag` string argument
+- Returns `false` for a missing/deleted credential without showing any Windows Hello prompt
+- Returns `true` for a valid credential without showing any Windows Hello prompt
+- Method name `"isKeyValid"` matches Android and iOS/macOS channel handler names
 
 ## Dependencies
 
-- Phase 9 complete (Android channel handler `"isKeyValid"` in place)
-- Phase 10 complete (iOS/macOS channel handler `"isKeyValid"` in place)
-- `BiometricCipherExceptionCode.invalidArgument` already exists (used in existing `encrypt`/`decrypt` tag validation)
+- Phase 10 complete (iOS/macOS `isKeyValid` done — same method name must match)
+- Method name `"isKeyValid"` must be identical to the Android (Phase 9) and iOS/macOS (Phase 10) handler names — all are called from the same Dart-side channel invocation in Phase 12
 
 ## Technical Details
 
-### Task 11.1 — Platform interface
+### Task 11.1 — Interface method in `WindowsHelloRepository`
 
-```dart
-Future<bool> isKeyValid({required String tag});
+```cpp
+virtual winrt::Windows::Foundation::IAsyncOperation<bool> IsKeyValidAsync(const winrt::hstring tag) const = 0;
 ```
 
-Add alongside existing `encrypt`, `decrypt`, `deleteKey` signatures in `BiometricCipherPlatformInterface`. Follow the same pattern — no default implementation (forces all platform implementations to implement it).
+Add alongside existing virtual methods (`OpenAsync`, `DeleteAsync`, etc.).
 
-### Task 11.2 — `BiometricCipher` public method
+### Task 11.2 — Implementation in `WindowsHelloRepositoryImpl`
 
-```dart
-/// Checks whether the biometric key identified by [tag] exists and is still valid,
-/// WITHOUT triggering a biometric prompt.
-///
-/// Returns `true` if the key exists and is usable, `false` if it has been
-/// permanently invalidated (e.g. due to a biometric enrollment change) or deleted.
-///
-/// Throws [BiometricCipherException] with [BiometricCipherExceptionCode.invalidArgument]
-/// if [tag] is empty.
-Future<bool> isKeyValid({required String tag}) {
-  if (tag.isEmpty) {
-    throw const BiometricCipherException(
-      code: BiometricCipherExceptionCode.invalidArgument,
-    );
-  }
-  return _instance.isKeyValid(tag: tag);
+Header declaration:
+```cpp
+winrt::Windows::Foundation::IAsyncOperation<bool> IsKeyValidAsync(const winrt::hstring tag) const override;
+```
+
+Implementation:
+```cpp
+IAsyncOperation<bool> WindowsHelloRepositoryImpl::IsKeyValidAsync(const winrt::hstring tag) const
+{
+    co_await CheckWindowsHelloIsStatusAsync();
+
+    auto&& keyCredentialRetrievalResult = co_await m_HelloWrapper->OpenAsync(tag);
+    auto status = keyCredentialRetrievalResult.Status();
+
+    co_return status == KeyCredentialStatus::Success;
 }
 ```
 
-Follow the same structure as `deleteKey(tag:)` which has the same empty-tag guard pattern.
+`OpenAsync` only queries the credential store — it does not trigger a biometric prompt. `KeyCredentialStatus::NotFound` → key is gone → `false`. `KeyCredentialStatus::Success` → key exists and is usable → `true`.
+
+### Task 11.3 — `BiometricCipherService`
+
+Header declaration:
+```cpp
+winrt::Windows::Foundation::IAsyncOperation<bool> IsKeyValidAsync(const std::string& tag) const;
+```
+
+Implementation:
+```cpp
+IAsyncOperation<bool> BiometricCipherService::IsKeyValidAsync(const std::string& tag) const
+{
+    auto hTag = StringUtil::ConvertStringToHString(tag);
+    co_return co_await m_WindowsHelloRepository->IsKeyValidAsync(hTag);
+}
+```
+
+### Task 11.4 — `MethodName` enum and mapping
+
+Enum (`method_name.h`):
+```cpp
+enum class MethodName {
+    kGetTPMStatus,
+    kGetBiometryStatus,
+    kGenerateKey,
+    kEncrypt,
+    kDecrypt,
+    kDeleteKey,
+    kConfigure,
+    kIsKeyValid,       // new
+    kNotImplemented,
+};
+```
+
+Mapping (`method_name.cpp`):
+```cpp
+{"isKeyValid", MethodName::kIsKeyValid},
+```
+
+### Task 11.5 — Channel handler in `BiometricCipherPlugin`
+
+Plugin header declaration:
+```cpp
+winrt::fire_and_forget IsKeyValidCoroutine(
+    const std::string& tag,
+    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+```
+
+Switch case in `HandleMethodCall` (`biometric_cipher_plugin.cpp`):
+```cpp
+case MethodName::kIsKeyValid:
+{
+    auto arguments = m_Argument_parser.Parse(method, methodCall.arguments());
+    const std::string tag = arguments[ArgumentName::kTag].stringArgument;
+
+    IsKeyValidCoroutine(tag, std::move(result));
+    break;
+}
+```
+
+Coroutine implementation:
+```cpp
+winrt::fire_and_forget BiometricCipherPlugin::IsKeyValidCoroutine(
+    const std::string& tag,
+    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result)
+{
+    try {
+        auto isValid = co_await m_SecureService->IsKeyValidAsync(tag);
+
+        result->Success(isValid);
+    }
+    catch (const hresult_error& e) {
+        auto hr = e.code();
+        auto message = e.message();
+        auto errorMessage = StringUtil::ConvertHStringToString(message);
+        OutputException(hr, errorMessage);
+
+        result->Error(GetErrorCodeString(hr), errorMessage);
+    }
+}
+```
 
 ## Implementation Notes
 
-- Tasks 11.1 → 11.2 must be done in order (11.2 calls the interface added in 11.1).
-- Do not add logging — this is a pure delegation with no side effects.
-- The method name `isKeyValid` and parameter `tag` must match exactly what the platform channel handlers expect (set in Phases 9 and 10).
-- `_instance` is the singleton platform interface accessor already used by all other `BiometricCipher` methods.
+- Tasks 11.1 → 11.2 → 11.3 → 11.4 → 11.5 must be done in order (each depends on the previous).
+- Do not add logging — the operation is a silent probe with no side effects.
+- The method name `"isKeyValid"` must be identical to the Android (Phase 9) and iOS/macOS (Phase 10) handler names — all are called from the same Dart-side channel invocation in Phase 12.
+- `ArgumentName::kTag` should already exist (used by existing handlers like `encrypt`, `decrypt`, `deleteKey`) — no new argument name needed.
