@@ -929,64 +929,6 @@ void main() {
         _Helpers.verifyErasedAll([oldPwd, newPwd]);
       });
 
-      test('enableBiometry calls correct method from storage', () async {
-        // Arrange
-        final pwd = _Helpers.createMockPasswordCipherFunc();
-        final bio = _Helpers.createMockBioCipherFunc();
-
-        _Helpers.stubReadAllMeta(storage, pwd);
-        await locker.loadAllMeta(pwd);
-
-        when(
-          () => storage.addOrReplaceWrap(
-            newWrapFunc: bio,
-            existingWrapFunc: pwd,
-          ),
-        ).thenAnswer((_) async {});
-
-        // Act
-        await locker.enableBiometry(bioCipherFunc: bio, passwordCipherFunc: pwd);
-
-        // Assert
-        verify(
-          () => storage.addOrReplaceWrap(
-            newWrapFunc: bio,
-            existingWrapFunc: pwd,
-          ),
-        ).called(1);
-
-        _Helpers.verifyErasedAll([pwd, bio]);
-      });
-
-      test('disableBiometry calls correct method from storage', () async {
-        // Arrange
-        final originToDelete = Origin.bio;
-        final pwd = _Helpers.createMockPasswordCipherFunc();
-
-        _Helpers.stubReadAllMeta(storage, pwd);
-        await locker.loadAllMeta(pwd);
-
-        when(
-          () => storage.deleteWrap(
-            originToDelete: originToDelete,
-            cipherFunc: pwd,
-          ),
-        ).thenAnswer((_) async => true);
-
-        // Act
-        await locker.disableBiometry(passwordCipherFunc: pwd);
-
-        // Assert
-        verify(
-          () => storage.deleteWrap(
-            originToDelete: originToDelete,
-            cipherFunc: pwd,
-          ),
-        ).called(1);
-
-        _Helpers.verifyErasedAll([pwd]);
-      });
-
       test('rethrows on changePassword error', () async {
         // Arrange
         final oldPwd = _Helpers.createMockPasswordCipherFunc();
@@ -1010,50 +952,6 @@ void main() {
         _Helpers.verifyErasedAll([oldPwd, newPwd]);
       });
 
-      test('rethrows on enableBiometry error', () async {
-        // Arrange
-        final pwd = _Helpers.createMockPasswordCipherFunc();
-        final bio = _Helpers.createMockBioCipherFunc();
-        _Helpers.stubReadAllMeta(storage, pwd);
-        await locker.loadAllMeta(pwd);
-
-        when(
-          () => storage.addOrReplaceWrap(
-            newWrapFunc: bio,
-            existingWrapFunc: pwd,
-          ),
-        ).thenThrow(Exception('test'));
-
-        // Act & Assert
-        await expectLater(
-          () => locker.enableBiometry(bioCipherFunc: bio, passwordCipherFunc: pwd),
-          throwsException,
-        );
-
-        _Helpers.verifyErasedAll([pwd, bio]);
-      });
-
-      test('rethrows on disableBiometry error', () async {
-        // Arrange
-        final pwd = _Helpers.createMockPasswordCipherFunc();
-        _Helpers.stubReadAllMeta(storage, pwd);
-        await locker.loadAllMeta(pwd);
-
-        when(
-          () => storage.deleteWrap(
-            originToDelete: Origin.bio,
-            cipherFunc: pwd,
-          ),
-        ).thenThrow(Exception('test'));
-
-        // Act & Assert
-        await expectLater(
-          () => locker.disableBiometry(passwordCipherFunc: pwd),
-          throwsException,
-        );
-
-        _Helpers.verifyErasedAll([pwd]);
-      });
     });
 
     group('setupBiometry', () {

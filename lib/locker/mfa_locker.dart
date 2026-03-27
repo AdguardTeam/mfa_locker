@@ -278,33 +278,6 @@ class MFALocker implements Locker {
     _stateController.add(LockerState.unlocked);
   }
 
-  @visibleForTesting
-  Future<void> enableBiometry({
-    required BioCipherFunc bioCipherFunc,
-    required PasswordCipherFunc passwordCipherFunc,
-  }) => _sync(
-    () => _executeWithCleanup(
-      erasables: [bioCipherFunc, passwordCipherFunc],
-      callback: () async {
-        await loadAllMetaIfLocked(passwordCipherFunc);
-        await _storage.addOrReplaceWrap(newWrapFunc: bioCipherFunc, existingWrapFunc: passwordCipherFunc);
-      },
-    ),
-  );
-
-  @visibleForTesting
-  Future<void> disableBiometry({
-    required PasswordCipherFunc passwordCipherFunc,
-  }) => _sync(
-    () => _executeWithCleanup(
-      erasables: [passwordCipherFunc],
-      callback: () async {
-        await loadAllMetaIfLocked(passwordCipherFunc);
-        await _storage.deleteWrap(originToDelete: Origin.bio, cipherFunc: passwordCipherFunc);
-      },
-    ),
-  );
-
   void _cleanupState() {
     for (final meta in _metaCache.values) {
       meta.erase();
@@ -404,10 +377,8 @@ class MFALocker implements Locker {
           await _secureProvider.generateKey(tag: bioCipherFunc.keyTag);
 
           // Step 5: Enable biometry in locker
-          await enableBiometry(
-            bioCipherFunc: bioCipherFunc,
-            passwordCipherFunc: passwordCipherFunc,
-          );
+          await loadAllMetaIfLocked(passwordCipherFunc);
+          await _storage.addOrReplaceWrap(newWrapFunc: bioCipherFunc, existingWrapFunc: passwordCipherFunc);
         } catch (error, stackTrace) {
           logger.logError(
             'MFALocker: Failed to enable biometric, cleaning up biometric key',
