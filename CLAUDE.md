@@ -55,7 +55,21 @@ fvm flutter test                                   # run plugin tests
 fvm flutter analyze --fatal-warnings --fatal-infos --no-pub .
 ```
 
-Native Swift tests live in `packages/biometric_cipher/example/shared_native_test/` and run via Xcode test targets (iOS/macOS), not via `fvm flutter test`.
+Native Swift tests live in `packages/biometric_cipher/example/shared_native_test/` and run via Xcode test targets (iOS/macOS), not via `fvm flutter test`:
+
+```bash
+# Native Swift tests (macOS)
+xcodebuild test \
+  -workspace packages/biometric_cipher/example/macos/Runner.xcworkspace \
+  -scheme Runner \
+  -destination 'platform=macOS'
+
+# Native Swift tests (iOS Simulator)
+xcodebuild test \
+  -workspace packages/biometric_cipher/example/ios/Runner.xcworkspace \
+  -scheme Runner \
+  -destination 'platform=iOS Simulator,name=iPhone 16'
+```
 
 Flutter version is pinned via `.ci-flutter-version` → **3.41.4**. Use `fvm` to match.
 

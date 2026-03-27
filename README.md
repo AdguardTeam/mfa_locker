@@ -55,6 +55,12 @@ import 'package:locker/erasable/erasable_byte_array.dart';
 final file = File('/path/to/secure_storage.json');
 final locker = MFALocker(file: file);
 
+// Check if storage is already initialized
+final isInitialized = await locker.isStorageInitialized;
+if (isInitialized) {
+  // Storage exists — unlock instead of init
+}
+
 // Create password cipher function
 final passwordCipherFunc = PasswordCipherFunc(
   password: 'user_password',  // Pass String directly
@@ -250,6 +256,43 @@ await locker.changePassword(
 locker.dispose();
 ```
 
+### 8. Error Handling
+
+The library throws three main exception types:
+
+- **`DecryptFailedException`** — wrong password or corrupted data
+- **`BiometricException`** — biometric auth failures; check `BiometricExceptionType` for specifics:
+  - `cancel` — user dismissed the biometric prompt
+  - `failure` — authentication failed (wrong fingerprint, lockout)
+  - `keyInvalidated` — hardware key permanently invalidated after biometric enrollment change
+  - `keyNotFound` — biometric key does not exist in secure hardware
+  - `notAvailable` — biometrics not available on device
+  - `notConfigured` — biometric cipher not configured
+- **`StorageException`** — storage lifecycle errors (`notInitialized`, `alreadyInitialized`, `invalidStorage`, `entryNotFound`)
+
+```dart
+import 'package:locker/security/models/exceptions/biometric_exception.dart';
+import 'package:locker/storage/models/exceptions/decrypt_failed_exception.dart';
+import 'package:locker/storage/models/exceptions/storage_exception.dart';
+
+try {
+  await locker.loadAllMeta(cipherFunc);
+} on DecryptFailedException {
+  // Wrong password or corrupted data
+} on BiometricException catch (e) {
+  switch (e.type) {
+    case BiometricExceptionType.cancel:
+      // User cancelled — no action needed
+    case BiometricExceptionType.keyInvalidated:
+      // Key invalidated — disable biometrics and prompt re-setup
+    default:
+      // Other biometric failure
+  }
+} on StorageException catch (e) {
+  // Storage error — check e.type for specifics
+}
+```
+
 ## Project Structure
 
 ```
@@ -308,52 +351,28 @@ This project uses [fvm](https://fvm.app/) (Flutter Version Management) to ensure
 
 ### CI/CD Build Commands
 
-#### Using fvm
-
 ```bash
-# Install dependencies
+# Library — analyze, test, format
 fvm flutter pub get
-
-# Run analyzer
 fvm dart analyze
-
-# Run tests
 fvm flutter test
-
-# Build example app (Android)
-cd example
-fvm flutter pub get
-fvm dart run build_runner build --delete-conflicting-outputs
-fvm flutter build apk --release
-
-# Build example app (iOS)
-cd example
-fvm flutter pub get
-fvm dart run build_runner build --delete-conflicting-outputs
-fvm flutter build ios --release --no-codesign
-
-# Build example app (macOS)
-cd example
-fvm flutter pub get
-fvm dart run build_runner build --delete-conflicting-outputs
-fvm flutter build macos --release
-
-# Build example app (Windows)
-cd example
-fvm flutter pub get
-fvm dart run build_runner build --delete-conflicting-outputs
-fvm flutter build windows --release
-```
-
-#### Format and Lint
-
-```bash
-# Format code
 fvm dart format . --line-length 120
-
-# Apply dart fixes
 fvm dart fix --apply
+
+# Example app — common setup (required before any platform build)
+cd example
+fvm flutter pub get
+fvm dart run build_runner build --delete-conflicting-outputs
 ```
+
+Platform-specific build commands (run from `example/`):
+
+| Platform | Command |
+|----------|---------|
+| Android  | `fvm flutter build apk --release` |
+| iOS      | `fvm flutter build ios --release --no-codesign` |
+| macOS    | `fvm flutter build macos --release` |
+| Windows  | `fvm flutter build windows --release` |
 
 ### GitHub Actions Example
 
