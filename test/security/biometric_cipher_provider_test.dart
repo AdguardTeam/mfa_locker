@@ -37,12 +37,14 @@ void main() {
         await expectLater(
           () => provider.decrypt(tag: 'tag', data: Uint8List.fromList([1])),
           throwsA(
-            isA<BiometricException>().having((e) => e.type, 'type', BiometricExceptionType.keyInvalidated),
+            isA<BiometricException>()
+                .having((e) => e.type, 'type', BiometricExceptionType.keyInvalidated)
+                .having((e) => e.message, 'message', 'test'),
           ),
         );
       });
 
-      test('maps authenticationError to BiometricExceptionType.failure', () async {
+      test('maps authenticationError to BiometricExceptionType.failure and preserves message', () async {
         // Arrange
         when(
           () => mockCipher.decrypt(
@@ -52,7 +54,7 @@ void main() {
         ).thenThrow(
           const BiometricCipherException(
             code: BiometricCipherExceptionCode.authenticationError,
-            message: 'test',
+            message: 'Authentication failed',
           ),
         );
 
@@ -60,7 +62,9 @@ void main() {
         await expectLater(
           () => provider.decrypt(tag: 'tag', data: Uint8List.fromList([1])),
           throwsA(
-            isA<BiometricException>().having((e) => e.type, 'type', BiometricExceptionType.failure),
+            isA<BiometricException>()
+                .having((e) => e.type, 'type', BiometricExceptionType.failure)
+                .having((e) => e.message, 'message', 'Authentication failed'),
           ),
         );
       });
@@ -83,7 +87,9 @@ void main() {
         await expectLater(
           () => provider.decrypt(tag: 'tag', data: Uint8List.fromList([1])),
           throwsA(
-            isA<BiometricException>().having((e) => e.type, 'type', BiometricExceptionType.cancel),
+            isA<BiometricException>()
+                .having((e) => e.type, 'type', BiometricExceptionType.cancel)
+                .having((e) => e.message, 'message', 'test'),
           ),
         );
       });

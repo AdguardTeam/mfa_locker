@@ -253,6 +253,12 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
                 message: "Biometric key has been permanently invalidated",
                 details: nil
             ))
+        } catch SecureEnclaveManagerError.authenticationFailed {
+            result(FlutterError(
+                code: "AUTHENTICATION_ERROR",
+                message: "Biometric or device authentication failed",
+                details: nil
+            ))
         } catch let error as KeychainServiceError {
             switch error {
             case .authenticationUserCanceled:

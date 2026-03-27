@@ -118,19 +118,26 @@ class BiometricCipherProviderImpl implements BiometricCipherProvider {
   Future<bool> isKeyValid({required String tag}) => _biometricCipher.isKeyValid(tag: tag);
 
   BiometricException _mapExceptionToBiometricException(BiometricCipherException e) => switch (e.code) {
-    BiometricCipherExceptionCode.keyNotFound => const BiometricException(BiometricExceptionType.keyNotFound),
-    BiometricCipherExceptionCode.keyAlreadyExists => const BiometricException(BiometricExceptionType.keyAlreadyExists),
-    BiometricCipherExceptionCode.keyPermanentlyInvalidated => const BiometricException(
+    BiometricCipherExceptionCode.keyNotFound =>
+      BiometricException(BiometricExceptionType.keyNotFound, message: e.message),
+    BiometricCipherExceptionCode.keyAlreadyExists =>
+      BiometricException(BiometricExceptionType.keyAlreadyExists, message: e.message),
+    BiometricCipherExceptionCode.keyPermanentlyInvalidated => BiometricException(
       BiometricExceptionType.keyInvalidated,
+      message: e.message,
     ),
-    BiometricCipherExceptionCode.authenticationUserCanceled => const BiometricException(BiometricExceptionType.cancel),
+    BiometricCipherExceptionCode.authenticationUserCanceled =>
+      BiometricException(BiometricExceptionType.cancel, message: e.message),
     BiometricCipherExceptionCode.authenticationError ||
     BiometricCipherExceptionCode.encryptionError ||
-    BiometricCipherExceptionCode.decryptionError => const BiometricException(BiometricExceptionType.failure),
+    BiometricCipherExceptionCode.decryptionError =>
+      BiometricException(BiometricExceptionType.failure, message: e.message),
     BiometricCipherExceptionCode.biometricNotSupported ||
     BiometricCipherExceptionCode.secureEnclaveUnavailable ||
-    BiometricCipherExceptionCode.tpmUnsupported => const BiometricException(BiometricExceptionType.notAvailable),
-    BiometricCipherExceptionCode.configureError => const BiometricException(BiometricExceptionType.notConfigured),
-    _ => BiometricException(BiometricExceptionType.failure, originalError: e),
+    BiometricCipherExceptionCode.tpmUnsupported =>
+      BiometricException(BiometricExceptionType.notAvailable, message: e.message),
+    BiometricCipherExceptionCode.configureError =>
+      BiometricException(BiometricExceptionType.notConfigured, message: e.message),
+    _ => BiometricException(BiometricExceptionType.failure, message: e.message, originalError: e),
   };
 }

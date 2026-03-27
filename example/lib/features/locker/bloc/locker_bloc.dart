@@ -375,7 +375,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         onError: (error) => _handleBiometricFailure(
           emit,
           error,
-          fallbackMessage: 'Failed to enable biometric: $error',
+          fallbackMessage: 'Failed to enable biometric authentication.',
         ),
         operationDescription: 'enable biometric authentication',
       );
@@ -461,7 +461,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         onError: (error) => _handleBiometricFailure(
           emit,
           error,
-          fallbackMessage: 'Failed to unlock with biometric: $error',
+          fallbackMessage: 'Biometric authentication failed. Please try again or use your password.',
         ),
         operationDescription: 'unlock locker with biometric',
       );
@@ -521,7 +521,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         onError: (error) => _handleBiometricFailure(
           emit,
           error,
-          fallbackMessage: 'Failed to add entry: $error',
+          fallbackMessage: 'Failed to add entry. Please try again.',
         ),
         operationDescription: 'add entry with biometric',
       );
@@ -583,12 +583,12 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         onDecryptFailed: (error) => _handleBiometricFailure(
           emit,
           error,
-          fallbackMessage: 'Failed to read entry: $error',
+          fallbackMessage: 'Failed to read entry. Please try again.',
         ),
         onError: (error) => _handleBiometricFailure(
           emit,
           error,
-          fallbackMessage: 'Failed to read entry: $error',
+          fallbackMessage: 'Failed to read entry. Please try again.',
         ),
         operationDescription: 'read entry with biometric',
       );
@@ -664,7 +664,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         onError: (error) => _handleBiometricFailure(
           emit,
           error,
-          fallbackMessage: 'Failed to delete entry: $error',
+          fallbackMessage: 'Failed to delete entry. Please try again.',
         ),
         operationDescription: 'delete entry with biometric',
       );

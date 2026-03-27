@@ -209,6 +209,10 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
             if !isKeyValid(tag: tag) {
                 throw SecureEnclaveManagerError.keyPermanentlyInvalidated
             }
+            if case .failedToDecryptData(let underlying) = error,
+               (underlying as? NSError)?.code == Int(errSecAuthFailed) {
+                throw SecureEnclaveManagerError.authenticationFailed
+            }
             throw error
         }
 

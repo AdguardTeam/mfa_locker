@@ -1,14 +1,17 @@
 class BiometricException implements Exception {
   final BiometricExceptionType type;
+  final String? message;
   final Object? originalError;
 
   const BiometricException(
     this.type, {
+    this.message,
     this.originalError,
   });
 
   @override
-  String toString() => 'BiometricException(type: $type)';
+  String toString() =>
+      message != null ? 'BiometricException(type: $type, message: $message)' : 'BiometricException(type: $type)';
 }
 
 enum BiometricExceptionType {

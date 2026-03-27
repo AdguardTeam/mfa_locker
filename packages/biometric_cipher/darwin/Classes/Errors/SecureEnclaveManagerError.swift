@@ -31,6 +31,9 @@ enum SecureEnclaveManagerError: BaseError {
     /// The biometric key has been permanently invalidated due to a biometric enrollment change.
     case keyPermanentlyInvalidated
 
+    /// Biometric or device authentication failed (e.g., wrong fingerprint or device password).
+    case authenticationFailed
+
     /// Returns a machine-readable error code.
     var code: String {
         switch self {
@@ -54,6 +57,8 @@ enum SecureEnclaveManagerError: BaseError {
             return "KEY_ALREADY_EXISTS"
         case .keyPermanentlyInvalidated:
             return "KEY_PERMANENTLY_INVALIDATED"
+        case .authenticationFailed:
+            return "AUTHENTICATION_ERROR"
         }
     }
 
@@ -80,6 +85,8 @@ enum SecureEnclaveManagerError: BaseError {
             return "A key with the same tag already exists."
         case .keyPermanentlyInvalidated:
             return "Biometric key has been permanently invalidated."
+        case .authenticationFailed:
+            return "Biometric or device authentication failed."
         }
     }
 }

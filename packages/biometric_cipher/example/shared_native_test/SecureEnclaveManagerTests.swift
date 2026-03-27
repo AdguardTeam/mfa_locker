@@ -301,9 +301,9 @@ final class SecureEnclaveManagerTests: XCTestCase {
     }
 
     /// When decryption fails but the key is still valid (e.g., wrong biometrics on macOS
-    /// where auth is deferred to SecKeyCreateDecryptedData), the original error should be
-    /// re-thrown instead of keyPermanentlyInvalidated.
-    func testDecrypt_DecryptionFailsButKeyStillValid_ShouldRethrowOriginalError() throws {
+    /// where auth is deferred to SecKeyCreateDecryptedData), should throw authenticationFailed
+    /// instead of keyPermanentlyInvalidated.
+    func testDecrypt_DecryptionFailsButKeyStillValid_ShouldThrowAuthenticationFailed() throws {
         let tag = "test.sec.enclave.decrypt.authfail"
         let fakeEncryptedData = Data([0x01, 0x02, 0x03])
 
@@ -313,8 +313,33 @@ final class SecureEnclaveManagerTests: XCTestCase {
             return
         }
         mockKeychain.getPrivateKeyResult = tempKey
-        // decryptData throws failedToDecryptData (simulates wrong biometrics)
-        mockKeychain.decryptDataError = .failedToDecryptData(nil)
+        // decryptData throws failedToDecryptData with errSecAuthFailed (simulates wrong biometrics)
+        let authFailedError = NSError(domain: NSOSStatusErrorDomain, code: Int(errSecAuthFailed))
+        mockKeychain.decryptDataError = .failedToDecryptData(authFailedError)
+        // Key exists in keychain (not invalidated)
+        mockKeychain.itemExistsResult = true
+
+        XCTAssertThrowsError(try manager.decrypt(fakeEncryptedData, tag: tag)) { error in
+            guard let e = error as? SecureEnclaveManagerError, case .authenticationFailed = e else {
+                return XCTFail("Expected SecureEnclaveManagerError.authenticationFailed, got \(error)")
+            }
+        }
+    }
+
+    /// When decryption fails with a non-auth error and the key is still valid,
+    /// the original KeychainServiceError should be re-thrown.
+    func testDecrypt_DecryptionFailsWithNonAuthError_ShouldRethrowOriginalError() throws {
+        let tag = "test.sec.enclave.decrypt.othererror"
+        let fakeEncryptedData = Data([0x01, 0x02, 0x03])
+
+        guard let tempKey = createTemporarySecKey() else {
+            XCTFail("Failed to create a temporary SecKey")
+            return
+        }
+        mockKeychain.getPrivateKeyResult = tempKey
+        // decryptData throws failedToDecryptData with a non-auth error (e.g., corrupted data)
+        let paramError = NSError(domain: NSOSStatusErrorDomain, code: Int(errSecParam))
+        mockKeychain.decryptDataError = .failedToDecryptData(paramError)
         // Key exists in keychain (not invalidated)
         mockKeychain.itemExistsResult = true
 
