@@ -13,6 +13,8 @@ enum class ErrorType {
     DECODE_DATA_INVALID_SIZE,
     AUTHENTICATION_USER_CANCELED,
     AUTHENTICATION_ERROR,
+    ENCRYPTION_ERROR,
+    DECRYPTION_ERROR,
     KEY_PERMANENTLY_INVALIDATED,
     UNKNOWN_EXCEPTION;
 
@@ -31,6 +33,8 @@ enum class ErrorType {
                 DECODE_DATA_INVALID_SIZE -> "Decode data invalid size"
                 AUTHENTICATION_USER_CANCELED -> "Authentication user canceled"
                 AUTHENTICATION_ERROR -> "Authentication error"
+                ENCRYPTION_ERROR -> "Failed to encrypt data"
+                DECRYPTION_ERROR -> "Failed to decrypt data"
                 KEY_PERMANENTLY_INVALIDATED -> "Biometric key has been permanently invalidated"
                 UNKNOWN_EXCEPTION -> "Unknown exception"
             }

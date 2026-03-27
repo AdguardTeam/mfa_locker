@@ -100,7 +100,11 @@ class SecureRepositoryImpl(
 
     override fun encrypt(cipher: Cipher, data: String): String {
         val iv = cipher.iv
-        val encryptedData = cipher.doFinal(data.toByteArray(Charsets.UTF_8))
+        val encryptedData = try {
+            cipher.doFinal(data.toByteArray(Charsets.UTF_8))
+        } catch (e: Exception) {
+            throw CryptographicException.EncryptionFailed(e)
+        }
         val encryptedDataWithIv = iv + encryptedData
         val encodedData = Base64.encodeToString(encryptedDataWithIv, Base64.NO_WRAP)
 
@@ -127,7 +131,11 @@ class SecureRepositoryImpl(
             throw CryptographicException.DecodeDataSizeInvalid()
         }
         val cipherText = decodedData.sliceArray(IV_LENGTH until decodedData.size)
-        val decryptedData = cipher.doFinal(cipherText)
+        val decryptedData = try {
+            cipher.doFinal(cipherText)
+        } catch (e: Exception) {
+            throw CryptographicException.DecryptionFailed(e)
+        }
 
         return String(decryptedData, Charsets.UTF_8)
     }
