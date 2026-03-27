@@ -310,6 +310,12 @@ final class SecureEnclaveManagerTests: XCTestCase {
         mockKeychain.decryptDataError = .failedToDecryptData(authFailedError)
         // Key exists in keychain (not invalidated)
         mockKeychain.itemExistsResult = true
+        // Enrollment state exists (post-enrollment-tracking key)
+        let tagData = ("\(AppConstants.privateKeyTag).\(tag)").data(using: .utf8)!
+        let enrollmentKey = AppConstants.enrollmentStateKeyPrefix + tagData.base64EncodedString()
+        mockLAContext.canEvaluatePolicyResult = true
+        mockLAContext.evaluatedPolicyDomainStateValue = Data([0xAA, 0xBB])
+        testDefaults.set(Data([0xAA, 0xBB]), forKey: enrollmentKey)
 
         XCTAssertThrowsError(try manager.decrypt(fakeEncryptedData, tag: tag)) { error in
             guard let e = error as? SecureEnclaveManagerError, case .authenticationFailed = e else {
@@ -332,6 +338,12 @@ final class SecureEnclaveManagerTests: XCTestCase {
         mockKeychain.decryptDataError = .failedToDecryptData(paramError)
         // Key exists in keychain (not invalidated)
         mockKeychain.itemExistsResult = true
+        // Enrollment state exists (post-enrollment-tracking key)
+        let tagData = ("\(AppConstants.privateKeyTag).\(tag)").data(using: .utf8)!
+        let enrollmentKey = AppConstants.enrollmentStateKeyPrefix + tagData.base64EncodedString()
+        mockLAContext.canEvaluatePolicyResult = true
+        mockLAContext.evaluatedPolicyDomainStateValue = Data([0xAA, 0xBB])
+        testDefaults.set(Data([0xAA, 0xBB]), forKey: enrollmentKey)
 
         XCTAssertThrowsError(try manager.decrypt(fakeEncryptedData, tag: tag)) { error in
             guard let e = error as? KeychainServiceError, case .failedToDecryptData = e else {
@@ -356,6 +368,75 @@ final class SecureEnclaveManagerTests: XCTestCase {
                 return XCTFail("Expected KeychainServiceError.authenticationUserCanceled, got \(error)")
             }
         }
+    }
+
+    // MARK: - Decrypt: missing enrollment state (upgrade scenario)
+
+    func testDecrypt_DecryptionFails_NoEnrollmentState_ShouldThrowKeyPermanentlyInvalidated() throws {
+        let tag = "test.sec.enclave.decrypt.no_enrollment"
+        let fakeEncryptedData = Data([0x01, 0x02, 0x03])
+
+        guard let tempKey = createTemporarySecKey() else {
+            XCTFail("Failed to create a temporary SecKey")
+            return
+        }
+        mockKeychain.getPrivateKeyResult = tempKey
+        let paramError = NSError(domain: NSOSStatusErrorDomain, code: Int(errSecParam))
+        mockKeychain.decryptDataError = .failedToDecryptData(paramError)
+        // Key exists in keychain
+        mockKeychain.itemExistsResult = true
+        // No enrollment state saved (simulates upgrade from old version)
+        mockLAContext.canEvaluatePolicyResult = true
+        mockLAContext.evaluatedPolicyDomainStateValue = Data([0xCC, 0xDD])
+
+        XCTAssertThrowsError(try manager.decrypt(fakeEncryptedData, tag: tag)) { error in
+            guard let e = error as? SecureEnclaveManagerError, case .keyPermanentlyInvalidated = e else {
+                return XCTFail("Expected SecureEnclaveManagerError.keyPermanentlyInvalidated, got \(error)")
+            }
+        }
+    }
+
+    func testDecrypt_Success_BackfillsEnrollmentState() throws {
+        let tag = "test.sec.enclave.decrypt.backfill"
+        let fakeEncryptedData = Data([0x01, 0x02, 0x03])
+
+        guard let tempKey = createTemporarySecKey() else {
+            XCTFail("Failed to create a temporary SecKey")
+            return
+        }
+        mockKeychain.getPrivateKeyResult = tempKey
+        mockKeychain.decryptDataResult = "decrypted".data(using: .utf8)!
+        // No enrollment state saved
+        mockLAContext.canEvaluatePolicyResult = true
+        mockLAContext.evaluatedPolicyDomainStateValue = Data([0xEE, 0xFF])
+
+        let tagData = ("\(AppConstants.privateKeyTag).\(tag)").data(using: .utf8)!
+        let enrollmentKey = AppConstants.enrollmentStateKeyPrefix + tagData.base64EncodedString()
+        XCTAssertNil(testDefaults.data(forKey: enrollmentKey), "Enrollment state must not exist before decrypt.")
+
+        _ = try manager.decrypt(fakeEncryptedData, tag: tag)
+
+        XCTAssertEqual(testDefaults.data(forKey: enrollmentKey), Data([0xEE, 0xFF]),
+                       "Successful decrypt must backfill enrollment state.")
+    }
+
+    // MARK: - isKeyValid: no premature backfill
+
+    func testIsKeyValid_DoesNotBackfillEnrollmentState() {
+        let tag = "test.enrollment.no_backfill"
+        // Key exists in keychain
+        mockKeychain.itemExistsResult = true
+        mockLAContext.canEvaluatePolicyResult = true
+        mockLAContext.evaluatedPolicyDomainStateValue = Data([0x55, 0x66])
+
+        let tagData = ("\(AppConstants.privateKeyTag).\(tag)").data(using: .utf8)!
+        let enrollmentKey = AppConstants.enrollmentStateKeyPrefix + tagData.base64EncodedString()
+
+        let result = manager.isKeyValid(tag: tag)
+
+        XCTAssertTrue(result, "isKeyValid must return true when key exists and enrollment has not changed.")
+        XCTAssertNil(testDefaults.data(forKey: enrollmentKey),
+                     "isKeyValid must not backfill enrollment state — only successful decrypt should.")
     }
 
     // MARK: - isKeyValid: enrollment state tests

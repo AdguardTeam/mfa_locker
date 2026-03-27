@@ -206,7 +206,14 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
             if case .authenticationUserCanceled = error {
                 throw error
             }
+            // Capture before isKeyValid() which may backfill the state
+            let enrollmentTracked = enrollmentStateExists(tag: privateKeyTag)
             if !isKeyValid(tag: tag) {
+                throw SecureEnclaveManagerError.keyPermanentlyInvalidated
+            }
+            // Key predates enrollment tracking — a decrypt failure most likely
+            // means the key was invalidated before tracking was introduced.
+            if !enrollmentTracked {
                 throw SecureEnclaveManagerError.keyPermanentlyInvalidated
             }
             if case .failedToDecryptData(let underlying) = error,
@@ -219,6 +226,11 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         // Converting decrypted data to a string
         guard let decryptedString = String(data: decryptedData as Data, encoding: .utf8) else {
             throw SecureEnclaveManagerError.decodeEncryptedDataFailed
+        }
+
+        // Backfill enrollment state for keys that predate enrollment tracking
+        if !enrollmentStateExists(tag: privateKeyTag) {
+            saveEnrollmentState(tag: privateKeyTag)
         }
 
         return decryptedString
@@ -282,9 +294,6 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
             kSecUseAuthenticationUI as String: kSecUseAuthenticationUISkip,
             kSecReturnAttributes as String:   true,
         ]
-        // errSecSuccess              -> item found and accessible -> key still present
-        // errSecInteractionNotAllowed -> item exists but requires auth UI (suppressed) -> key still present
-        // errSecItemNotFound          -> item deleted by OS after biometric change -> key gone
         return keychainService.itemExists(query as CFDictionary)
     }
 
@@ -329,5 +338,11 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
     private func deleteEnrollmentState(tag: Data) {
         let key = AppConstants.enrollmentStateKeyPrefix + tag.base64EncodedString()
         userDefaults.removeObject(forKey: key)
+    }
+
+    /// Returns `true` if an enrollment state snapshot exists for the given key tag.
+    private func enrollmentStateExists(tag: Data) -> Bool {
+        let key = AppConstants.enrollmentStateKeyPrefix + tag.base64EncodedString()
+        return userDefaults.data(forKey: key) != nil
     }
 }
