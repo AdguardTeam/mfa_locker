@@ -77,8 +77,16 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
             return
         }
 
-        try? secureEnclaveManager.configure(authTitle: authTitle)
-        result(nil)
+        do {
+            try secureEnclaveManager.configure(authTitle: authTitle)
+            result(nil)
+        } catch let error as SecureEnclaveManagerError {
+            let flutterError = getFlutterError(error)
+            result(flutterError)
+        } catch {
+            let flutterError = getFlutterError(SecureEnclavePluginError.invalidArgument)
+            result(flutterError)
+        }
     }
 
     /// Checks whether the Secure Enclave is available on the current device.

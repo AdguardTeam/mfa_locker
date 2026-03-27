@@ -13,6 +13,7 @@ import 'package:locker/security/biometric_cipher_provider.dart';
 import 'package:locker/security/models/bio_cipher_func.dart';
 import 'package:locker/security/models/biometric_config.dart';
 import 'package:locker/security/models/cipher_func.dart';
+import 'package:locker/security/models/exceptions/biometric_exception.dart';
 import 'package:locker/security/models/password_cipher_func.dart';
 import 'package:locker/storage/encrypted_storage.dart';
 import 'package:locker/storage/encrypted_storage_impl.dart';
@@ -375,13 +376,19 @@ class MFALocker implements Locker {
         // Step 1: Check TPM status
         final tpmStatus = await _secureProvider.getTPMStatus();
         if (tpmStatus != TPMStatus.supported) {
-          throw Exception('TPM not supported on this device');
+          throw const BiometricException(
+            BiometricExceptionType.notAvailable,
+            message: 'TPM not supported on this device',
+          );
         }
 
         // Step 2: Check biometry status
         final biometryStatus = await _secureProvider.getBiometryStatus();
         if (biometryStatus != BiometricStatus.supported) {
-          throw Exception('Biometric authentication not available: $biometryStatus');
+          throw BiometricException(
+            BiometricExceptionType.notAvailable,
+            message: 'Biometric authentication not available: $biometryStatus',
+          );
         }
 
         try {

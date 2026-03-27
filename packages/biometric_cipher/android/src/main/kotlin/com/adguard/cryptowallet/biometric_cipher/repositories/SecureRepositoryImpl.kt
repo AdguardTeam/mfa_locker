@@ -172,6 +172,8 @@ class SecureRepositoryImpl(
     private fun getKeyAliasFromTag(tag: String): String = "${SecureObjects.KEY_PREFIX}$tag"
 
     companion object {
+        // 0 = require fresh biometric authentication for every cryptographic operation (no time-based grace period).
+        // This is intentional: paired with AUTH_BIOMETRIC_STRONG, every encrypt/decrypt requires a new biometric prompt.
         private const val AUTHENTICATION_TIMEOUT = 0
         private const val IV_LENGTH = 12
         private const val AUTHENTICATION_TAG_LENGTH = 128

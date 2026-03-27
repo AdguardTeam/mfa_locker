@@ -158,7 +158,10 @@ void main() {
 
       test('rethrows as keyInvalidated when failure occurs and key is invalid', () async {
         when(
-          () => mockProvider.decrypt(tag: any(named: 'tag'), data: any(named: 'data')),
+          () => mockProvider.decrypt(
+            tag: any(named: 'tag'),
+            data: any(named: 'data'),
+          ),
         ).thenThrow(const BiometricException(BiometricExceptionType.failure));
 
         when(
@@ -179,7 +182,10 @@ void main() {
         const originalException = BiometricException(BiometricExceptionType.failure);
 
         when(
-          () => mockProvider.decrypt(tag: any(named: 'tag'), data: any(named: 'data')),
+          () => mockProvider.decrypt(
+            tag: any(named: 'tag'),
+            data: any(named: 'data'),
+          ),
         ).thenThrow(originalException);
 
         when(
@@ -196,7 +202,10 @@ void main() {
         const originalException = BiometricException(BiometricExceptionType.failure);
 
         when(
-          () => mockProvider.decrypt(tag: any(named: 'tag'), data: any(named: 'data')),
+          () => mockProvider.decrypt(
+            tag: any(named: 'tag'),
+            data: any(named: 'data'),
+          ),
         ).thenThrow(originalException);
 
         when(
@@ -211,7 +220,10 @@ void main() {
 
       test('does not check key validity for non-failure BiometricExceptions', () async {
         when(
-          () => mockProvider.decrypt(tag: any(named: 'tag'), data: any(named: 'data')),
+          () => mockProvider.decrypt(
+            tag: any(named: 'tag'),
+            data: any(named: 'data'),
+          ),
         ).thenThrow(const BiometricException(BiometricExceptionType.cancel));
 
         await expectLater(

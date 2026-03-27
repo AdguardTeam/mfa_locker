@@ -4,7 +4,8 @@ enum SecureEnclaveManagerError: BaseError {
     /// Indicates an invalid tag was encountered.
     case invalidTag
 
-    //TODO: add docs
+    /// The biometric authentication title provided to `configure()` was empty.
+    /// A non-empty title is required to display the system biometric prompt.
     case invalidAuthTitle
 
     /// Indicates a failure to retrieve the private key from storage.
