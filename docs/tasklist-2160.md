@@ -20,11 +20,11 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 | 10 | iOS/macOS: `isKeyValid(tag)` silent probe | :white_check_mark: Done | Section G |
 | 11 | Windows: `isKeyValid(tag)` silent probe | :white_check_mark: Done | Section G |
 | 12 | Dart plugin: `BiometricCipher.isKeyValid(tag)` | :white_check_mark: Done | Section G |
-| 13 | Locker: `BiometricState.keyInvalidated` + proactive `determineBiometricState` | :white_large_square: Not started | Section G |
+| 13 | Locker: `BiometricState.keyInvalidated` + proactive `determineBiometricState` | :white_check_mark: Done | Section G |
 | 14 | Tests for proactive detection | :white_large_square: Not started | Section G |
 | 15 | Example app: proactive detection integration | :white_check_mark: Complete | Section G |
 
-**Current Phase:** 13
+**Current Phase:** 14
 
 ---
 
@@ -354,24 +354,24 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 **Ref:** `docs/idea-2160.md` Sections G4, G5, G6
 
-- [ ] **13.1** Add `keyInvalidated` to `BiometricState` enum + `isKeyInvalidated` getter
+- [x] **13.1** Add `keyInvalidated` to `BiometricState` enum + `isKeyInvalidated` getter
   - File: `lib/locker/models/biometric_state.dart`
   - Add `keyInvalidated` value (after `enabled`)
   - Add `bool get isKeyInvalidated => this == keyInvalidated`
 
-- [ ] **13.2** Add `isKeyValid` to `BiometricCipherProvider` abstract class
+- [x] **13.2** Add `isKeyValid` to `BiometricCipherProvider` abstract class
   - File: `lib/security/biometric_cipher_provider.dart`
   - Add `Future<bool> isKeyValid({required String tag})`
 
-- [ ] **13.3** Implement `isKeyValid` in `BiometricCipherProviderImpl`
+- [x] **13.3** Implement `isKeyValid` in `BiometricCipherProviderImpl`
   - File: `lib/security/providers/biometric_cipher_provider_impl.dart`
   - Delegate: `_biometricCipher.isKeyValid(tag: tag)`
 
-- [ ] **13.4** Add optional `biometricKeyTag` parameter to `determineBiometricState` in `Locker` interface
+- [x] **13.4** Add optional `biometricKeyTag` parameter to `determineBiometricState` in `Locker` interface
   - File: `lib/locker/locker.dart`
   - Change signature to: `Future<BiometricState> determineBiometricState({String? biometricKeyTag})`
 
-- [ ] **13.5** Implement key validity check in `MFALocker.determineBiometricState`
+- [x] **13.5** Implement key validity check in `MFALocker.determineBiometricState`
   - File: `lib/locker/mfa_locker.dart`
   - After confirming biometrics are enabled in settings, before returning `enabled`:
   - If `biometricKeyTag != null`: call `_secureProvider.isKeyValid(tag: biometricKeyTag)`

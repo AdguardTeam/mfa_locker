@@ -54,33 +54,31 @@ lib/
 │   ├── locker.dart                           # + biometricKeyTag param on determineBiometricState
 │   └── mfa_locker.dart                       # + key validity check in determineBiometricState
 └── security/
-    ├── biometric_cipher_provider.dart        # + isKeyValid(tag) abstract method
-    └── providers/
-        └── biometric_cipher_provider_impl.dart  # + isKeyValid(tag) implementation
+    └── biometric_cipher_provider.dart        # + isKeyValid(tag) abstract method + implementation
 ```
 
 No new files. All changes are additions to existing files.
 
 ## Tasks
 
-- [ ] **13.1** Add `keyInvalidated` to `BiometricState` enum + `isKeyInvalidated` getter
+- [x] **13.1** Add `keyInvalidated` to `BiometricState` enum + `isKeyInvalidated` getter
   - File: `lib/locker/models/biometric_state.dart`
   - Add `keyInvalidated` value (after `enabled`)
   - Add `bool get isKeyInvalidated => this == keyInvalidated`
 
-- [ ] **13.2** Add `isKeyValid` to `BiometricCipherProvider` abstract class
+- [x] **13.2** Add `isKeyValid` to `BiometricCipherProvider` abstract class
   - File: `lib/security/biometric_cipher_provider.dart`
   - Add `Future<bool> isKeyValid({required String tag})`
 
-- [ ] **13.3** Implement `isKeyValid` in `BiometricCipherProviderImpl`
-  - File: `lib/security/providers/biometric_cipher_provider_impl.dart`
+- [x] **13.3** Implement `isKeyValid` in `BiometricCipherProviderImpl`
+  - File: `lib/security/biometric_cipher_provider.dart`
   - Delegate: `_biometricCipher.isKeyValid(tag: tag)`
 
-- [ ] **13.4** Add optional `biometricKeyTag` parameter to `determineBiometricState` in `Locker` interface
+- [x] **13.4** Add optional `biometricKeyTag` parameter to `determineBiometricState` in `Locker` interface
   - File: `lib/locker/locker.dart`
   - Change signature to: `Future<BiometricState> determineBiometricState({String? biometricKeyTag})`
 
-- [ ] **13.5** Implement key validity check in `MFALocker.determineBiometricState`
+- [x] **13.5** Implement key validity check in `MFALocker.determineBiometricState`
   - File: `lib/locker/mfa_locker.dart`
   - After confirming biometrics are enabled in settings, before returning `enabled`:
   - If `biometricKeyTag != null`: call `_secureProvider.isKeyValid(tag: biometricKeyTag)`
@@ -145,7 +143,7 @@ Future<bool> isKeyValid({required String tag});
 
 Add alongside existing abstract methods (`deleteKey`, `encrypt`, `decrypt`, etc.).
 
-### Task 13.3 — Implementation in `BiometricCipherProviderImpl` (`biometric_cipher_provider_impl.dart`)
+### Task 13.3 — Implementation in `BiometricCipherProviderImpl` (`biometric_cipher_provider.dart`)
 
 ```dart
 @override
@@ -215,3 +213,13 @@ Future<BiometricState> determineBiometricState({String? biometricKeyTag}) async 
 - Do not add logging for the key validity check — it is a silent probe with no side effects.
 - The `isKeyInvalidated` getter follows the same pattern as `isEnabled` and `isAvailable` — a simple equality check.
 - Phase 15 (example app integration) already passes `biometricKeyTag` in `determineBiometricState` — once this phase is complete, that integration becomes active.
+
+## Code Review Fixes
+
+- [x] **Task R1: Add CHANGELOG entry for Phase 13**
+  - Add a Phase 13 entry under `[Unreleased] > Added` in `CHANGELOG.md`, consistent with the entries for Phases 1-12
+  - Describe the addition of `BiometricState.keyInvalidated`, `BiometricCipherProvider.isKeyValid({required String tag})`, and the optional `biometricKeyTag` parameter on `determineBiometricState`
+  - Acceptance criteria:
+    - `CHANGELOG.md` has an `AW-2160 Phase 13` entry under `[Unreleased] > Added`
+    - Entry describes all three additions (enum value, provider method, interface parameter)
+    - Entry follows the style of existing phase entries (bold title, indented description)
