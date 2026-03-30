@@ -143,15 +143,23 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
             return
         }
 
-        do {
-            try secureEnclaveManager.generateKeyPair(tag: tag)
-            result(nil)
-        } catch let error as SecureEnclaveManagerError where error == .keyAlreadyExists {
-            let flutterError = getFlutterError(error as BaseError)
-            result(flutterError)
-        } catch {
-            let flutterError = getFlutterError(SecureEnclavePluginError.keyGenerationError(error: error))
-            result(flutterError)
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try self.secureEnclaveManager.generateKeyPair(tag: tag)
+                DispatchQueue.main.async {
+                    result(nil)
+                }
+            } catch let error as SecureEnclaveManagerError where error == .keyAlreadyExists {
+                DispatchQueue.main.async {
+                    let flutterError = self.getFlutterError(error as BaseError)
+                    result(flutterError)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    let flutterError = self.getFlutterError(SecureEnclavePluginError.keyGenerationError(error: error))
+                    result(flutterError)
+                }
+            }
         }
     }
 
@@ -213,14 +221,20 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
             return
         }
 
-        do{
-            let encryptedData = try secureEnclaveManager.encrypt(data, tag: tag)
-            let encryptedDatabase64String = try Base64Codec.encode(encryptedData)
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let encryptedData = try self.secureEnclaveManager.encrypt(data, tag: tag)
+                let encryptedDatabase64String = try Base64Codec.encode(encryptedData)
 
-            result(encryptedDatabase64String)
-        } catch {
-            let flutterError = getFlutterError(SecureEnclavePluginError.encryptionError(error: error))
-            result(flutterError)
+                DispatchQueue.main.async {
+                    result(encryptedDatabase64String)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    let flutterError = self.getFlutterError(SecureEnclavePluginError.encryptionError(error: error))
+                    result(flutterError)
+                }
+            }
         }
     }
 
@@ -250,35 +264,47 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
             return
         }
 
-        do {
-            let decryptedDatabase64Data = try Base64Codec.decode(data)
-            let decryptedData = try secureEnclaveManager.decrypt(decryptedDatabase64Data, tag: tag)
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let decryptedDatabase64Data = try Base64Codec.decode(data)
+                let decryptedData = try self.secureEnclaveManager.decrypt(decryptedDatabase64Data, tag: tag)
 
-            result(decryptedData)
-        } catch SecureEnclaveManagerError.keyPermanentlyInvalidated {
-            result(FlutterError(
-                code: "KEY_PERMANENTLY_INVALIDATED",
-                message: "Biometric key has been permanently invalidated",
-                details: nil
-            ))
-        } catch SecureEnclaveManagerError.authenticationFailed {
-            result(FlutterError(
-                code: "AUTHENTICATION_ERROR",
-                message: "Biometric or device authentication failed",
-                details: nil
-            ))
-        } catch let error as KeychainServiceError {
-            switch error {
-            case .authenticationUserCanceled:
-                let flutterError = getFlutterError(error)
-                result(flutterError)
-            default:
-                let flutterError = getFlutterError(SecureEnclavePluginError.decryptionError(error: error))
-                result(flutterError)
+                DispatchQueue.main.async {
+                    result(decryptedData)
+                }
+            } catch SecureEnclaveManagerError.keyPermanentlyInvalidated {
+                DispatchQueue.main.async {
+                    result(FlutterError(
+                        code: "KEY_PERMANENTLY_INVALIDATED",
+                        message: "Biometric key has been permanently invalidated",
+                        details: nil
+                    ))
+                }
+            } catch SecureEnclaveManagerError.authenticationFailed {
+                DispatchQueue.main.async {
+                    result(FlutterError(
+                        code: "AUTHENTICATION_ERROR",
+                        message: "Biometric or device authentication failed",
+                        details: nil
+                    ))
+                }
+            } catch let error as KeychainServiceError {
+                DispatchQueue.main.async {
+                    switch error {
+                    case .authenticationUserCanceled:
+                        let flutterError = self.getFlutterError(error)
+                        result(flutterError)
+                    default:
+                        let flutterError = self.getFlutterError(SecureEnclavePluginError.decryptionError(error: error))
+                        result(flutterError)
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    let flutterError = self.getFlutterError(SecureEnclavePluginError.decryptionError(error: error))
+                    result(flutterError)
+                }
             }
-        } catch {
-            let flutterError = getFlutterError(SecureEnclavePluginError.decryptionError(error: error))
-            result(flutterError)
         }
     }
 
