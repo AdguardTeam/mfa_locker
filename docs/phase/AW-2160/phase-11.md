@@ -60,27 +60,27 @@ No new files. All changes are additions to existing files.
 
 ## Tasks
 
-- [ ] **11.1** Add `IsKeyValidAsync` to `WindowsHelloRepository` interface
+- [x] **11.1** Add `IsKeyValidAsync` to `WindowsHelloRepository` interface
   - File: `packages/biometric_cipher/windows/include/biometric_cipher/repositories/windows_hello_repository.h`
   - Add `virtual IAsyncOperation<bool> IsKeyValidAsync(const winrt::hstring tag) const = 0;`
 
-- [ ] **11.2** Implement `IsKeyValidAsync` in `WindowsHelloRepositoryImpl`
+- [x] **11.2** Implement `IsKeyValidAsync` in `WindowsHelloRepositoryImpl`
   - File: `packages/biometric_cipher/windows/include/biometric_cipher/repositories/windows_hello_repository_impl.h` (declaration)
   - File: `packages/biometric_cipher/windows/windows_hello_repository_impl.cpp` (implementation)
   - Call `CheckWindowsHelloIsStatusAsync()` → `m_HelloWrapper->OpenAsync(tag)` → return `status == KeyCredentialStatus::Success`
 
-- [ ] **11.3** Add `IsKeyValidAsync` to `BiometricCipherService`
+- [x] **11.3** Add `IsKeyValidAsync` to `BiometricCipherService`
   - File: `packages/biometric_cipher/windows/include/biometric_cipher/services/biometric_cipher_service.h` (declaration)
   - File: `packages/biometric_cipher/windows/biometric_cipher_service.cpp` (implementation)
   - Delegate: convert tag to `hstring`, call `m_WindowsHelloRepository->IsKeyValidAsync(hTag)`
 
-- [ ] **11.4** Add `kIsKeyValid` to `MethodName` enum and mapping
+- [x] **11.4** Add `kIsKeyValid` to `MethodName` enum and mapping
   - File: `packages/biometric_cipher/windows/include/biometric_cipher/enums/method_name.h`
   - Add `kIsKeyValid` before `kNotImplemented`
   - File: `packages/biometric_cipher/windows/method_name.cpp`
   - Add `{"isKeyValid", MethodName::kIsKeyValid}` to `METHOD_NAME_MAP`
 
-- [ ] **11.5** Add `isKeyValid` method channel handler to `BiometricCipherPlugin`
+- [x] **11.5** Add `isKeyValid` method channel handler to `BiometricCipherPlugin`
   - File: `packages/biometric_cipher/windows/biometric_cipher_plugin.h` (declaration)
   - File: `packages/biometric_cipher/windows/biometric_cipher_plugin.cpp` (implementation)
   - Add `case MethodName::kIsKeyValid:` to `HandleMethodCall` switch

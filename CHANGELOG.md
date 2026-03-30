@@ -1,0 +1,42 @@
+# Changelog
+
+All notable changes to this project are documented here.
+
+---
+
+## [Unreleased]
+
+### Added
+
+- **AW-2160 Phase 11 — Windows: `isKeyValid(tag)` silent probe**
+  Added `IsKeyValidAsync(tag)` to the Windows C++/WinRT native layer of the `biometric_cipher` plugin. The method uses `KeyCredentialManager::OpenAsync(tag)` to probe whether a Windows Hello credential exists without triggering a biometric dialog. Returns `true` when the credential is accessible (`KeyCredentialStatus::Success`) and `false` for all other statuses including `NotFound`. Errors from WinRT exceptions surface as `PlatformException` to the Dart layer. The method name `"isKeyValid"` matches the Android (Phase 9) and iOS/macOS (Phase 10) handlers, completing native platform support for the Dart-side `invokeMethod` call planned in Phase 12. All changes are additions to existing files in `packages/biometric_cipher/windows/`; no Dart files, no new files, no logging added.
+
+- **AW-2160 Phase 10 — iOS/macOS: `isKeyValid(tag)` silent probe**
+  Added `isKeyValid(tag)` to the iOS/macOS Swift native layer. Uses `SecItemCopyMatching` with `kSecUseAuthenticationUISkip` to probe Secure Enclave key existence without triggering any authentication UI. Returns `false` when `errSecItemNotFound` — key has been deleted by the OS after a biometric enrollment change.
+
+- **AW-2160 Phase 9 — Android: `isKeyValid(tag)` silent probe**
+  Added `isKeyValid(tag)` to the Android Kotlin native layer. Uses `Cipher.init()` without a `BiometricPrompt` to probe key validity. `KeyPermanentlyInvalidatedException` is caught and mapped to `false`. Establishes the shared method name `"isKeyValid"` used across all platforms.
+
+- **AW-2160 Phase 8 — Example app: password-only biometric disable recovery flow**
+  Added `disableBiometricPasswordOnlyRequested` event, `_onDisableBiometricPasswordOnlyRequested` BLoC handler, and `disableBiometricPasswordOnly` repository method to the example app. When `isBiometricKeyInvalidated` is `true`, the Settings biometric toggle-off routes to the password-only path instead of a biometric prompt. The `isBiometricKeyInvalidated` flag is cleared on success and on successful biometric re-enable.
+
+- **AW-2160 Phase 7 — Example app: biometric key invalidation UI**
+  Added `isBiometricKeyInvalidated` flag to `LockerState`. Biometric unlock button and locked screen hide the biometric option when the flag is set. Auth bottom sheet shows an inline "Biometrics have changed" message. Settings screen shows an error-color description on the biometric tile. `biometricKeyInvalidated` side-effect action emitted from `_handleBiometricFailure`.
+
+- **AW-2160 Phase 6 — Unit tests for Dart-layer key invalidation code paths**
+  Added unit tests covering `BiometricCipherExceptionCode.keyPermanentlyInvalidated` mapping (Phase 3), `BiometricExceptionType.keyInvalidated` mapping (Phase 4), and `MFALocker.teardownBiometryPasswordOnly` (Phase 5).
+
+- **AW-2160 Phase 5 — `MFALocker.teardownBiometryPasswordOnly`**
+  Added `teardownBiometryPasswordOnly({required PasswordCipherFunc, required String biometricKeyTag})` to the `Locker` interface and `MFALocker` implementation. Removes the `Origin.bio` wrap using password authentication alone; hardware key deletion errors are suppressed because the key may already be gone.
+
+- **AW-2160 Phase 4 — Locker library: `BiometricExceptionType.keyInvalidated`**
+  Added `keyInvalidated` to `BiometricExceptionType`. `BiometricCipherProviderImpl` maps `BiometricCipherExceptionCode.keyPermanentlyInvalidated` to this new type.
+
+- **AW-2160 Phase 3 — Dart plugin: `BiometricCipherExceptionCode.keyPermanentlyInvalidated`**
+  Added `keyPermanentlyInvalidated` to `BiometricCipherExceptionCode` and mapped the platform error string `"KEY_PERMANENTLY_INVALIDATED"` to it in `fromString`.
+
+- **AW-2160 Phase 2 — iOS/macOS native: `KEY_PERMANENTLY_INVALIDATED` error**
+  iOS/macOS Swift layer emits `FlutterError(code: "KEY_PERMANENTLY_INVALIDATED")` when the Secure Enclave key is inaccessible after a biometric enrollment change, propagated through `KeychainServiceError`, `SecureEnclaveManagerError`, and `SecureEnclavePluginError`.
+
+- **AW-2160 Phase 1 — Android native: `KEY_PERMANENTLY_INVALIDATED` error**
+  Added `KEY_PERMANENTLY_INVALIDATED` to `ErrorType`. Android Kotlin layer catches `KeyPermanentlyInvalidatedException` in `executeOperation()` and emits `FlutterError(code: "KEY_PERMANENTLY_INVALIDATED")` to the Flutter channel.

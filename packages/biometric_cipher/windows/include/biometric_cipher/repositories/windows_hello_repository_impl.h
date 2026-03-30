@@ -27,6 +27,8 @@ namespace biometric_cipher
 		winrt::Windows::Foundation::IAsyncAction CreateCredentialAsync(const winrt::hstring tag) const override;
 
 		winrt::Windows::Foundation::IAsyncAction DeleteCredentialAsync(const winrt::hstring tag) const override;
+
+		winrt::Windows::Foundation::IAsyncOperation<bool> IsKeyValidAsync(const winrt::hstring tag) const override;
 	private:
 		static const uint32_t NONCE_LENGTH = 12;
 
