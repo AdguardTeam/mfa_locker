@@ -18,13 +18,13 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 | 8 | Example app: password-only biometric disable | :white_check_mark: Done | |
 | 9 | Android: `isKeyValid(tag)` silent probe | :white_check_mark: Done | Section G |
 | 10 | iOS/macOS: `isKeyValid(tag)` silent probe | :white_check_mark: Done | Section G |
-| 11 | Windows: `isKeyValid(tag)` silent probe | :white_large_square: Not started | Section G |
+| 11 | Windows: `isKeyValid(tag)` silent probe | :white_check_mark: Done | Section G |
 | 12 | Dart plugin: `BiometricCipher.isKeyValid(tag)` | :white_large_square: Not started | Section G |
 | 13 | Locker: `BiometricState.keyInvalidated` + proactive `determineBiometricState` | :white_large_square: Not started | Section G |
 | 14 | Tests for proactive detection | :white_large_square: Not started | Section G |
 | 15 | Example app: proactive detection integration | :white_check_mark: Complete | Section G |
 
-**Current Phase:** 11
+**Current Phase:** 12
 
 ---
 
@@ -298,27 +298,27 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 **Ref:** `docs/idea-2160.md` Section G2b
 
-- [ ] **11.1** Add `IsKeyValidAsync` to `WindowsHelloRepository` interface
+- [x] **11.1** Add `IsKeyValidAsync` to `WindowsHelloRepository` interface
   - File: `packages/biometric_cipher/windows/include/biometric_cipher/repositories/windows_hello_repository.h`
   - Add `virtual IAsyncOperation<bool> IsKeyValidAsync(const winrt::hstring tag) const = 0;`
 
-- [ ] **11.2** Implement `IsKeyValidAsync` in `WindowsHelloRepositoryImpl`
+- [x] **11.2** Implement `IsKeyValidAsync` in `WindowsHelloRepositoryImpl`
   - File: `packages/biometric_cipher/windows/include/biometric_cipher/repositories/windows_hello_repository_impl.h` (declaration)
   - File: `packages/biometric_cipher/windows/windows_hello_repository_impl.cpp` (implementation)
   - Call `CheckWindowsHelloIsStatusAsync()` → `m_HelloWrapper->OpenAsync(tag)` → return `status == KeyCredentialStatus::Success`
 
-- [ ] **11.3** Add `IsKeyValidAsync` to `BiometricCipherService`
+- [x] **11.3** Add `IsKeyValidAsync` to `BiometricCipherService`
   - File: `packages/biometric_cipher/windows/include/biometric_cipher/services/biometric_cipher_service.h` (declaration)
   - File: `packages/biometric_cipher/windows/biometric_cipher_service.cpp` (implementation)
   - Delegate: convert tag to `hstring`, call `m_WindowsHelloRepository->IsKeyValidAsync(hTag)`
 
-- [ ] **11.4** Add `kIsKeyValid` to `MethodName` enum and mapping
+- [x] **11.4** Add `kIsKeyValid` to `MethodName` enum and mapping
   - File: `packages/biometric_cipher/windows/include/biometric_cipher/enums/method_name.h`
   - Add `kIsKeyValid` before `kNotImplemented`
   - File: `packages/biometric_cipher/windows/method_name.cpp`
   - Add `{"isKeyValid", MethodName::kIsKeyValid}` to `METHOD_NAME_MAP`
 
-- [ ] **11.5** Add `isKeyValid` method channel handler to `BiometricCipherPlugin`
+- [x] **11.5** Add `isKeyValid` method channel handler to `BiometricCipherPlugin`
   - File: `packages/biometric_cipher/windows/biometric_cipher_plugin.h` (declaration)
   - File: `packages/biometric_cipher/windows/biometric_cipher_plugin.cpp` (implementation)
   - Add `case MethodName::kIsKeyValid:` to `HandleMethodCall` switch
