@@ -24,7 +24,7 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 | 14 | Tests for proactive detection | :white_large_square: Not started | Section G |
 | 15 | Example app: proactive detection integration | :white_check_mark: Complete | Section G |
 
-**Current Phase:** 12
+**Current Phase:** 13
 
 ---
 
