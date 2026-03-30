@@ -8,6 +8,9 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- **AW-2160 Phase 12 — Dart plugin: `BiometricCipher.isKeyValid(tag)`**
+  Wired the Dart-side bridge for the `isKeyValid` method channel call, completing the silent key validity probe stack built across Phases 9–11. `BiometricCipherPlatform` gains the abstract `isKeyValid({required String tag})` method; `BiometricCipher` gains the public API with an empty-tag guard (throws `BiometricCipherException(invalidArgument)` synchronously) and delegation to the platform interface. The method channel override calls `invokeMethod('isKeyValid', {'tag': tag})` with a `?? false` null guard and `PlatformException` mapping. Does not require the plugin to be configured — no biometric prompt is involved. Four automated tests added: `true` for an existing key, `false` for a nonexistent key, `false` after deletion, and the empty-tag guard. No native files touched, no new files created. Phase 13 (`BiometricCipherProvider.isKeyValid` + `determineBiometricState` integration) is now unblocked.
+
 - **AW-2160 Phase 11 — Windows: `isKeyValid(tag)` silent probe**
   Added `IsKeyValidAsync(tag)` to the Windows C++/WinRT native layer of the `biometric_cipher` plugin. The method uses `KeyCredentialManager::OpenAsync(tag)` to probe whether a Windows Hello credential exists without triggering a biometric dialog. Returns `true` when the credential is accessible (`KeyCredentialStatus::Success`) and `false` for all other statuses including `NotFound`. Errors from WinRT exceptions surface as `PlatformException` to the Dart layer. The method name `"isKeyValid"` matches the Android (Phase 9) and iOS/macOS (Phase 10) handlers, completing native platform support for the Dart-side `invokeMethod` call planned in Phase 12. All changes are additions to existing files in `packages/biometric_cipher/windows/`; no Dart files, no new files, no logging added.
 

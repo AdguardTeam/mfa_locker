@@ -19,7 +19,7 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 | 9 | Android: `isKeyValid(tag)` silent probe | :white_check_mark: Done | Section G |
 | 10 | iOS/macOS: `isKeyValid(tag)` silent probe | :white_check_mark: Done | Section G |
 | 11 | Windows: `isKeyValid(tag)` silent probe | :white_check_mark: Done | Section G |
-| 12 | Dart plugin: `BiometricCipher.isKeyValid(tag)` | :white_large_square: Not started | Section G |
+| 12 | Dart plugin: `BiometricCipher.isKeyValid(tag)` | :white_check_mark: Done | Section G |
 | 13 | Locker: `BiometricState.keyInvalidated` + proactive `determineBiometricState` | :white_large_square: Not started | Section G |
 | 14 | Tests for proactive detection | :white_large_square: Not started | Section G |
 | 15 | Example app: proactive detection integration | :white_check_mark: Complete | Section G |
@@ -335,11 +335,11 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 **Ref:** `docs/idea-2160.md` Section G3
 
-- [ ] **12.1** Add `isKeyValid` to platform interface
+- [x] **12.1** Add `isKeyValid` to platform interface
   - File: `packages/biometric_cipher/lib/biometric_cipher_platform_interface.dart`
   - Add `Future<bool> isKeyValid({required String tag})`
 
-- [ ] **12.2** Add `isKeyValid` to `BiometricCipher`
+- [x] **12.2** Add `isKeyValid` to `BiometricCipher`
   - File: `packages/biometric_cipher/lib/biometric_cipher.dart`
   - Validate non-empty tag (throw `BiometricCipherException` with `invalidArgument` code if empty)
   - Delegate to `_instance.isKeyValid(tag: tag)`
