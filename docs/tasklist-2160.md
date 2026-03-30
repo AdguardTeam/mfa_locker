@@ -21,10 +21,10 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 | 11 | Windows: `isKeyValid(tag)` silent probe | :white_check_mark: Done | Section G |
 | 12 | Dart plugin: `BiometricCipher.isKeyValid(tag)` | :white_check_mark: Done | Section G |
 | 13 | Locker: `BiometricState.keyInvalidated` + proactive `determineBiometricState` | :white_check_mark: Done | Section G |
-| 14 | Tests for proactive detection | :white_large_square: Not started | Section G |
+| 14 | Tests for proactive detection | :white_check_mark: Done | Section G |
 | 15 | Example app: proactive detection integration | :white_check_mark: Complete | Section G |
 
-**Current Phase:** 14
+**Current Phase:** 15
 
 ---
 
@@ -386,20 +386,20 @@ Companion to: `docs/idea-2160.md`, `docs/vision-2160.md`
 
 **Goal:** Unit tests for `isKeyValid` delegation, `BiometricState.keyInvalidated`, and proactive `determineBiometricState`.
 
-- [ ] **14.1** Test `BiometricState.keyInvalidated` enum value and `isKeyInvalidated` getter
+- [x] **14.1** Test `BiometricState.keyInvalidated` enum value and `isKeyInvalidated` getter
   - `BiometricState.keyInvalidated.isKeyInvalidated` → `true`
   - `BiometricState.enabled.isKeyInvalidated` → `false`
   - `BiometricState.keyInvalidated.isEnabled` → `false`
   - `BiometricState.keyInvalidated.isAvailable` → `false`
 
-- [ ] **14.2** Test `isKeyValid` delegation in `BiometricCipherProviderImpl`
+- [x] **14.2** Test `isKeyValid` delegation in `BiometricCipherProviderImpl`
   - Mock `BiometricCipher.isKeyValid` → verify delegation and return value pass-through
 
-- [ ] **14.3** Test `determineBiometricState(biometricKeyTag:)` returns `keyInvalidated` when key is invalid
+- [x] **14.3** Test `determineBiometricState(biometricKeyTag:)` returns `keyInvalidated` when key is invalid
   - Mock `isKeyValid` → `false`, biometrics enabled in settings
   - Expect `BiometricState.keyInvalidated`
 
-- [ ] **14.4** Test `determineBiometricState()` without `biometricKeyTag` retains existing behavior
+- [x] **14.4** Test `determineBiometricState()` without `biometricKeyTag` retains existing behavior
   - Biometrics enabled, no tag passed → expect `BiometricState.enabled` (no key validity check)
 
 **Verify:** `fvm flutter test` — all green.
