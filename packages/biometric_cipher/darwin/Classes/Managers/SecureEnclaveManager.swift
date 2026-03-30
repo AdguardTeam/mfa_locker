@@ -118,10 +118,7 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
 
     func encrypt(_ encryptionString: String, tag: String) throws -> Data {
         let privateKeyTag = try getTagData(tag: tag)
-
-        guard let privateKey = getPrivateKey(tag: privateKeyTag) else {
-            throw SecureEnclaveManagerError.failedGetPrivateKey
-        }
+        let privateKey = try requirePrivateKey(tag: privateKeyTag)
 
         guard let publicKey = try getPublicKey(privateKey: privateKey) else {
             throw SecureEnclaveManagerError.failedGetPublicKey
@@ -149,13 +146,7 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
 
     func decrypt(_ encryptedData: Data, tag: String) throws -> String {
         let privateKeyTag = try getTagData(tag: tag)
-
-        guard let privateKey = getPrivateKey(tag: privateKeyTag) else {
-            if !keyExists(tag: privateKeyTag) {
-                throw SecureEnclaveManagerError.keyPermanentlyInvalidated
-            }
-            throw SecureEnclaveManagerError.failedGetPrivateKey
-        }
+        let privateKey = try requirePrivateKey(tag: privateKeyTag)
 
         let algorithm: SecKeyAlgorithm = .eciesEncryptionCofactorX963SHA256AESGCM
 
@@ -203,6 +194,18 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         }
 
         return decryptedString
+    }
+
+    /// Returns the private key for the given tag, distinguishing
+    /// "key permanently invalidated" from "failed to retrieve."
+    private func requirePrivateKey(tag: Data) throws -> SecKey {
+        if let key = getPrivateKey(tag: tag) {
+            return key
+        }
+        if !keyExists(tag: tag) {
+            throw SecureEnclaveManagerError.keyPermanentlyInvalidated
+        }
+        throw SecureEnclaveManagerError.failedGetPrivateKey
     }
 
     private func getPublicKey(privateKey: SecKey) throws -> SecKey? {

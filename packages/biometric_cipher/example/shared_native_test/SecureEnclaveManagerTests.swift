@@ -236,9 +236,22 @@ final class SecureEnclaveManagerTests: XCTestCase {
         XCTAssertEqual(decryptedString, originalString, "The decrypted text should match the original.")
     }
     
-    func testEncrypt_NoPrivateKey_ShouldThrow() throws {
+    func testEncrypt_KeyNotFoundInKeychain_ShouldThrowKeyPermanentlyInvalidated() throws {
         let tag = "test.sec.enclave.no_key"
-        
+
+        XCTAssertThrowsError(try manager.encrypt("Some text", tag: tag)) { error in
+            guard let e = error as? SecureEnclaveManagerError, case .keyPermanentlyInvalidated = e else {
+                return XCTFail("Expected SecureEnclaveManagerError.keyPermanentlyInvalidated, got \(error)")
+            }
+        }
+    }
+
+    func testEncrypt_KeyExistsButPrivateKeyRetrievalFails_ShouldThrowFailedGetPrivateKey() throws {
+        let tag = "test.sec.enclave.key_exists_no_ref"
+
+        mockKeychain.getPrivateKeyResult = nil
+        mockKeychain.itemExistsResult = true
+
         XCTAssertThrowsError(try manager.encrypt("Some text", tag: tag)) { error in
             guard let e = error as? SecureEnclaveManagerError, case .failedGetPrivateKey = e else {
                 return XCTFail("Expected SecureEnclaveManagerError.failedGetPrivateKey, got \(error)")

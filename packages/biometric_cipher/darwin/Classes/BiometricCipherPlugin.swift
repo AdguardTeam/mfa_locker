@@ -229,6 +229,14 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
                 DispatchQueue.main.async {
                     result(encryptedDatabase64String)
                 }
+            } catch SecureEnclaveManagerError.keyPermanentlyInvalidated {
+                DispatchQueue.main.async {
+                    result(FlutterError(
+                        code: "KEY_PERMANENTLY_INVALIDATED",
+                        message: "Biometric key has been permanently invalidated",
+                        details: nil
+                    ))
+                }
             } catch {
                 DispatchQueue.main.async {
                     let flutterError = self.getFlutterError(SecureEnclavePluginError.encryptionError(error: error))
