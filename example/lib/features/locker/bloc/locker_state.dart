@@ -12,6 +12,11 @@ abstract class LockerState with _$LockerState {
     @Default(BiometricOperationState.idle) BiometricOperationState biometricOperationState,
     @Default(false) bool enableBiometricAfterInit,
   }) = _LockerState;
+
+  const LockerState._();
+
+  /// Whether biometric authentication can be used for operations.
+  bool get canUseBiometric => biometricState.isEnabled;
 }
 
 /// Status of the locker

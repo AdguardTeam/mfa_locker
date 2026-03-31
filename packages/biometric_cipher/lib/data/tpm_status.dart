@@ -1,7 +1,8 @@
 enum TPMStatus {
   supported(0),
   unsupported(1),
-  tpmVersionUnsupported(2);
+  tpmVersionUnsupported(2)
+  ;
 
   final int status;
 

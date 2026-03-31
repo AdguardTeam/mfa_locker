@@ -20,6 +20,13 @@ class BiometricFailed extends BiometricAuthResult {
   const BiometricFailed(this.message);
 }
 
+/// Biometric key was invalidated (e.g., biometric enrollment changed).
+class BiometricKeyInvalidated extends BiometricAuthResult {
+  final String message;
+
+  const BiometricKeyInvalidated(this.message);
+}
+
 /// Biometric authentication is not available on this device.
 class BiometricNotAvailable extends BiometricAuthResult {
   const BiometricNotAvailable();

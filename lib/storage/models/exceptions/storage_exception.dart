@@ -8,34 +8,34 @@ class StorageException implements Exception {
   });
 
   factory StorageException.notInitialized() => const StorageException(
-        type: StorageExceptionType.notInitialized,
-        message: 'Storage is not initialized',
-      );
+    type: StorageExceptionType.notInitialized,
+    message: 'Storage is not initialized',
+  );
 
   factory StorageException.alreadyInitialized() => const StorageException(
-        type: StorageExceptionType.alreadyInitialized,
-        message: 'Storage is already initialized',
-      );
+    type: StorageExceptionType.alreadyInitialized,
+    message: 'Storage is already initialized',
+  );
 
   factory StorageException.invalidStorage({String? message}) => StorageException(
-        type: StorageExceptionType.invalidStorage,
-        message: message ?? 'Storage is invalid',
-      );
+    type: StorageExceptionType.invalidStorage,
+    message: message ?? 'Storage is invalid',
+  );
 
   factory StorageException.entryNotFound() => const StorageException(
-        type: StorageExceptionType.entryNotFound,
-        message: 'Entry not found',
-      );
+    type: StorageExceptionType.entryNotFound,
+    message: 'Entry not found',
+  );
 
   factory StorageException.duplicateEntry() => const StorageException(
-        type: StorageExceptionType.duplicateEntry,
-        message: 'Duplicate entry',
-      );
+    type: StorageExceptionType.duplicateEntry,
+    message: 'Duplicate entry',
+  );
 
   factory StorageException.other(String message) => StorageException(
-        type: StorageExceptionType.other,
-        message: message,
-      );
+    type: StorageExceptionType.other,
+    message: message,
+  );
 
   @override
   String toString() => 'StorageException: $message (type: $type)';

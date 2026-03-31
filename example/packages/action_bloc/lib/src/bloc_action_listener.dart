@@ -48,12 +48,7 @@ abstract class BlocActionListenerBase<B extends StateActionStreamable<S, A>, S, 
       ..add(DiagnosticsProperty<B?>('bloc', bloc))
       ..add(ObjectFlagProperty<BlocActionWidgetListener<A>>.has('listener', listener))
       ..add(ObjectFlagProperty<BlocActionWidgetListenerWithState<S, A>>.has('listenerWithState', listenerWithState))
-      ..add(
-        ObjectFlagProperty<BlocListenerCondition<A>?>.has(
-          'listenWhen',
-          listenWhen,
-        ),
-      );
+      ..add(ObjectFlagProperty<BlocListenerCondition<A>?>.has('listenWhen', listenWhen));
   }
 }
 

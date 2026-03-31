@@ -8,4 +8,5 @@ sealed class SettingsAction with _$SettingsAction {
   const factory SettingsAction.biometricAuthenticationFailed({required String message}) = BiometricAuthenticationFailed;
   const factory SettingsAction.biometricAuthenticationCancelled() = BiometricAuthenticationCancelled;
   const factory SettingsAction.biometricNotAvailable() = BiometricNotAvailable;
+  const factory SettingsAction.biometricKeyInvalidated({required String message}) = BiometricKeyInvalidatedSettings;
 }

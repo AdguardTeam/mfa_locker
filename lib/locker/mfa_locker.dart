@@ -13,6 +13,7 @@ import 'package:locker/security/biometric_cipher_provider.dart';
 import 'package:locker/security/models/bio_cipher_func.dart';
 import 'package:locker/security/models/biometric_config.dart';
 import 'package:locker/security/models/cipher_func.dart';
+import 'package:locker/security/models/exceptions/biometric_exception.dart';
 import 'package:locker/security/models/password_cipher_func.dart';
 import 'package:locker/storage/encrypted_storage.dart';
 import 'package:locker/storage/encrypted_storage_impl.dart';
@@ -28,19 +29,20 @@ import 'package:rxdart/rxdart.dart';
 
 class MFALocker implements Locker {
   final EncryptedStorage _storage;
+  final BiometricCipherProvider _secureProvider;
 
   final BehaviorSubject<LockerState> _stateController = BehaviorSubject<LockerState>.seeded(LockerState.locked);
 
   MFALocker({
     required File file,
     @visibleForTesting EncryptedStorage? storage,
-  }) : _storage = storage ?? EncryptedStorageImpl(file: file);
+    @visibleForTesting BiometricCipherProvider? secureProvider,
+  }) : _storage = storage ?? EncryptedStorageImpl(file: file),
+       _secureProvider = secureProvider ?? BiometricCipherProviderImpl.instance;
 
   Map<EntryId, EntryMeta> _metaCache = {};
 
   final _sync = Sync();
-
-  BiometricCipherProvider get _secureProvider => BiometricCipherProviderImpl.instance;
 
   @override
   ValueStream<LockerState> get stateStream => _stateController.stream;
@@ -63,7 +65,7 @@ class MFALocker implements Locker {
   }
 
   @override
-  // TODO: (d.seloustev) A test needs to be added
+  // TODO(d.seloustev): A test needs to be added
   Future<bool> get isBiometricEnabled => _storage.isBiometricEnabled;
 
   @override
@@ -80,33 +82,32 @@ class MFALocker implements Locker {
     required PasswordCipherFunc passwordCipherFunc,
     required List<EntryAddInput> initialEntries,
     required Duration lockTimeout,
-  }) =>
-      _sync(
-        () => _executeWithCleanup(
-          erasables: [passwordCipherFunc, ...initialEntries],
-          callback: () async {
-            if (await isStorageInitialized) {
-              throw StateError('Storage is already initialized');
-            }
+  }) => _sync(
+    () => _executeWithCleanup(
+      erasables: [passwordCipherFunc, ...initialEntries],
+      callback: () async {
+        if (await isStorageInitialized) {
+          throw StateError('Storage is already initialized');
+        }
 
-            await _storage.init(
-              passwordCipherFunc: passwordCipherFunc,
-              initialEntries: initialEntries,
-              lockTimeout: lockTimeout.inMilliseconds,
-            );
+        await _storage.init(
+          passwordCipherFunc: passwordCipherFunc,
+          initialEntries: initialEntries,
+          lockTimeout: lockTimeout.inMilliseconds,
+        );
 
-            await loadAllMetaIfLocked(passwordCipherFunc);
-          },
-        ),
-      );
+        await loadAllMetaIfLocked(passwordCipherFunc);
+      },
+    ),
+  );
 
   @override
   Future<void> loadAllMeta(CipherFunc cipherFunc) => _sync(
-        () => _executeWithCleanup(
-          erasables: [cipherFunc],
-          callback: () async => loadAllMetaIfLocked(cipherFunc),
-        ),
-      );
+    () => _executeWithCleanup(
+      erasables: [cipherFunc],
+      callback: () async => loadAllMetaIfLocked(cipherFunc),
+    ),
+  );
 
   @override
   void lock() {
@@ -122,144 +123,138 @@ class MFALocker implements Locker {
   Future<EntryId> write({
     required EntryAddInput input,
     required CipherFunc cipherFunc,
-  }) =>
-      _sync(
-        () => _executeWithCleanup<EntryId>(
-          // dispose input.meta only on error because it is cached
-          erasables: [cipherFunc, input.value],
-          erasablesOnError: [input.meta],
-          callback: () async {
-            await loadAllMetaIfLocked(cipherFunc);
+  }) => _sync(
+    () => _executeWithCleanup<EntryId>(
+      // dispose input.meta only on error because it is cached
+      erasables: [cipherFunc, input.value],
+      erasablesOnError: [input.meta],
+      callback: () async {
+        await loadAllMetaIfLocked(cipherFunc);
 
-            final entryId = await _storage.addEntry(
-              input: input,
-              cipherFunc: cipherFunc,
-            );
+        final entryId = await _storage.addEntry(
+          input: input,
+          cipherFunc: cipherFunc,
+        );
 
-            _metaCache[entryId]?.erase();
-            _metaCache[entryId] = input.meta;
+        _metaCache[entryId]?.erase();
+        _metaCache[entryId] = input.meta;
 
-            return entryId;
-          },
-        ),
-      );
+        return entryId;
+      },
+    ),
+  );
 
   @override
   Future<EntryValue> readValue({
     required EntryId id,
     required CipherFunc cipherFunc,
-  }) =>
-      _sync(
-        () => _executeWithCleanup<EntryValue>(
-          erasables: [cipherFunc],
-          callback: () async {
-            await loadAllMetaIfLocked(cipherFunc);
+  }) => _sync(
+    () => _executeWithCleanup<EntryValue>(
+      erasables: [cipherFunc],
+      callback: () async {
+        await loadAllMetaIfLocked(cipherFunc);
 
-            return _storage.readValue(
-              id: id,
-              cipherFunc: cipherFunc,
-            );
-          },
-        ),
-      );
+        return _storage.readValue(
+          id: id,
+          cipherFunc: cipherFunc,
+        );
+      },
+    ),
+  );
 
   @override
   Future<bool> delete({
     required EntryId id,
     required CipherFunc cipherFunc,
-  }) =>
-      _sync(
-        () => _executeWithCleanup(
-          erasables: [cipherFunc],
-          callback: () async {
-            await loadAllMetaIfLocked(cipherFunc);
+  }) => _sync(
+    () => _executeWithCleanup(
+      erasables: [cipherFunc],
+      callback: () async {
+        await loadAllMetaIfLocked(cipherFunc);
 
-            final isDeleted = await _storage.deleteEntry(
-              id: id,
-              cipherFunc: cipherFunc,
-            );
+        final isDeleted = await _storage.deleteEntry(
+          id: id,
+          cipherFunc: cipherFunc,
+        );
 
-            final removedMeta = _metaCache.remove(id);
-            removedMeta?.erase();
+        final removedMeta = _metaCache.remove(id);
+        removedMeta?.erase();
 
-            return isDeleted;
-          },
-        ),
-      );
+        return isDeleted;
+      },
+    ),
+  );
 
   @override
   Future<void> update({
     required EntryUpdateInput input,
     required CipherFunc cipherFunc,
-  }) =>
-      _sync(
-        () => _executeWithCleanup(
-          // dispose input.meta only on error because it is cached
-          erasables: [cipherFunc, if (input.value != null) input.value!],
-          erasablesOnError: [if (input.meta != null) input.meta!],
-          callback: () async {
-            await loadAllMetaIfLocked(cipherFunc);
+  }) => _sync(
+    () => _executeWithCleanup(
+      // dispose input.meta only on error because it is cached
+      erasables: [cipherFunc, if (input.value != null) input.value!],
+      erasablesOnError: [if (input.meta != null) input.meta!],
+      callback: () async {
+        await loadAllMetaIfLocked(cipherFunc);
 
-            await _storage.updateEntry(
-              input: input,
-              cipherFunc: cipherFunc,
-            );
+        await _storage.updateEntry(
+          input: input,
+          cipherFunc: cipherFunc,
+        );
 
-            if (input.meta != null) {
-              _metaCache[input.id]?.erase();
-              _metaCache[input.id] = input.meta!;
-            }
-          },
-        ),
-      );
+        if (input.meta != null) {
+          _metaCache[input.id]?.erase();
+          _metaCache[input.id] = input.meta!;
+        }
+      },
+    ),
+  );
 
   @override
   Future<void> changePassword({
     required PasswordCipherFunc newCipherFunc,
     required CipherFunc existingCipherFunc,
-  }) =>
-      _sync(
-        () => _executeWithCleanup(
-          erasables: [newCipherFunc, existingCipherFunc],
-          callback: () async {
-            await loadAllMetaIfLocked(existingCipherFunc);
-            await _storage.addOrReplaceWrap(
-              newWrapFunc: newCipherFunc,
-              existingWrapFunc: existingCipherFunc,
-            );
-          },
-        ),
-      );
+  }) => _sync(
+    () => _executeWithCleanup(
+      erasables: [newCipherFunc, existingCipherFunc],
+      callback: () async {
+        await loadAllMetaIfLocked(existingCipherFunc);
+        await _storage.addOrReplaceWrap(
+          newWrapFunc: newCipherFunc,
+          existingWrapFunc: existingCipherFunc,
+        );
+      },
+    ),
+  );
 
   @override
   Future<void> updateLockTimeout({
     required Duration lockTimeout,
     required CipherFunc cipherFunc,
-  }) =>
-      _sync(
-        () => _executeWithCleanup(
-          erasables: [cipherFunc],
-          callback: () async {
-            await loadAllMetaIfLocked(cipherFunc);
-            await _storage.updateLockTimeout(
-              lockTimeout: lockTimeout.inMilliseconds,
-              cipherFunc: cipherFunc,
-            );
-          },
-        ),
-      );
+  }) => _sync(
+    () => _executeWithCleanup(
+      erasables: [cipherFunc],
+      callback: () async {
+        await loadAllMetaIfLocked(cipherFunc);
+        await _storage.updateLockTimeout(
+          lockTimeout: lockTimeout.inMilliseconds,
+          cipherFunc: cipherFunc,
+        );
+      },
+    ),
+  );
 
   @override
   Future<void> eraseStorage() => _sync(() async {
-        final isErased = await _storage.erase();
+    final isErased = await _storage.erase();
 
-        if (!isErased) {
-          throw StateError('Failed to erase storage');
-        }
+    if (!isErased) {
+      throw StateError('Failed to erase storage');
+    }
 
-        _cleanupState();
-        _stateController.add(LockerState.locked);
-      });
+    _cleanupState();
+    _stateController.add(LockerState.locked);
+  });
 
   @override
   void dispose() {
@@ -283,36 +278,6 @@ class MFALocker implements Locker {
     _stateController.add(LockerState.unlocked);
   }
 
-  @visibleForTesting
-  Future<void> enableBiometry({
-    required BioCipherFunc bioCipherFunc,
-    required PasswordCipherFunc passwordCipherFunc,
-  }) =>
-      _sync(
-        () => _executeWithCleanup(
-          erasables: [bioCipherFunc, passwordCipherFunc],
-          callback: () async {
-            await loadAllMetaIfLocked(passwordCipherFunc);
-            await _storage.addOrReplaceWrap(newWrapFunc: bioCipherFunc, existingWrapFunc: passwordCipherFunc);
-          },
-        ),
-      );
-
-  @visibleForTesting
-  Future<void> disableBiometry({
-    required BioCipherFunc bioCipherFunc,
-    required PasswordCipherFunc passwordCipherFunc,
-  }) =>
-      _sync(
-        () => _executeWithCleanup(
-          erasables: [bioCipherFunc, passwordCipherFunc],
-          callback: () async {
-            await loadAllMetaIfLocked(passwordCipherFunc);
-            await _storage.deleteWrap(originToDelete: Origin.bio, cipherFunc: passwordCipherFunc);
-          },
-        ),
-      );
-
   void _cleanupState() {
     for (final meta in _metaCache.values) {
       meta.erase();
@@ -325,7 +290,7 @@ class MFALocker implements Locker {
   Future<void> configureBiometricCipher(BiometricConfig config) => _secureProvider.configure(config);
 
   @override
-  Future<BiometricState> determineBiometricState() async {
+  Future<BiometricState> determineBiometricState({String? biometricKeyTag}) async {
     final tpmStatus = await _secureProvider.getTPMStatus();
     // TPM checks first
     if (tpmStatus == TPMStatus.unsupported) {
@@ -356,7 +321,19 @@ class MFALocker implements Locker {
     final isEnabledInSettings = await isBiometricEnabled;
 
     // Finally check app settings
-    return isEnabledInSettings ? BiometricState.enabled : BiometricState.availableButDisabled;
+    if (!isEnabledInSettings) {
+      return BiometricState.availableButDisabled;
+    }
+
+    // Proactive key validity check — no biometric prompt shown.
+    if (biometricKeyTag != null) {
+      final isValid = await _secureProvider.isKeyValid(tag: biometricKeyTag);
+      if (!isValid) {
+        return BiometricState.keyInvalidated;
+      }
+    }
+
+    return BiometricState.enabled;
   }
 
   /// Enable biometric authentication (requires password confirmation)
@@ -365,77 +342,86 @@ class MFALocker implements Locker {
   Future<void> setupBiometry({
     required BioCipherFunc bioCipherFunc,
     required PasswordCipherFunc passwordCipherFunc,
-  }) =>
-      _executeWithCleanup(
-        erasables: [bioCipherFunc, passwordCipherFunc],
-        callback: () async {
-          // Step 1: Check TPM status
-          final tpmStatus = await _secureProvider.getTPMStatus();
-          if (tpmStatus != TPMStatus.supported) {
-            throw Exception('TPM not supported on this device');
+  }) => _sync(
+    () => _executeWithCleanup(
+      erasables: [bioCipherFunc, passwordCipherFunc],
+      callback: () async {
+        // Step 1: Check TPM status
+        final tpmStatus = await _secureProvider.getTPMStatus();
+        if (tpmStatus != TPMStatus.supported) {
+          throw const BiometricException(
+            BiometricExceptionType.notAvailable,
+            message: 'TPM not supported on this device',
+          );
+        }
+
+        // Step 2: Check biometry status
+        final biometryStatus = await _secureProvider.getBiometryStatus();
+        if (biometryStatus != BiometricStatus.supported) {
+          throw BiometricException(
+            BiometricExceptionType.notAvailable,
+            message: 'Biometric authentication not available: $biometryStatus',
+          );
+        }
+
+        try {
+          // Step 3: Defensive key management - delete before generate
+          try {
+            await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
+          } catch (e) {
+            // Ignore errors - key might not exist yet
+            logger.logInfo('Key might not exist yet: $e');
           }
 
-          // Step 2: Check biometry status
-          final biometryStatus = await _secureProvider.getBiometryStatus();
-          if (biometryStatus != BiometricStatus.supported) {
-            throw Exception('Biometric authentication not available: $biometryStatus');
-          }
+          // Step 4: Generate new key
+          await _secureProvider.generateKey(tag: bioCipherFunc.keyTag);
+
+          // Step 5: Enable biometry in locker
+          await loadAllMetaIfLocked(passwordCipherFunc);
+          await _storage.addOrReplaceWrap(newWrapFunc: bioCipherFunc, existingWrapFunc: passwordCipherFunc);
+        } catch (error, stackTrace) {
+          logger.logError(
+            'MFALocker: Failed to enable biometric, cleaning up biometric key',
+            error: error,
+            stackTrace: stackTrace,
+          );
 
           try {
-            // Step 3: Defensive key management - delete before generate
-            try {
-              await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
-            } catch (e) {
-              // Ignore errors - key might not exist yet
-              logger.logInfo('Key might not exist yet: $e');
-            }
-
-            // Step 4: Generate new key
-            await _secureProvider.generateKey(tag: bioCipherFunc.keyTag);
-
-            // Step 5: Enable biometry in locker
-            await enableBiometry(
-              bioCipherFunc: bioCipherFunc,
-              passwordCipherFunc: passwordCipherFunc,
-            );
-          } catch (error, stackTrace) {
+            await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
+          } catch (cleanupError, cleanupStackTrace) {
             logger.logError(
-              'MFALocker: Failed to enable biometric, cleaning up biometric key',
-              error: error,
-              stackTrace: stackTrace,
+              'MFALocker: Failed to cleanup biometric key after enableBiometric failure',
+              error: cleanupError,
+              stackTrace: cleanupStackTrace,
             );
-
-            try {
-              await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
-            } catch (cleanupError, cleanupStackTrace) {
-              logger.logError(
-                'MFALocker: Failed to cleanup biometric key after enableBiometric failure',
-                error: cleanupError,
-                stackTrace: cleanupStackTrace,
-              );
-            }
-
-            rethrow;
           }
-        },
-      );
 
-  /// Disable biometric authentication (requires password confirmation)
-  /// This method handles storage update and key deletion.
+          rethrow;
+        }
+      },
+    ),
+  );
+
   @override
   Future<void> teardownBiometry({
-    required BioCipherFunc bioCipherFunc,
     required PasswordCipherFunc passwordCipherFunc,
-  }) async {
-    // Disable biometry in locker
-    await disableBiometry(
-      bioCipherFunc: bioCipherFunc,
-      passwordCipherFunc: passwordCipherFunc,
-    );
-
-    // Delete biometric key from secure storage
-    await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
-  }
+    String? biometricKeyTag,
+  }) => _sync(
+    () => _executeWithCleanup(
+      erasables: [passwordCipherFunc],
+      callback: () async {
+        await loadAllMetaIfLocked(passwordCipherFunc);
+        await _storage.deleteWrap(originToDelete: Origin.bio, cipherFunc: passwordCipherFunc);
+        if (biometricKeyTag != null) {
+          try {
+            await _secureProvider.deleteKey(tag: biometricKeyTag);
+          } catch (_) {
+            logger.logWarning('teardownBiometry: failed to delete biometric key, suppressing');
+          }
+        }
+      },
+    ),
+  );
 
   Future<T> _executeWithCleanup<T>({
     required List<Erasable> erasables,

@@ -10,7 +10,7 @@ class BiometricUnlockButton extends StatelessWidget {
     buildWhen: (previous, current) =>
         previous.biometricState != current.biometricState || previous.loadState != current.loadState,
     builder: (context, state) {
-      if (!state.biometricState.isEnabled) {
+      if (!state.biometricState.isEnabled || state.biometricState.isKeyInvalidated) {
         return const SizedBox.shrink();
       }
 

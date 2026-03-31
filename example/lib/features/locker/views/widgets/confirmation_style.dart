@@ -6,7 +6,8 @@ enum ConfirmationStyle {
   warning(iconColor: Colors.orange),
 
   /// Danger style with red icon for destructive actions.
-  danger(iconColor: Colors.red);
+  danger(iconColor: Colors.red)
+  ;
 
   const ConfirmationStyle({required this.iconColor});
 

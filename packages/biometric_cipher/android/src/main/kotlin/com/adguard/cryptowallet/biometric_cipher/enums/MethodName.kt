@@ -7,6 +7,7 @@ enum class MethodName {
     ENCRYPT,
     DECRYPT,
     DELETE_KEY,
+    IS_KEY_VALID,
     CONFIGURE;
 
     override fun toString(): String =
@@ -17,6 +18,7 @@ enum class MethodName {
             ENCRYPT -> "encrypt"
             DECRYPT -> "decrypt"
             DELETE_KEY -> "deleteKey"
+            IS_KEY_VALID -> "isKeyValid"
             CONFIGURE -> "configure"
         }
 }

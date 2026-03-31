@@ -118,6 +118,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> with SingleTickerProvid
 
   Future<void> _showAuthenticationPrompt() async {
     final bloc = context.read<LockerBloc>();
+    final showBiometric = bloc.state.canUseBiometric;
 
     final result = await showModalBottomSheet<AuthenticationResult?>(
       context: context,
@@ -126,9 +127,9 @@ class _AddEntryScreenState extends State<AddEntryScreen> with SingleTickerProvid
       enableDrag: false,
       builder: (context) => AuthenticationBottomSheet(
         title: 'Unlock Storage',
-        showBiometricButton: bloc.state.biometricState.isEnabled,
+        showBiometricButton: showBiometric,
         biometricResultStream: bloc.biometricResultStream,
-        onBiometricPressed: bloc.state.biometricState.isEnabled
+        onBiometricPressed: showBiometric
             ? () => bloc.add(
                 LockerEvent.addEntryWithBiometricRequested(
                   name: _nameController.text,
@@ -139,7 +140,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> with SingleTickerProvid
       ),
     );
 
-    if (!mounted) {
+    if (!context.mounted) {
       return;
     }
 

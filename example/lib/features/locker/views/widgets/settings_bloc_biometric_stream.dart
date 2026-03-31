@@ -9,6 +9,7 @@ extension SettingsBlocBiometricStream on SettingsBloc {
           biometricAuthenticationSucceeded: (_) => const BiometricSuccess(),
           biometricAuthenticationCancelled: (_) => const BiometricCancelled(),
           biometricAuthenticationFailed: (a) => BiometricFailed(a.message),
+          biometricKeyInvalidated: (a) => BiometricKeyInvalidated(a.message),
           biometricNotAvailable: (_) => const BiometricNotAvailable(),
         ),
       )

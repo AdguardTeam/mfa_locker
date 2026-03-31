@@ -59,6 +59,8 @@ class SecureServiceImpl(
         secureRepository.deleteKey(tag)
     }
 
+    override fun isKeyValid(tag: String): Boolean = secureRepository.isKeyValid(tag)
+
     private fun checkCryptoStatus(): Boolean =
         getTPMStatus() == TPMStatus.SUPPORTED
                 && authenticateService.getBiometryStatus() == BiometricStatus.SUPPORTED

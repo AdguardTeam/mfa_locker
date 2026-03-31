@@ -26,18 +26,8 @@ class BlocActionConsumer<B extends StateActionStreamable<S, A>, S, A> extends St
       ..add(DiagnosticsProperty<B?>('bloc', bloc))
       ..add(ObjectFlagProperty<BlocWidgetBuilder<S>>.has('builder', builder))
       ..add(ObjectFlagProperty<BlocActionWidgetListener<A>>.has('listener', listener))
-      ..add(
-        ObjectFlagProperty<BlocBuilderCondition<S>?>.has(
-          'buildWhen',
-          buildWhen,
-        ),
-      )
-      ..add(
-        ObjectFlagProperty<BlocActionListenerCondition<A>?>.has(
-          'listenWhen',
-          listenWhen,
-        ),
-      );
+      ..add(ObjectFlagProperty<BlocBuilderCondition<S>?>.has('buildWhen', buildWhen))
+      ..add(ObjectFlagProperty<BlocActionListenerCondition<A>?>.has('listenWhen', listenWhen));
   }
 }
 

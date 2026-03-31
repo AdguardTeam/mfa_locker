@@ -38,516 +38,508 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
 
   @override
   Future<bool> get isInitialized => _sync(() async {
-        try {
-          final isFileExists = await file.exists();
-          if (!isFileExists) {
-            return false;
-          }
+    try {
+      final isFileExists = await file.exists();
+      if (!isFileExists) {
+        return false;
+      }
 
-          final fileLength = await file.length();
-          if (fileLength == 0) {
-            await file.delete();
-            return false;
-          }
+      final fileLength = await file.length();
+      if (fileLength == 0) {
+        await file.delete();
+        return false;
+      }
 
-          final content = await file.readAsString();
-          StorageData.fromJson(jsonDecode(content) as Map<String, Object?>);
-        } catch (e) {
-          return false;
-        }
+      final content = await file.readAsString();
+      StorageData.fromJson(jsonDecode(content) as Map<String, Object?>);
+    } catch (e) {
+      return false;
+    }
 
-        return true;
-      });
+    return true;
+  });
 
-  // TODO: (d.seloustev) A test needs to be added
+  // TODO(d.seloustev): A test needs to be added
   @override
   Future<bool> get isBiometricEnabled => _sync(() async {
-        try {
-          final data = await _loadData();
-          return data.masterKey.wraps.any((w) => w.origin == Origin.bio);
-        } on StorageException catch (e) {
-          // Storage not initialized is expected - biometric is simply not enabled yet
-          if (e.type == StorageExceptionType.notInitialized) {
-            return false;
-          }
-          logger.logError('EncryptedStorageImpl: Failed get isBiometricEnabled', error: e);
+    try {
+      final data = await _loadData();
+      return data.masterKey.wraps.any((w) => w.origin == Origin.bio);
+    } on StorageException catch (e) {
+      // Storage not initialized is expected - biometric is simply not enabled yet
+      if (e.type == StorageExceptionType.notInitialized) {
+        return false;
+      }
+      logger.logError('EncryptedStorageImpl: Failed get isBiometricEnabled', error: e);
 
-          return false;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed get isBiometricEnabled', error: e, stackTrace: st);
+      return false;
+    } catch (e, st) {
+      logger.logError('EncryptedStorageImpl: Failed get isBiometricEnabled', error: e, stackTrace: st);
 
-          return false;
-        }
-      });
+      return false;
+    }
+  });
 
   @override
   Future<Uint8List?> get salt => _sync(() async {
-        try {
-          final data = await _loadData();
+    try {
+      final data = await _loadData();
 
-          return data.salt;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to load salt', error: e, stackTrace: st);
+      return data.salt;
+    } catch (e, st) {
+      logger.logError('EncryptedStorageImpl: Failed to load salt', error: e, stackTrace: st);
 
-          return null;
-        }
-      });
+      return null;
+    }
+  });
 
   @override
   Future<int?> get lockTimeout => _sync(() async {
-        try {
-          final data = await _loadData();
+    try {
+      final data = await _loadData();
 
-          return data.lockTimeout;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to load lockTimeout', error: e, stackTrace: st);
+      return data.lockTimeout;
+    } catch (e, st) {
+      logger.logError('EncryptedStorageImpl: Failed to load lockTimeout', error: e, stackTrace: st);
 
-          return null;
-        }
-      });
+      return null;
+    }
+  });
 
   @override
   Future<void> init({
     required PasswordCipherFunc passwordCipherFunc,
     required List<EntryAddInput> initialEntries,
     required int lockTimeout,
-  }) =>
-      _sync(() async {
-        if (await isInitialized) {
-          throw StorageException.alreadyInitialized();
-        }
+  }) => _sync(() async {
+    if (await isInitialized) {
+      throw StorageException.alreadyInitialized();
+    }
 
-        if (lockTimeout <= 0) {
-          throw StorageException.other('Lock timeout must be greater than 0');
-        }
+    if (lockTimeout <= 0) {
+      throw StorageException.other('Lock timeout must be greater than 0');
+    }
 
-        final explicitIds = initialEntries.map((e) => e.id).whereType<EntryId>().toList();
-        _validateNoDuplicateIds(explicitIds);
+    final explicitIds = initialEntries.map((e) => e.id).whereType<EntryId>().toList();
+    _validateNoDuplicateIds(explicitIds);
 
-        final masterKey = await CryptographyUtils.generateAESKey();
+    final masterKey = await CryptographyUtils.generateAESKey();
 
-        try {
-          final encryptedMasterKey = await passwordCipherFunc.encrypt(masterKey);
-          final wrappedMasterKey = WrappedKey(
-            wraps: [
-              KeyWrap(
-                origin: passwordCipherFunc.origin,
-                encryptedKey: encryptedMasterKey,
-              ),
-            ],
-          );
+    try {
+      final encryptedMasterKey = await passwordCipherFunc.encrypt(masterKey);
+      final wrappedMasterKey = WrappedKey(
+        wraps: [
+          KeyWrap(
+            origin: passwordCipherFunc.origin,
+            encryptedKey: encryptedMasterKey,
+          ),
+        ],
+      );
 
-          final storageEntries = <StorageEntry>[];
-          for (final entry in initialEntries) {
-            final idString = entry.id?.value ?? _generateEntryId();
-            final encryptedMeta = await CryptographyUtils.encrypt(
-              key: masterKey,
-              data: entry.meta,
-            );
-            final encryptedValue = await CryptographyUtils.encrypt(
-              key: masterKey,
-              data: entry.value,
-            );
-            storageEntries.add(
-              StorageEntry(
-                id: EntryId(idString),
-                encryptedMeta: encryptedMeta,
-                encryptedValue: encryptedValue,
-              ),
-            );
-          }
+      final storageEntries = <StorageEntry>[];
+      for (final entry in initialEntries) {
+        final idString = entry.id?.value ?? _generateEntryId();
+        final encryptedMeta = await CryptographyUtils.encrypt(
+          key: masterKey,
+          data: entry.meta,
+        );
+        final encryptedValue = await CryptographyUtils.encrypt(
+          key: masterKey,
+          data: entry.value,
+        );
+        storageEntries.add(
+          StorageEntry(
+            id: EntryId(idString),
+            encryptedMeta: encryptedMeta,
+            encryptedValue: encryptedValue,
+          ),
+        );
+      }
 
-          final storageData = StorageData(
-            entries: storageEntries,
-            masterKey: wrappedMasterKey,
-            salt: passwordCipherFunc.salt,
-            lockTimeout: lockTimeout,
-          );
+      final storageData = StorageData(
+        entries: storageEntries,
+        masterKey: wrappedMasterKey,
+        salt: passwordCipherFunc.salt,
+        lockTimeout: lockTimeout,
+      );
 
-          await _signDataWithHmacAndSave(storageData, masterKey);
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to init', error: e, stackTrace: st);
-          rethrow;
-        } finally {
-          masterKey.erase();
-        }
-      });
+      await _signDataWithHmacAndSave(storageData, masterKey);
+    } catch (e, st) {
+      logger.logError('EncryptedStorageImpl: Failed to init', error: e, stackTrace: st);
+      rethrow;
+    } finally {
+      masterKey.erase();
+    }
+  });
 
   @override
   Future<void> addOrReplaceWrap({
     required CipherFunc newWrapFunc,
     required CipherFunc existingWrapFunc,
-  }) =>
-      _sync(() async {
-        ErasableByteArray? masterKey;
+  }) => _sync(() async {
+    ErasableByteArray? masterKey;
 
-        try {
-          final data = await _loadData();
-          final wrappedKey = data.masterKey;
+    try {
+      final data = await _loadData();
+      final wrappedKey = data.masterKey;
 
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: existingWrapFunc);
+      masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: existingWrapFunc);
 
-          final encryptedMasterKey = await newWrapFunc.encrypt(masterKey);
-          final newWrap = KeyWrap(
-            origin: newWrapFunc.origin,
-            encryptedKey: encryptedMasterKey,
-          );
+      final encryptedMasterKey = await newWrapFunc.encrypt(masterKey);
+      final newWrap = KeyWrap(
+        origin: newWrapFunc.origin,
+        encryptedKey: encryptedMasterKey,
+      );
 
-          final currentWraps = [...wrappedKey.wraps];
-          final index = currentWraps.indexWhere((w) => w.origin == newWrap.origin);
+      final currentWraps = [...wrappedKey.wraps];
+      final index = currentWraps.indexWhere((w) => w.origin == newWrap.origin);
 
-          if (index >= 0) {
-            currentWraps[index] = newWrap;
-          } else {
-            currentWraps.add(newWrap);
-          }
+      if (index >= 0) {
+        currentWraps[index] = newWrap;
+      } else {
+        currentWraps.add(newWrap);
+      }
 
-          Uint8List? newSalt;
-          if (newWrapFunc is PasswordCipherFunc) {
-            newSalt = newWrapFunc.salt;
-          }
+      Uint8List? newSalt;
+      if (newWrapFunc is PasswordCipherFunc) {
+        newSalt = newWrapFunc.salt;
+      }
 
-          final updatedKey = WrappedKey(wraps: currentWraps);
-          final newData = data.copyWith(masterKey: updatedKey, salt: newSalt);
+      final updatedKey = WrappedKey(wraps: currentWraps);
+      final newData = data.copyWith(masterKey: updatedKey, salt: newSalt);
 
-          await _signDataWithHmacAndSave(newData, masterKey);
-        } on DecryptFailedException catch (_) {
-          rethrow;
-        } on BiometricException {
-          rethrow;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to add wrap', error: e, stackTrace: st);
-          rethrow;
-        } finally {
-          masterKey?.erase();
-        }
-      });
+      await _signDataWithHmacAndSave(newData, masterKey);
+    } on DecryptFailedException catch (_) {
+      rethrow;
+    } on BiometricException {
+      rethrow;
+    } catch (e, st) {
+      logger.logError('EncryptedStorageImpl: Failed to add wrap', error: e, stackTrace: st);
+      rethrow;
+    } finally {
+      masterKey?.erase();
+    }
+  });
 
   @override
   Future<bool> deleteWrap({
     required Origin originToDelete,
     required CipherFunc cipherFunc,
-  }) =>
-      _sync(() async {
-        ErasableByteArray? masterKey;
-        try {
-          final data = await _loadData();
+  }) => _sync(() async {
+    ErasableByteArray? masterKey;
+    try {
+      final data = await _loadData();
 
-          final currentWraps = data.masterKey.wraps;
-          final updatedWraps = currentWraps.where((w) => w.origin != originToDelete).toList();
+      final currentWraps = data.masterKey.wraps;
+      final updatedWraps = currentWraps.where((w) => w.origin != originToDelete).toList();
 
-          if (updatedWraps.length == currentWraps.length) {
-            throw StorageException.other('The wrap to delete was not found');
-          }
+      if (updatedWraps.length == currentWraps.length) {
+        throw StorageException.other('The wrap to delete was not found');
+      }
 
-          if (updatedWraps.isEmpty) {
-            throw StorageException.other('The wraps list would be empty after deletion, not allowed');
-          }
+      if (updatedWraps.isEmpty) {
+        throw StorageException.other('The wraps list would be empty after deletion, not allowed');
+      }
 
-          final updatedWrappedKey = WrappedKey(wraps: updatedWraps);
-          final newData = data.copyWith(masterKey: updatedWrappedKey);
+      final updatedWrappedKey = WrappedKey(wraps: updatedWraps);
+      final newData = data.copyWith(masterKey: updatedWrappedKey);
 
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
-          await _signDataWithHmacAndSave(newData, masterKey);
+      masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
+      await _signDataWithHmacAndSave(newData, masterKey);
 
-          return true;
-        } on DecryptFailedException catch (_) {
-          rethrow;
-        } on BiometricException {
-          rethrow;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to delete wrap', error: e, stackTrace: st);
+      return true;
+    } on DecryptFailedException catch (_) {
+      rethrow;
+    } on BiometricException {
+      rethrow;
+    } catch (e, st) {
+      logger.logError('EncryptedStorageImpl: Failed to delete wrap', error: e, stackTrace: st);
 
-          return false;
-        } finally {
-          masterKey?.erase();
-        }
-      });
+      return false;
+    } finally {
+      masterKey?.erase();
+    }
+  });
 
   @override
   Future<bool> deleteEntry({
     required EntryId id,
     required CipherFunc cipherFunc,
-  }) =>
-      _sync(() async {
-        ErasableByteArray? masterKey;
+  }) => _sync(() async {
+    ErasableByteArray? masterKey;
 
-        try {
-          final data = await _loadData();
+    try {
+      final data = await _loadData();
 
-          final originalLength = data.entries.length;
-          final newEntries = data.entries.where((e) => e.id != id).toList();
+      final originalLength = data.entries.length;
+      final newEntries = data.entries.where((e) => e.id != id).toList();
 
-          if (newEntries.length == originalLength) {
-            throw StorageException.entryNotFound();
-          }
+      if (newEntries.length == originalLength) {
+        throw StorageException.entryNotFound();
+      }
 
-          final newData = data.copyWith(entries: newEntries);
+      final newData = data.copyWith(entries: newEntries);
 
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
-          await _signDataWithHmacAndSave(newData, masterKey);
+      masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
+      await _signDataWithHmacAndSave(newData, masterKey);
 
-          return true;
-        } on DecryptFailedException catch (_) {
-          rethrow;
-        } on BiometricException {
-          rethrow;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to delete entry', error: e, stackTrace: st);
+      return true;
+    } on DecryptFailedException catch (_) {
+      rethrow;
+    } on BiometricException {
+      rethrow;
+    } catch (e, st) {
+      logger.logError('EncryptedStorageImpl: Failed to delete entry', error: e, stackTrace: st);
 
-          return false;
-        } finally {
-          masterKey?.erase();
-        }
-      });
+      return false;
+    } finally {
+      masterKey?.erase();
+    }
+  });
 
   @override
   Future<EntryId> addEntry({
     required EntryAddInput input,
     required CipherFunc cipherFunc,
-  }) =>
-      _sync(() async {
-        ErasableByteArray? masterKey;
-        try {
-          final data = await _loadData();
+  }) => _sync(() async {
+    ErasableByteArray? masterKey;
+    try {
+      final data = await _loadData();
 
-          final idString = input.id?.value ?? _generateEntryId();
-          final entryId = EntryId(idString);
+      final idString = input.id?.value ?? _generateEntryId();
+      final entryId = EntryId(idString);
 
-          if (input.id != null) {
-            _validateNoDuplicateIds([entryId, ...data.entries.map((e) => e.id)]);
-          }
+      if (input.id != null) {
+        _validateNoDuplicateIds([entryId, ...data.entries.map((e) => e.id)]);
+      }
 
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
+      masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
 
-          final encryptedMeta = await CryptographyUtils.encrypt(
-            key: masterKey,
-            data: input.meta,
-          );
+      final encryptedMeta = await CryptographyUtils.encrypt(
+        key: masterKey,
+        data: input.meta,
+      );
 
-          final encryptedValue = await CryptographyUtils.encrypt(
-            key: masterKey,
-            data: input.value,
-          );
+      final encryptedValue = await CryptographyUtils.encrypt(
+        key: masterKey,
+        data: input.value,
+      );
 
-          final newEntry = StorageEntry(
-            id: entryId,
-            encryptedMeta: encryptedMeta,
-            encryptedValue: encryptedValue,
-          );
+      final newEntry = StorageEntry(
+        id: entryId,
+        encryptedMeta: encryptedMeta,
+        encryptedValue: encryptedValue,
+      );
 
-          final newEntries = [...data.entries, newEntry];
-          final newData = data.copyWith(entries: newEntries);
+      final newEntries = [...data.entries, newEntry];
+      final newData = data.copyWith(entries: newEntries);
 
-          await _signDataWithHmacAndSave(newData, masterKey);
+      await _signDataWithHmacAndSave(newData, masterKey);
 
-          return entryId;
-        } on DecryptFailedException catch (_) {
-          rethrow;
-        } on BiometricException {
-          rethrow;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to add entry', error: e, stackTrace: st);
+      return entryId;
+    } on DecryptFailedException catch (_) {
+      rethrow;
+    } on BiometricException {
+      rethrow;
+    } catch (e, st) {
+      logger.logError('EncryptedStorageImpl: Failed to add entry', error: e, stackTrace: st);
 
-          rethrow;
-        } finally {
-          masterKey?.erase();
-        }
-      });
+      rethrow;
+    } finally {
+      masterKey?.erase();
+    }
+  });
 
   @override
   Future<void> updateEntry({
     required EntryUpdateInput input,
     required CipherFunc cipherFunc,
-  }) =>
-      _sync(() async {
-        ErasableByteArray? masterKey;
+  }) => _sync(() async {
+    ErasableByteArray? masterKey;
 
-        try {
-          if (input.meta == null && input.value == null) {
-            throw StorageException.other('Either entryMeta or entryValue must be provided');
-          }
+    try {
+      if (input.meta == null && input.value == null) {
+        throw StorageException.other('Either entryMeta or entryValue must be provided');
+      }
 
-          final data = await _loadData();
-          final entry = data.entries.firstWhereOrNull((e) => e.id == input.id);
+      final data = await _loadData();
+      final entry = data.entries.firstWhereOrNull((e) => e.id == input.id);
 
-          if (entry == null) {
-            throw StorageException.entryNotFound();
-          }
+      if (entry == null) {
+        throw StorageException.entryNotFound();
+      }
 
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
+      masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
 
-          Uint8List? encryptedMeta;
-          Uint8List? encryptedValue;
+      Uint8List? encryptedMeta;
+      Uint8List? encryptedValue;
 
-          if (input.meta != null) {
-            encryptedMeta = await CryptographyUtils.encrypt(
-              key: masterKey,
-              data: input.meta!,
-            );
-          }
+      if (input.meta != null) {
+        encryptedMeta = await CryptographyUtils.encrypt(
+          key: masterKey,
+          data: input.meta!,
+        );
+      }
 
-          if (input.value != null) {
-            encryptedValue = await CryptographyUtils.encrypt(
-              key: masterKey,
-              data: input.value!,
-            );
-          }
+      if (input.value != null) {
+        encryptedValue = await CryptographyUtils.encrypt(
+          key: masterKey,
+          data: input.value!,
+        );
+      }
 
-          final updatedEntry = entry.copyWith(
-            encryptedMeta: encryptedMeta,
-            encryptedValue: encryptedValue,
-          );
+      final updatedEntry = entry.copyWith(
+        encryptedMeta: encryptedMeta,
+        encryptedValue: encryptedValue,
+      );
 
-          final entriesWithoutUpdated = data.entries.where((e) => e.id != input.id).toList();
-          final newEntries = [...entriesWithoutUpdated, updatedEntry];
-          final newData = data.copyWith(entries: newEntries);
+      final entriesWithoutUpdated = data.entries.where((e) => e.id != input.id).toList();
+      final newEntries = [...entriesWithoutUpdated, updatedEntry];
+      final newData = data.copyWith(entries: newEntries);
 
-          await _signDataWithHmacAndSave(newData, masterKey);
-        } on DecryptFailedException catch (_) {
-          rethrow;
-        } on BiometricException {
-          rethrow;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to update entry', error: e, stackTrace: st);
+      await _signDataWithHmacAndSave(newData, masterKey);
+    } on DecryptFailedException catch (_) {
+      rethrow;
+    } on BiometricException {
+      rethrow;
+    } catch (e, st) {
+      logger.logError('EncryptedStorageImpl: Failed to update entry', error: e, stackTrace: st);
 
-          rethrow;
-        } finally {
-          masterKey?.erase();
-        }
-      });
+      rethrow;
+    } finally {
+      masterKey?.erase();
+    }
+  });
 
   @override
   Future<Map<EntryId, EntryMeta>> readAllMeta({required CipherFunc cipherFunc}) => _sync(() async {
-        ErasableByteArray? masterKey;
+    ErasableByteArray? masterKey;
 
-        try {
-          final data = await _loadData();
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
+    try {
+      final data = await _loadData();
+      masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
 
-          final result = <EntryId, EntryMeta>{};
+      final result = <EntryId, EntryMeta>{};
 
-          for (final e in data.entries) {
-            final decryptedMeta = await CryptographyUtils.decrypt(
-              key: masterKey,
-              data: e.encryptedMeta,
-            );
+      for (final e in data.entries) {
+        final decryptedMeta = await CryptographyUtils.decrypt(
+          key: masterKey,
+          data: e.encryptedMeta,
+        );
 
-            result[e.id] = EntryMeta.fromErasable(erasable: decryptedMeta);
-          }
+        result[e.id] = EntryMeta.fromErasable(erasable: decryptedMeta);
+      }
 
-          return result;
-        } on DecryptFailedException catch (_) {
-          rethrow;
-        } on BiometricException {
-          rethrow;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to read all meta', error: e, stackTrace: st);
+      return result;
+    } on DecryptFailedException catch (_) {
+      rethrow;
+    } on BiometricException {
+      rethrow;
+    } catch (e, st) {
+      logger.logError('EncryptedStorageImpl: Failed to read all meta', error: e, stackTrace: st);
 
-          rethrow;
-        } finally {
-          masterKey?.erase();
-        }
-      });
+      rethrow;
+    } finally {
+      masterKey?.erase();
+    }
+  });
 
   @override
   Future<EntryValue> readValue({
     required EntryId id,
     required CipherFunc cipherFunc,
-  }) =>
-      _sync(() async {
-        ErasableByteArray? masterKey;
+  }) => _sync(() async {
+    ErasableByteArray? masterKey;
 
-        try {
-          final data = await _loadData();
-          final entry = data.entries.firstWhereOrNull(
-            (e) => e.id == id,
-          );
+    try {
+      final data = await _loadData();
+      final entry = data.entries.firstWhereOrNull(
+        (e) => e.id == id,
+      );
 
-          if (entry == null || entry.id.isEmpty) {
-            throw StorageException.entryNotFound();
-          }
+      if (entry == null || entry.id.isEmpty) {
+        throw StorageException.entryNotFound();
+      }
 
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
-          final decryptedValue = await CryptographyUtils.decrypt(
-            key: masterKey,
-            data: entry.encryptedValue,
-          );
+      masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
+      final decryptedValue = await CryptographyUtils.decrypt(
+        key: masterKey,
+        data: entry.encryptedValue,
+      );
 
-          return EntryValue.fromErasable(erasable: decryptedValue);
-        } on DecryptFailedException catch (_) {
-          rethrow;
-        } on BiometricException {
-          rethrow;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to read value', error: e, stackTrace: st);
+      return EntryValue.fromErasable(erasable: decryptedValue);
+    } on DecryptFailedException catch (_) {
+      rethrow;
+    } on BiometricException {
+      rethrow;
+    } catch (e, st) {
+      logger.logError('EncryptedStorageImpl: Failed to read value', error: e, stackTrace: st);
 
-          rethrow;
-        } finally {
-          masterKey?.erase();
-        }
-      });
+      rethrow;
+    } finally {
+      masterKey?.erase();
+    }
+  });
 
   @override
   Future<void> updateLockTimeout({
     required int lockTimeout,
     required CipherFunc cipherFunc,
-  }) =>
-      _sync(() async {
-        if (lockTimeout <= 0) {
-          throw StorageException.other('Lock timeout must be greater than 0');
-        }
+  }) => _sync(() async {
+    if (lockTimeout <= 0) {
+      throw StorageException.other('Lock timeout must be greater than 0');
+    }
 
-        ErasableByteArray? masterKey;
+    ErasableByteArray? masterKey;
 
-        try {
-          final data = await _loadData();
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
+    try {
+      final data = await _loadData();
+      masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
 
-          final newData = data.copyWith(lockTimeout: lockTimeout);
-          await _signDataWithHmacAndSave(newData, masterKey);
-        } on DecryptFailedException catch (_) {
-          rethrow;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to update lock timeout', error: e, stackTrace: st);
+      final newData = data.copyWith(lockTimeout: lockTimeout);
+      await _signDataWithHmacAndSave(newData, masterKey);
+    } on DecryptFailedException catch (_) {
+      rethrow;
+    } catch (e, st) {
+      logger.logError('EncryptedStorageImpl: Failed to update lock timeout', error: e, stackTrace: st);
 
-          rethrow;
-        } finally {
-          masterKey?.erase();
-        }
-      });
+      rethrow;
+    } finally {
+      masterKey?.erase();
+    }
+  });
 
   @override
   Future<bool> erase() => _sync(() async {
-        final isFileExists = await file.exists();
+    final isFileExists = await file.exists();
 
-        if (!isFileExists) {
-          logger.logInfo('Storage file does not exist, erasing skipped');
-          return true;
-        }
+    if (!isFileExists) {
+      logger.logInfo('Storage file does not exist, erasing skipped');
+      return true;
+    }
 
-        try {
-          await file.delete();
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to erase storage', error: e, stackTrace: st);
+    try {
+      await file.delete();
+    } catch (e, st) {
+      logger.logError('EncryptedStorageImpl: Failed to erase storage', error: e, stackTrace: st);
 
-          return false;
-        }
+      return false;
+    }
 
-        return true;
-      });
+    return true;
+  });
 
   @override
   Future<void> printDebugInfo() => _sync(() async {
-        final exists = await file.exists();
-        logger.logInfo('Storage file exists: $exists');
+    final exists = await file.exists();
+    logger.logInfo('Storage file exists: $exists');
 
-        if (exists) {
-          final stat = await file.stat();
-          logger.logInfo('Storage file size: ${stat.size} bytes');
-          logger.logInfo('Storage last modified: ${stat.modified}');
-        }
-      });
+    if (exists) {
+      final stat = await file.stat();
+      logger.logInfo('Storage file size: ${stat.size} bytes');
+      logger.logInfo('Storage last modified: ${stat.modified}');
+    }
+  });
 
   /// Loads the file content and parses a StorageData
   Future<StorageData> _loadData() async {

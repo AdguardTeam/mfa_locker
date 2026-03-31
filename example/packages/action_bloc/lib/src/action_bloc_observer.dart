@@ -8,10 +8,7 @@ class ActionBlocObserver extends BlocObserver {
 
 @immutable
 class ActionChange<A> {
-  const ActionChange({
-    required this.currentAction,
-    required this.nextAction,
-  });
+  const ActionChange({required this.currentAction, required this.nextAction});
 
   final A? currentAction;
   final A nextAction;

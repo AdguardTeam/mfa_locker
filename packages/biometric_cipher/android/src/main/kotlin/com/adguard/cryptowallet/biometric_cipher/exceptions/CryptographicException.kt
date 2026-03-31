@@ -31,4 +31,28 @@ sealed class CryptographicException(
         message = ErrorType.DECODE_DATA_INVALID_SIZE.errorDescription,
         cause = originCause
     )
+
+    data class EncryptionFailed(
+        val originCause: Throwable? = null
+    ) : CryptographicException(
+        code = ErrorType.ENCRYPTION_ERROR.name,
+        message = ErrorType.ENCRYPTION_ERROR.errorDescription,
+        cause = originCause
+    )
+
+    data class DecryptionFailed(
+        val originCause: Throwable? = null
+    ) : CryptographicException(
+        code = ErrorType.DECRYPTION_ERROR.name,
+        message = ErrorType.DECRYPTION_ERROR.errorDescription,
+        cause = originCause
+    )
+
+    data class KeyPermanentlyInvalidated(
+        val originCause: Throwable? = null
+    ) : CryptographicException(
+        code = ErrorType.KEY_PERMANENTLY_INVALIDATED.name,
+        message = ErrorType.KEY_PERMANENTLY_INVALIDATED.errorDescription,
+        cause = originCause
+    )
 }

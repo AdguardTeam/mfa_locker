@@ -12,4 +12,6 @@ interface SecureService {
     suspend fun decrypt(tag: String, data: String): String
 
     fun deleteKey(tag: String)
+
+    fun isKeyValid(tag: String): Boolean
 }

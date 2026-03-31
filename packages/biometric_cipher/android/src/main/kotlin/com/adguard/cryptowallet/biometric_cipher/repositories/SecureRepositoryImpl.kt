@@ -3,6 +3,7 @@ package com.adguard.cryptowallet.biometric_cipher.repositories
 import android.content.pm.PackageManager
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.annotation.RequiresApi
@@ -86,16 +87,24 @@ class SecureRepositoryImpl(
 
     override fun getCipher(secretKey: SecretKey, optMode: Int, spec: GCMParameterSpec?): Cipher =
         Cipher.getInstance(SecureObjects.TRANSFORMATION).apply {
-            if (spec != null) {
-                init(optMode, secretKey, spec)
-            } else {
-                init(optMode, secretKey)
+            try {
+                if (spec != null) {
+                    init(optMode, secretKey, spec)
+                } else {
+                    init(optMode, secretKey)
+                }
+            } catch (e: KeyPermanentlyInvalidatedException) {
+                throw CryptographicException.KeyPermanentlyInvalidated(e)
             }
         }
 
     override fun encrypt(cipher: Cipher, data: String): String {
         val iv = cipher.iv
-        val encryptedData = cipher.doFinal(data.toByteArray(Charsets.UTF_8))
+        val encryptedData = try {
+            cipher.doFinal(data.toByteArray(Charsets.UTF_8))
+        } catch (e: Exception) {
+            throw CryptographicException.EncryptionFailed(e)
+        }
         val encryptedDataWithIv = iv + encryptedData
         val encodedData = Base64.encodeToString(encryptedDataWithIv, Base64.NO_WRAP)
 
@@ -122,7 +131,11 @@ class SecureRepositoryImpl(
             throw CryptographicException.DecodeDataSizeInvalid()
         }
         val cipherText = decodedData.sliceArray(IV_LENGTH until decodedData.size)
-        val decryptedData = cipher.doFinal(cipherText)
+        val decryptedData = try {
+            cipher.doFinal(cipherText)
+        } catch (e: Exception) {
+            throw CryptographicException.DecryptionFailed(e)
+        }
 
         return String(decryptedData, Charsets.UTF_8)
     }
@@ -132,6 +145,21 @@ class SecureRepositoryImpl(
         keyStore.load(null)
 
         keyStore.deleteEntry(getKeyAliasFromTag(tag))
+    }
+
+    override fun isKeyValid(tag: String): Boolean {
+        val keyStore = KeyStore.getInstance(SecureObjects.ANDROID_KEYSTORE)
+        keyStore.load(null)
+
+        val key = keyStore.getKey(getKeyAliasFromTag(tag), null) ?: return false
+
+        return try {
+            val cipher = Cipher.getInstance(SecureObjects.TRANSFORMATION)
+            cipher.init(Cipher.ENCRYPT_MODE, key)
+            true
+        } catch (e: KeyPermanentlyInvalidatedException) {
+            false
+        }
     }
 
     private fun isStrongBoxAvailable(): Boolean =
@@ -144,6 +172,8 @@ class SecureRepositoryImpl(
     private fun getKeyAliasFromTag(tag: String): String = "${SecureObjects.KEY_PREFIX}$tag"
 
     companion object {
+        // 0 = require fresh biometric authentication for every cryptographic operation (no time-based grace period).
+        // This is intentional: paired with AUTH_BIOMETRIC_STRONG, every encrypt/decrypt requires a new biometric prompt.
         private const val AUTHENTICATION_TIMEOUT = 0
         private const val IV_LENGTH = 12
         private const val AUTHENTICATION_TAG_LENGTH = 128

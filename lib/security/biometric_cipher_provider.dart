@@ -6,6 +6,7 @@ import 'package:biometric_cipher/data/biometric_status.dart';
 import 'package:biometric_cipher/data/tpm_status.dart';
 import 'package:locker/security/models/biometric_config.dart';
 import 'package:locker/security/models/exceptions/biometric_exception.dart';
+import 'package:meta/meta.dart';
 
 /// Interface for biometric cipher storage and cryptographic operations.
 ///
@@ -48,15 +49,23 @@ abstract class BiometricCipherProvider {
   ///
   /// If the key does not exist, this operation should complete without error.
   Future<void> deleteKey({required String tag});
+
+  /// Returns `true` if the biometric key identified by [tag] exists and is valid.
+  ///
+  /// Does not trigger a biometric prompt.
+  Future<bool> isKeyValid({required String tag});
 }
 
 /// Implementation of [BiometricCipherProvider] using the `biometric_cipher` package.
 class BiometricCipherProviderImpl implements BiometricCipherProvider {
-  BiometricCipherProviderImpl._();
-
   static final BiometricCipherProvider instance = BiometricCipherProviderImpl._();
 
-  final BiometricCipher _biometricCipher = BiometricCipher();
+  final BiometricCipher _biometricCipher;
+
+  BiometricCipherProviderImpl._() : _biometricCipher = BiometricCipher();
+
+  @visibleForTesting
+  BiometricCipherProviderImpl.forTesting(this._biometricCipher);
 
   @override
   Future<void> configure(BiometricConfig config) => _biometricCipher.configure(config: config.toConfigData());
@@ -105,21 +114,42 @@ class BiometricCipherProviderImpl implements BiometricCipherProvider {
   @override
   Future<void> deleteKey({required String tag}) => _biometricCipher.deleteKey(tag: tag);
 
+  @override
+  Future<bool> isKeyValid({required String tag}) => _biometricCipher.isKeyValid(tag: tag);
+
   BiometricException _mapExceptionToBiometricException(BiometricCipherException e) => switch (e.code) {
-        BiometricCipherExceptionCode.keyNotFound => const BiometricException(BiometricExceptionType.keyNotFound),
-        BiometricCipherExceptionCode.keyAlreadyExists =>
-          const BiometricException(BiometricExceptionType.keyAlreadyExists),
-        BiometricCipherExceptionCode.authenticationUserCanceled =>
-          const BiometricException(BiometricExceptionType.cancel),
-        BiometricCipherExceptionCode.authenticationError ||
-        BiometricCipherExceptionCode.encryptionError ||
-        BiometricCipherExceptionCode.decryptionError =>
-          const BiometricException(BiometricExceptionType.failure),
-        BiometricCipherExceptionCode.biometricNotSupported ||
-        BiometricCipherExceptionCode.secureEnclaveUnavailable ||
-        BiometricCipherExceptionCode.tpmUnsupported =>
-          const BiometricException(BiometricExceptionType.notAvailable),
-        BiometricCipherExceptionCode.configureError => const BiometricException(BiometricExceptionType.notConfigured),
-        _ => BiometricException(BiometricExceptionType.failure, originalError: e),
-      };
+    BiometricCipherExceptionCode.keyNotFound => BiometricException(
+      BiometricExceptionType.keyNotFound,
+      message: e.message,
+    ),
+    BiometricCipherExceptionCode.keyAlreadyExists => BiometricException(
+      BiometricExceptionType.keyAlreadyExists,
+      message: e.message,
+    ),
+    BiometricCipherExceptionCode.keyPermanentlyInvalidated => BiometricException(
+      BiometricExceptionType.keyInvalidated,
+      message: e.message,
+    ),
+    BiometricCipherExceptionCode.authenticationUserCanceled => BiometricException(
+      BiometricExceptionType.cancel,
+      message: e.message,
+    ),
+    BiometricCipherExceptionCode.authenticationError ||
+    BiometricCipherExceptionCode.encryptionError ||
+    BiometricCipherExceptionCode.decryptionError => BiometricException(
+      BiometricExceptionType.failure,
+      message: e.message,
+    ),
+    BiometricCipherExceptionCode.biometricNotSupported ||
+    BiometricCipherExceptionCode.secureEnclaveUnavailable ||
+    BiometricCipherExceptionCode.tpmUnsupported => BiometricException(
+      BiometricExceptionType.notAvailable,
+      message: e.message,
+    ),
+    BiometricCipherExceptionCode.configureError => BiometricException(
+      BiometricExceptionType.notConfigured,
+      message: e.message,
+    ),
+    _ => BiometricException(BiometricExceptionType.failure, message: e.message, originalError: e),
+  };
 }

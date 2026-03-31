@@ -7,6 +7,7 @@ A secure storage library for Dart/Flutter applications that provides encrypted k
 - **AES-GCM Encryption** — All data is encrypted using industry-standard AES-GCM algorithm
 - **Password Protection** — Argon2id key derivation from user password
 - **Biometric Authentication** — Optional biometric unlock via TPM/Secure Enclave (iOS, macOS, Android, Windows)
+- **Biometric Key Invalidation Detection** — Proactive detection of hardware key invalidation after biometric enrollment changes, with silent key validity probes (no biometric prompt)
 - **HMAC Integrity Verification** — Detects storage tampering using HMAC-SHA256
 - **Auto-Lock** — Automatic locking after configurable inactivity timeout
 - **Secure Memory Management** — Erasable byte arrays that securely wipe sensitive data from memory
@@ -44,13 +45,21 @@ import 'dart:typed_data';
 
 import 'package:locker/locker/mfa_locker.dart';
 import 'package:locker/security/models/password_cipher_func.dart';
+import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_meta.dart';
+import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/erasable/erasable_byte_array.dart';
 
 // Create locker instance with storage file
 final file = File('/path/to/secure_storage.json');
 final locker = MFALocker(file: file);
+
+// Check if storage is already initialized
+final isInitialized = await locker.isStorageInitialized;
+if (isInitialized) {
+  // Storage exists — unlock instead of init
+}
 
 // Create password cipher function
 final passwordCipherFunc = PasswordCipherFunc(
@@ -66,11 +75,16 @@ final initialEntryValue = EntryValue.fromErasable(
   erasable: ErasableByteArray(Uint8List.fromList(utf8.encode('secret_data_here'))),
 );
 
+// Wrap initial entry data
+final initialEntry = EntryAddInput(
+  meta: initialEntryMeta,
+  value: initialEntryValue,
+);
+
 // Initialize with password and first entry
 await locker.init(
   passwordCipherFunc: passwordCipherFunc,
-  initialEntryMeta: initialEntryMeta,
-  initialEntryValue: initialEntryValue,
+  initialEntries: [initialEntry],
   lockTimeout: Duration(minutes: 5),
 );
 ```
@@ -102,8 +116,7 @@ final entryValue = EntryValue.fromErasable(
 );
 
 final entryId = await locker.write(
-  entryMeta: entryMeta,
-  entryValue: entryValue,
+  input: EntryAddInput(meta: entryMeta, value: entryValue),
   cipherFunc: passwordCipherFunc,
 );
 
@@ -113,14 +126,27 @@ final value = await locker.readValue(
   cipherFunc: passwordCipherFunc,
 );
 
-// Load all metadata (locker must be unlocked)
-final allMeta = await locker.loadAllMeta(cipherFunc: passwordCipherFunc);
+// Load all metadata (unlocks the locker if locked)
+await locker.loadAllMeta(passwordCipherFunc);
+final allMeta = locker.allMeta;
 for (final entry in allMeta.entries) {
   print('Entry ID: ${entry.key}');
 }
 
+// Update an entry (meta, value, or both)
+final updatedMeta = EntryMeta.fromErasable(
+  erasable: ErasableByteArray(Uint8List.fromList(utf8.encode('Updated API Key'))),
+);
+await locker.update(
+  input: EntryUpdateInput(id: entryId, meta: updatedMeta),
+  cipherFunc: passwordCipherFunc,
+);
+
 // Delete an entry
 await locker.delete(id: entryId, cipherFunc: passwordCipherFunc);
+
+// Erase all storage data (irreversible)
+await locker.eraseStorage();
 ```
 
 ### 4. Configure Biometric Authentication
@@ -128,6 +154,7 @@ await locker.delete(id: entryId, cipherFunc: passwordCipherFunc);
 ```dart
 import 'package:locker/security/models/biometric_config.dart';
 import 'package:locker/security/models/bio_cipher_func.dart';
+import 'package:locker/locker/models/biometric_state.dart';
 
 // Configure biometrics (call once at app startup)
 await locker.configureBiometricCipher(
@@ -141,9 +168,24 @@ await locker.configureBiometricCipher(
 
 // Check biometric availability
 final biometricState = await locker.determineBiometricState();
-if (biometricState == BiometricState.availableButDisabled) {
-  // Biometrics available, can be enabled
+if (biometricState.isAvailable) {
+  // Biometrics available (availableButDisabled or enabled)
 }
+
+// Check biometric availability with key validation (no biometric prompt)
+final state = await locker.determineBiometricState(
+  biometricKeyTag: 'com.myapp.biometric_key',
+);
+if (state.isKeyInvalidated) {
+  // Key was invalidated by biometric enrollment change — disable and re-setup
+  await locker.teardownBiometry(
+    passwordCipherFunc: passwordCipherFunc,
+    biometricKeyTag: 'com.myapp.biometric_key',
+  );
+}
+
+// Check if biometric unlock is currently enabled
+final isEnabled = await locker.isBiometricEnabled;
 
 // Enable biometric unlock (requires password confirmation)
 final bioCipherFunc = BioCipherFunc(keyTag: 'com.myapp.biometric_key');
@@ -152,10 +194,15 @@ await locker.setupBiometry(
   passwordCipherFunc: passwordCipherFunc,
 );
 
-// Disable biometric unlock
+// Disable biometric unlock (password-only, no biometric prompt)
 await locker.teardownBiometry(
-  bioCipherFunc: bioCipherFunc,
   passwordCipherFunc: passwordCipherFunc,
+);
+
+// Disable biometric unlock and delete the hardware key
+await locker.teardownBiometry(
+  passwordCipherFunc: passwordCipherFunc,
+  biometricKeyTag: 'com.myapp.biometric_key',
 );
 ```
 
@@ -164,6 +211,9 @@ await locker.teardownBiometry(
 ```dart
 // Manual lock
 locker.lock();
+
+// Read current lock timeout
+final timeout = await locker.lockTimeout;
 
 // Update auto-lock timeout
 await locker.updateLockTimeout(
@@ -206,28 +256,64 @@ await locker.changePassword(
 locker.dispose();
 ```
 
+### 8. Error Handling
+
+The library throws three main exception types:
+
+- **`DecryptFailedException`** — wrong password or corrupted data
+- **`BiometricException`** — biometric auth failures; check `BiometricExceptionType` for specifics:
+  - `cancel` — user dismissed the biometric prompt
+  - `failure` — authentication failed (wrong fingerprint, lockout)
+  - `keyInvalidated` — hardware key permanently invalidated after biometric enrollment change
+  - `keyNotFound` — biometric key does not exist in secure hardware
+  - `notAvailable` — biometrics not available on device
+  - `notConfigured` — biometric cipher not configured
+- **`StorageException`** — storage lifecycle errors (`notInitialized`, `alreadyInitialized`, `invalidStorage`, `entryNotFound`)
+
+```dart
+import 'package:locker/security/models/exceptions/biometric_exception.dart';
+import 'package:locker/storage/models/exceptions/decrypt_failed_exception.dart';
+import 'package:locker/storage/models/exceptions/storage_exception.dart';
+
+try {
+  await locker.loadAllMeta(cipherFunc);
+} on DecryptFailedException {
+  // Wrong password or corrupted data
+} on BiometricException catch (e) {
+  switch (e.type) {
+    case BiometricExceptionType.cancel:
+      // User cancelled — no action needed
+    case BiometricExceptionType.keyInvalidated:
+      // Key invalidated — disable biometrics and prompt re-setup
+    default:
+      // Other biometric failure
+  }
+} on StorageException catch (e) {
+  // Storage error — check e.type for specifics
+}
+```
+
 ## Project Structure
 
 ```
 locker/
 ├── lib/
-│   ├── locker/           # Core locker interface and implementation
-│   ├── security/         # Cipher functions, biometric config
-│   ├── storage/          # Encrypted storage implementation
-│   ├── erasable/         # Secure memory management
-│   └── utils/            # Utilities
+│   ├── locker/           # Core locker interface (Locker) and implementation (MFALocker)
+│   ├── security/         # Cipher functions, biometric config, BiometricCipherProvider
+│   ├── storage/          # Encrypted storage interface and JSON file-backed implementation
+│   ├── erasable/         # Secure memory management (ErasableByteArray)
+│   └── utils/            # Cryptography utilities, reentrant lock (Sync), extensions
 ├── packages/
-│   └── biometric_cipher/  # TPM/biometric plugin (iOS, macOS, Android, Windows)
-├── example/              # Demo Flutter app (mfa_demo)
-├── test/                 # Unit tests
-└── docs/                 # Documentation
+│   └── biometric_cipher/  # Native Flutter plugin wrapping TPM/Secure Enclave (iOS, macOS, Android, Windows)
+├── example/              # Demo Flutter app (mfa_demo) — UI → BLoC → Repository → MFALocker
+└── test/                 # Unit tests (mocktail)
 ```
 
 ## Example App
 
 The `example/` directory contains a full Flutter demo app showcasing:
 - Password-based storage initialization
-- Biometric authentication setup
+- Biometric authentication setup and key invalidation recovery
 - Entry CRUD operations
 - Auto-lock behavior
 - Settings management
@@ -236,12 +322,12 @@ To run the example:
 
 ```bash
 cd example
-flutter pub get
+fvm flutter pub get
 
 # Generate freezed classes (required)
-dart run build_runner build --delete-conflicting-outputs
+fvm dart run build_runner build --delete-conflicting-outputs
 
-flutter run
+fvm flutter run
 ```
 
 ---
@@ -265,52 +351,28 @@ This project uses [fvm](https://fvm.app/) (Flutter Version Management) to ensure
 
 ### CI/CD Build Commands
 
-#### Using fvm
-
 ```bash
-# Install dependencies
+# Library — analyze, test, format
 fvm flutter pub get
-
-# Run analyzer
 fvm dart analyze
-
-# Run tests
 fvm flutter test
-
-# Build example app (Android)
-cd example
-fvm flutter pub get
-fvm dart run build_runner build --delete-conflicting-outputs
-fvm flutter build apk --release
-
-# Build example app (iOS)
-cd example
-fvm flutter pub get
-fvm dart run build_runner build --delete-conflicting-outputs
-fvm flutter build ios --release --no-codesign
-
-# Build example app (macOS)
-cd example
-fvm flutter pub get
-fvm dart run build_runner build --delete-conflicting-outputs
-fvm flutter build macos --release
-
-# Build example app (Windows)
-cd example
-fvm flutter pub get
-fvm dart run build_runner build --delete-conflicting-outputs
-fvm flutter build windows --release
-```
-
-#### Format and Lint
-
-```bash
-# Format code
 fvm dart format . --line-length 120
-
-# Apply dart fixes
 fvm dart fix --apply
+
+# Example app — common setup (required before any platform build)
+cd example
+fvm flutter pub get
+fvm dart run build_runner build --delete-conflicting-outputs
 ```
+
+Platform-specific build commands (run from `example/`):
+
+| Platform | Command |
+|----------|---------|
+| Android  | `fvm flutter build apk --release` |
+| iOS      | `fvm flutter build ios --release --no-codesign` |
+| macOS    | `fvm flutter build macos --release` |
+| Windows  | `fvm flutter build windows --release` |
 
 ### GitHub Actions Example
 
@@ -370,9 +432,11 @@ jobs:
 
 | Requirement | Version |
 |-------------|---------|
-| Dart SDK | >= 3.5.0 < 4.0.0 |
-| Flutter SDK | >= 3.35.0 |
+| Dart SDK | ^3.11.0 |
+| Flutter SDK | ^3.41.4 |
 | fvm | Latest |
+
+Flutter version is pinned via `.ci-flutter-version` (currently **3.41.4**). Use `fvm` to match.
 
 ---
 
@@ -391,11 +455,14 @@ Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to report issue
 
 ## Security
 
-See [docs/MFA_Locker.md](docs/MFA_Locker.md) for detailed information about:
-- Encryption algorithms (AES-GCM, HMAC-SHA256, Argon2id)
-- Storage file structure
-- Key derivation and wrapping
-- Biometric key management via TPM/Secure Enclave
+The library implements the following security measures:
+- **Encryption**: AES-GCM for all data at rest
+- **Key derivation**: Argon2id password hashing with per-vault salt
+- **Integrity verification**: HMAC-SHA256 detects storage tampering
+- **Master key wrapping**: Random master key encrypted per auth method (password/biometric)
+- **Biometric key management**: TPM/Secure Enclave hardware-backed keys via the `biometric_cipher` plugin
+- **Biometric key invalidation**: Proactive detection via silent `isKeyValid` probe when biometric enrollment changes (no biometric prompt); `BioCipherFunc` also performs fallback key validity checks during decrypt failures
+- **Memory safety**: `ErasableByteArray` zeroes sensitive data on `erase()`; all operations auto-erase arguments in `finally` blocks
 
 ## License
 

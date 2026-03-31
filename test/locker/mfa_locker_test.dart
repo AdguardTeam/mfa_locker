@@ -1,10 +1,14 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:biometric_cipher/data/biometric_status.dart';
+import 'package:biometric_cipher/data/tpm_status.dart';
 import 'package:locker/erasable/erasable.dart';
 import 'package:locker/locker/locker.dart';
 import 'package:locker/locker/mfa_locker.dart';
+import 'package:locker/locker/models/biometric_state.dart';
 import 'package:locker/security/models/cipher_func.dart';
+import 'package:locker/security/models/exceptions/biometric_exception.dart';
 import 'package:locker/storage/models/data/origin.dart';
 import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
@@ -14,6 +18,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import '../mocks/mock_bio_cipher_func.dart';
+import '../mocks/mock_biometric_cipher_provider.dart';
 import '../mocks/mock_encrypted_storage.dart';
 import '../mocks/mock_file.dart';
 import '../mocks/mock_password_cipher_func.dart';
@@ -924,65 +929,6 @@ void main() {
         _Helpers.verifyErasedAll([oldPwd, newPwd]);
       });
 
-      test('enableBiometry calls correct method from storage', () async {
-        // Arrange
-        final pwd = _Helpers.createMockPasswordCipherFunc();
-        final bio = _Helpers.createMockBioCipherFunc();
-
-        _Helpers.stubReadAllMeta(storage, pwd);
-        await locker.loadAllMeta(pwd);
-
-        when(
-          () => storage.addOrReplaceWrap(
-            newWrapFunc: bio,
-            existingWrapFunc: pwd,
-          ),
-        ).thenAnswer((_) async {});
-
-        // Act
-        await locker.enableBiometry(bioCipherFunc: bio, passwordCipherFunc: pwd);
-
-        // Assert
-        verify(
-          () => storage.addOrReplaceWrap(
-            newWrapFunc: bio,
-            existingWrapFunc: pwd,
-          ),
-        ).called(1);
-
-        _Helpers.verifyErasedAll([pwd, bio]);
-      });
-
-      test('disableBiometry calls correct method from storage', () async {
-        // Arrange
-        final originToDelete = Origin.bio;
-        final pwd = _Helpers.createMockPasswordCipherFunc();
-        final bio = _Helpers.createMockBioCipherFunc();
-
-        _Helpers.stubReadAllMeta(storage, pwd);
-        await locker.loadAllMeta(pwd);
-
-        when(
-          () => storage.deleteWrap(
-            originToDelete: originToDelete,
-            cipherFunc: pwd,
-          ),
-        ).thenAnswer((_) async => true);
-
-        // Act
-        await locker.disableBiometry(bioCipherFunc: bio, passwordCipherFunc: pwd);
-
-        // Assert
-        verify(
-          () => storage.deleteWrap(
-            originToDelete: originToDelete,
-            cipherFunc: pwd,
-          ),
-        ).called(1);
-
-        _Helpers.verifyErasedAll([pwd, bio]);
-      });
-
       test('rethrows on changePassword error', () async {
         // Arrange
         final oldPwd = _Helpers.createMockPasswordCipherFunc();
@@ -1006,50 +952,266 @@ void main() {
         _Helpers.verifyErasedAll([oldPwd, newPwd]);
       });
 
-      test('rethrows on enableBiometry error', () async {
-        // Arrange
-        final pwd = _Helpers.createMockPasswordCipherFunc();
-        final bio = _Helpers.createMockBioCipherFunc();
-        _Helpers.stubReadAllMeta(storage, pwd);
-        await locker.loadAllMeta(pwd);
+    });
 
+    group('setupBiometry', () {
+      const biometricKeyTag = 'test-bio-key-tag';
+
+      late MockBiometricCipherProvider secureProvider;
+      late MockEncryptedStorage tpStorage;
+      late MFALocker tpLocker;
+
+      setUp(() {
+        secureProvider = MockBiometricCipherProvider();
+        tpStorage = MockEncryptedStorage();
+
+        tpLocker = MFALocker(
+          file: MockFile(),
+          storage: tpStorage,
+          secureProvider: secureProvider,
+        );
+
+        when(() => tpStorage.isInitialized).thenAnswer((_) async => true);
+        when(() => tpStorage.lockTimeout).thenAnswer((_) async => _Helpers.lockTimeout.inMilliseconds);
+      });
+
+      tearDown(() {
+        tpLocker.dispose();
+      });
+
+      test('throws BiometricException when TPM is not supported', () async {
+        // Arrange
+        final bio = _Helpers.createMockBioCipherFunc();
+        final pwd = _Helpers.createMockPasswordCipherFunc();
+        when(() => secureProvider.getTPMStatus()).thenAnswer((_) async => TPMStatus.unsupported);
+
+        // Act & Assert
+        await expectLater(
+          () => tpLocker.setupBiometry(bioCipherFunc: bio, passwordCipherFunc: pwd),
+          throwsA(
+            predicate(
+              (e) => e is BiometricException && e.type == BiometricExceptionType.notAvailable,
+            ),
+          ),
+        );
+        verifyNever(() => secureProvider.generateKey(tag: any(named: 'tag')));
+        verifyNever(() => secureProvider.deleteKey(tag: any(named: 'tag')));
+      });
+
+      test('throws BiometricException when biometry is not available', () async {
+        // Arrange
+        final bio = _Helpers.createMockBioCipherFunc();
+        final pwd = _Helpers.createMockPasswordCipherFunc();
+        when(() => secureProvider.getTPMStatus()).thenAnswer((_) async => TPMStatus.supported);
+        when(() => secureProvider.getBiometryStatus()).thenAnswer((_) async => BiometricStatus.unsupported);
+
+        // Act & Assert
+        await expectLater(
+          () => tpLocker.setupBiometry(bioCipherFunc: bio, passwordCipherFunc: pwd),
+          throwsA(
+            predicate(
+              (e) => e is BiometricException && e.type == BiometricExceptionType.notAvailable,
+            ),
+          ),
+        );
+        verifyNever(() => secureProvider.generateKey(tag: any(named: 'tag')));
+        verifyNever(() => secureProvider.deleteKey(tag: any(named: 'tag')));
+      });
+
+      test('deletes key defensively, generates key, and enables biometry on success', () async {
+        // Arrange
+        final bio = _Helpers.createMockBioCipherFunc();
+        when(() => bio.keyTag).thenReturn(biometricKeyTag);
+        final pwd = _Helpers.createMockPasswordCipherFunc();
+        when(() => secureProvider.getTPMStatus()).thenAnswer((_) async => TPMStatus.supported);
+        when(() => secureProvider.getBiometryStatus()).thenAnswer((_) async => BiometricStatus.supported);
+        when(() => secureProvider.deleteKey(tag: biometricKeyTag)).thenAnswer((_) async {});
+        when(() => secureProvider.generateKey(tag: biometricKeyTag)).thenAnswer((_) async {});
+        _Helpers.stubReadAllMeta(tpStorage, pwd);
         when(
-          () => storage.addOrReplaceWrap(
+          () => tpStorage.addOrReplaceWrap(
             newWrapFunc: bio,
             existingWrapFunc: pwd,
           ),
-        ).thenThrow(Exception('test'));
+        ).thenAnswer((_) async {});
+
+        // Act
+        await tpLocker.setupBiometry(bioCipherFunc: bio, passwordCipherFunc: pwd);
+
+        // Assert
+        verify(() => secureProvider.deleteKey(tag: biometricKeyTag)).called(1);
+        verify(() => secureProvider.generateKey(tag: biometricKeyTag)).called(1);
+        verify(() => tpStorage.addOrReplaceWrap(newWrapFunc: bio, existingWrapFunc: pwd)).called(1);
+      });
+
+      test('deletes generated key on failure and rethrows', () async {
+        // Arrange
+        final bio = _Helpers.createMockBioCipherFunc();
+        when(() => bio.keyTag).thenReturn(biometricKeyTag);
+        final pwd = _Helpers.createMockPasswordCipherFunc();
+        when(() => secureProvider.getTPMStatus()).thenAnswer((_) async => TPMStatus.supported);
+        when(() => secureProvider.getBiometryStatus()).thenAnswer((_) async => BiometricStatus.supported);
+        when(() => secureProvider.deleteKey(tag: biometricKeyTag)).thenAnswer((_) async {});
+        when(() => secureProvider.generateKey(tag: biometricKeyTag)).thenAnswer((_) async {});
+        _Helpers.stubReadAllMeta(tpStorage, pwd);
+        when(
+          () => tpStorage.addOrReplaceWrap(
+            newWrapFunc: bio,
+            existingWrapFunc: pwd,
+          ),
+        ).thenThrow(Exception('storage error'));
 
         // Act & Assert
         await expectLater(
-          () => locker.enableBiometry(bioCipherFunc: bio, passwordCipherFunc: pwd),
+          () => tpLocker.setupBiometry(bioCipherFunc: bio, passwordCipherFunc: pwd),
           throwsException,
         );
+        // deleteKey called twice: once defensive before generate, once for cleanup on failure
+        verify(() => secureProvider.deleteKey(tag: biometricKeyTag)).called(2);
+      });
+    });
 
-        _Helpers.verifyErasedAll([pwd, bio]);
+    group('teardownBiometry', () {
+      const biometricKeyTag = 'test-bio-key-tag';
+
+      late MockBiometricCipherProvider secureProvider;
+      late MockEncryptedStorage tpStorage;
+      late MFALocker tpLocker;
+
+      setUp(() {
+        secureProvider = MockBiometricCipherProvider();
+        tpStorage = MockEncryptedStorage();
+
+        tpLocker = MFALocker(
+          file: MockFile(),
+          storage: tpStorage,
+          secureProvider: secureProvider,
+        );
+
+        when(() => tpStorage.isInitialized).thenAnswer((_) async => true);
+        when(() => tpStorage.lockTimeout).thenAnswer((_) async => _Helpers.lockTimeout.inMilliseconds);
       });
 
-      test('rethrows on disableBiometry error', () async {
+      tearDown(() {
+        tpLocker.dispose();
+      });
+
+      test('deletes bio wrap and biometric key on success', () async {
         // Arrange
         final pwd = _Helpers.createMockPasswordCipherFunc();
-        final bio = _Helpers.createMockBioCipherFunc();
-        _Helpers.stubReadAllMeta(storage, pwd);
-        await locker.loadAllMeta(pwd);
+        _Helpers.stubReadAllMeta(tpStorage, pwd);
 
         when(
-          () => storage.deleteWrap(
+          () => tpStorage.deleteWrap(
             originToDelete: Origin.bio,
             cipherFunc: pwd,
           ),
-        ).thenThrow(Exception('test'));
+        ).thenAnswer((_) async => true);
 
-        // Act & Assert
-        await expectLater(
-          () => locker.disableBiometry(bioCipherFunc: bio, passwordCipherFunc: pwd),
-          throwsException,
+        when(() => secureProvider.deleteKey(tag: biometricKeyTag)).thenAnswer((_) async {});
+
+        // Act
+        await tpLocker.teardownBiometry(
+          passwordCipherFunc: pwd,
+          biometricKeyTag: biometricKeyTag,
         );
 
-        _Helpers.verifyErasedAll([pwd, bio]);
+        // Assert
+        verify(
+          () => tpStorage.deleteWrap(
+            originToDelete: Origin.bio,
+            cipherFunc: pwd,
+          ),
+        ).called(1);
+        verify(() => secureProvider.deleteKey(tag: biometricKeyTag)).called(1);
+      });
+
+      test('completes normally when deleteKey throws', () async {
+        // Arrange
+        final pwd = _Helpers.createMockPasswordCipherFunc();
+        _Helpers.stubReadAllMeta(tpStorage, pwd);
+
+        when(
+          () => tpStorage.deleteWrap(
+            originToDelete: Origin.bio,
+            cipherFunc: pwd,
+          ),
+        ).thenAnswer((_) async => true);
+
+        when(() => secureProvider.deleteKey(tag: biometricKeyTag)).thenThrow(Exception('key gone'));
+
+        // Act & Assert - should not throw
+        await tpLocker.teardownBiometry(
+          passwordCipherFunc: pwd,
+          biometricKeyTag: biometricKeyTag,
+        );
+
+        verify(
+          () => tpStorage.deleteWrap(
+            originToDelete: Origin.bio,
+            cipherFunc: pwd,
+          ),
+        ).called(1);
+        verify(() => secureProvider.deleteKey(tag: biometricKeyTag)).called(1);
+      });
+
+      test('skips key deletion when biometricKeyTag is null', () async {
+        // Arrange
+        final pwd = _Helpers.createMockPasswordCipherFunc();
+        _Helpers.stubReadAllMeta(tpStorage, pwd);
+
+        when(
+          () => tpStorage.deleteWrap(
+            originToDelete: Origin.bio,
+            cipherFunc: pwd,
+          ),
+        ).thenAnswer((_) async => true);
+
+        // Act
+        await tpLocker.teardownBiometry(
+          passwordCipherFunc: pwd,
+        );
+
+        // Assert
+        verify(
+          () => tpStorage.deleteWrap(
+            originToDelete: Origin.bio,
+            cipherFunc: pwd,
+          ),
+        ).called(1);
+        verifyNever(() => secureProvider.deleteKey(tag: any(named: 'tag')));
+      });
+
+      test('unlocks before deleting wrap when locker is locked', () async {
+        // Arrange
+        final pwd = _Helpers.createMockPasswordCipherFunc();
+        _Helpers.stubReadAllMeta(tpStorage, pwd);
+
+        when(
+          () => tpStorage.deleteWrap(
+            originToDelete: Origin.bio,
+            cipherFunc: pwd,
+          ),
+        ).thenAnswer((_) async => true);
+
+        when(() => secureProvider.deleteKey(tag: biometricKeyTag)).thenAnswer((_) async {});
+
+        expect(tpLocker.stateStream.value, LockerState.locked);
+
+        // Act
+        await tpLocker.teardownBiometry(
+          passwordCipherFunc: pwd,
+          biometricKeyTag: biometricKeyTag,
+        );
+
+        // Assert
+        verifyInOrder([
+          () => tpStorage.readAllMeta(cipherFunc: pwd),
+          () => tpStorage.deleteWrap(
+            originToDelete: Origin.bio,
+            cipherFunc: pwd,
+          ),
+        ]);
       });
     });
 
@@ -1283,6 +1445,139 @@ void main() {
             cipherFunc: newPwd,
           ),
         ).called(1);
+      });
+    });
+
+    group('determineBiometricState', () {
+      const biometricKeyTag = 'test-bio-key-tag';
+
+      late MockBiometricCipherProvider secureProvider;
+      late MockEncryptedStorage dsStorage;
+      late MFALocker dsLocker;
+
+      setUp(() {
+        secureProvider = MockBiometricCipherProvider();
+        dsStorage = MockEncryptedStorage();
+
+        dsLocker = MFALocker(
+          file: MockFile(),
+          storage: dsStorage,
+          secureProvider: secureProvider,
+        );
+
+        when(() => dsStorage.isInitialized).thenAnswer((_) async => true);
+        when(() => dsStorage.lockTimeout).thenAnswer((_) async => _Helpers.lockTimeout.inMilliseconds);
+
+        when(() => secureProvider.getTPMStatus()).thenAnswer((_) async => TPMStatus.supported);
+        when(() => secureProvider.getBiometryStatus()).thenAnswer((_) async => BiometricStatus.supported);
+        when(() => dsStorage.isBiometricEnabled).thenAnswer((_) async => true);
+      });
+
+      tearDown(() async {
+        dsLocker.dispose();
+      });
+
+      test('returns keyInvalidated when isKeyValid returns false', () async {
+        when(() => secureProvider.isKeyValid(tag: biometricKeyTag)).thenAnswer((_) async => false);
+
+        final result = await dsLocker.determineBiometricState(
+          biometricKeyTag: biometricKeyTag,
+        );
+
+        expect(result, BiometricState.keyInvalidated);
+        verify(() => secureProvider.isKeyValid(tag: biometricKeyTag)).called(1);
+      });
+
+      test('returns enabled when isKeyValid returns true', () async {
+        when(() => secureProvider.isKeyValid(tag: biometricKeyTag)).thenAnswer((_) async => true);
+
+        final result = await dsLocker.determineBiometricState(
+          biometricKeyTag: biometricKeyTag,
+        );
+
+        expect(result, BiometricState.enabled);
+      });
+
+      test('returns enabled without key check when biometricKeyTag is null', () async {
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.enabled);
+        verifyNever(() => secureProvider.isKeyValid(tag: any(named: 'tag')));
+      });
+
+      test('returns tpmUnsupported when TPM is unsupported', () async {
+        when(() => secureProvider.getTPMStatus()).thenAnswer((_) async => TPMStatus.unsupported);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.tpmUnsupported);
+      });
+
+      test('returns tpmVersionIncompatible when TPM version is unsupported', () async {
+        when(() => secureProvider.getTPMStatus()).thenAnswer((_) async => TPMStatus.tpmVersionUnsupported);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.tpmVersionIncompatible);
+      });
+
+      test('returns hardwareUnavailable when biometric status is unsupported', () async {
+        when(() => secureProvider.getBiometryStatus()).thenAnswer((_) async => BiometricStatus.unsupported);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.hardwareUnavailable);
+      });
+
+      test('returns hardwareUnavailable when biometric status is deviceNotPresent', () async {
+        when(() => secureProvider.getBiometryStatus()).thenAnswer((_) async => BiometricStatus.deviceNotPresent);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.hardwareUnavailable);
+      });
+
+      test('returns hardwareUnavailable when biometric status is deviceBusy', () async {
+        when(() => secureProvider.getBiometryStatus()).thenAnswer((_) async => BiometricStatus.deviceBusy);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.hardwareUnavailable);
+      });
+
+      test('returns notEnrolled when user has not configured biometric', () async {
+        when(() => secureProvider.getBiometryStatus()).thenAnswer((_) async => BiometricStatus.notConfiguredForUser);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.notEnrolled);
+      });
+
+      test('returns disabledByPolicy when biometric is disabled by policy', () async {
+        when(() => secureProvider.getBiometryStatus()).thenAnswer((_) async => BiometricStatus.disabledByPolicy);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.disabledByPolicy);
+      });
+
+      test('returns securityUpdateRequired when Android security update is required', () async {
+        when(
+          () => secureProvider.getBiometryStatus(),
+        ).thenAnswer((_) async => BiometricStatus.androidBiometricErrorSecurityUpdateRequired);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.securityUpdateRequired);
+      });
+
+      test('returns availableButDisabled when biometric is not enabled in app settings', () async {
+        when(() => dsStorage.isBiometricEnabled).thenAnswer((_) async => false);
+
+        final result = await dsLocker.determineBiometricState();
+
+        expect(result, BiometricState.availableButDisabled);
+        verifyNever(() => secureProvider.isKeyValid(tag: any(named: 'tag')));
       });
     });
   });

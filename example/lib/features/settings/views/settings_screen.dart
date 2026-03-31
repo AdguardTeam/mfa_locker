@@ -35,7 +35,7 @@ class _SettingsViewState extends State<_SettingsView> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
+      if (!context.mounted) {
         return;
       }
       context.read<LockerBloc>().add(const LockerEvent.checkBiometricAvailabilityRequested());
@@ -47,6 +47,8 @@ class _SettingsViewState extends State<_SettingsView> {
     listener: (context, action) => action.whenOrNull(
       showError: context.showErrorSnackBar,
       showSuccess: context.showSuccessSnackBar,
+      biometricKeyInvalidated: (_) =>
+          context.read<LockerBloc>().add(const LockerEvent.biometricKeyInvalidationDetected()),
     ),
     child: Scaffold(
       appBar: AppBar(
@@ -81,12 +83,17 @@ class _SettingsViewState extends State<_SettingsView> {
                                   SwitchListTile.adaptive(
                                     title: const Text('Biometric authentication'),
                                     subtitle: Text(
-                                      _getBiometricStateDescription(innerLockerState.biometricState),
+                                      _getBiometricStateDescription(
+                                        innerLockerState.biometricState,
+                                      ),
+                                      style: innerLockerState.biometricState.isKeyInvalidated
+                                          ? TextStyle(color: Theme.of(context).colorScheme.error)
+                                          : null,
                                     ),
                                     value: innerLockerState.biometricState.isEnabled,
                                     onChanged: _canToggleBiometric(innerLockerState) ? _handleBiometricToggle : null,
                                   ),
-                                  if (innerLockerState.biometricState.isEnabled)
+                                  if (innerLockerState.canUseBiometric)
                                     Padding(
                                       padding: const EdgeInsets.symmetric(horizontal: 16),
                                       child: Text(
@@ -113,7 +120,8 @@ class _SettingsViewState extends State<_SettingsView> {
   );
 
   bool _canToggleBiometric(LockerState state) =>
-      state.biometricState.isAvailable && state.loadState != LoadState.loading;
+      (state.biometricState.isAvailable || state.biometricState.isKeyInvalidated) &&
+      state.loadState != LoadState.loading;
 
   Future<void> _handleBiometricToggle(bool value) async {
     final result = await showModalBottomSheet<AuthenticationResult?>(
@@ -131,15 +139,20 @@ class _SettingsViewState extends State<_SettingsView> {
       return;
     }
 
+    final password = result?.password;
+    if (password == null) {
+      return;
+    }
+
     final lockerBloc = context.read<LockerBloc>();
 
     if (value) {
       lockerBloc.add(
-        LockerEvent.enableBiometricRequested(password: result!.password!),
+        LockerEvent.enableBiometricRequested(password: password),
       );
     } else {
       lockerBloc.add(
-        LockerEvent.disableBiometricRequested(password: result!.password!),
+        LockerEvent.disableBiometricRequested(password: password),
       );
     }
   }
@@ -153,6 +166,7 @@ class _SettingsViewState extends State<_SettingsView> {
     BiometricState.securityUpdateRequired => 'Security update required',
     BiometricState.availableButDisabled => 'Enable biometric unlock',
     BiometricState.enabled => 'Biometric unlock enabled',
+    BiometricState.keyInvalidated => 'Biometrics changed. Disable and re-enable to use new biometrics.',
   };
 }
 
@@ -199,7 +213,7 @@ class _AutoLockTimeoutTile extends StatelessWidget {
     }
 
     final lockerBloc = context.read<LockerBloc>();
-    final isBiometricEnabled = lockerBloc.state.biometricState.isEnabled;
+    final isBiometricEnabled = lockerBloc.state.canUseBiometric;
 
     if (isBiometricEnabled) {
       lockerBloc.add(
@@ -237,12 +251,15 @@ class _AutoLockTimeoutTile extends StatelessWidget {
     }
 
     if (context.mounted && result?.isBiometricSuccess == false && result.hasValidPassword) {
-      settingsBloc.add(
-        SettingsEvent.autoLockTimeoutSelected(
-          timeout,
-          result!.password!,
-        ),
-      );
+      final password = result?.password;
+      if (password != null) {
+        settingsBloc.add(
+          SettingsEvent.autoLockTimeoutSelected(
+            timeout,
+            password,
+          ),
+        );
+      }
     }
   }
 }

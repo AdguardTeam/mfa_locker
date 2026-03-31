@@ -31,7 +31,7 @@ namespace biometric_cipher {
 
 // static
 void BiometricCipherPlugin::RegisterWithRegistrar(
-    flutter::PluginRegistrarWindows *registrar) 
+    flutter::PluginRegistrarWindows *registrar)
 {
   auto channel =
       std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
@@ -48,15 +48,15 @@ void BiometricCipherPlugin::RegisterWithRegistrar(
   registrar->AddPlugin(std::move(plugin));
 }
 
-BiometricCipherPlugin::BiometricCipherPlugin() : 
+BiometricCipherPlugin::BiometricCipherPlugin() :
 	m_ConfigStorage(std::make_shared<ConfigStorage>())
 {
 	auto windowsTpmRepository = std::make_shared<WindowsTpmRepositoryImpl>();
 	auto windowsHelloRepository = std::make_shared<WindowsHelloRepositoryImpl>();
 	auto winrtEncryptRepository = std::make_shared<WinrtEncryptRepositoryImpl>();
 	m_SecureService = std::make_shared<BiometricCipherService>(
-		m_ConfigStorage, 
-		windowsHelloRepository, 
+		m_ConfigStorage,
+		windowsHelloRepository,
 		windowsTpmRepository,
 		winrtEncryptRepository
 	);
@@ -67,7 +67,7 @@ BiometricCipherPlugin::~BiometricCipherPlugin() {}
 
 void BiometricCipherPlugin::HandleMethodCall(
     const flutter::MethodCall<flutter::EncodableValue> &methodCall,
-    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) 
+    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result)
 {
 
 	auto method = biometric_cipher::GetMethodName(methodCall.method_name());
@@ -121,7 +121,7 @@ void BiometricCipherPlugin::HandleMethodCall(
 
 		DeleteKeyCoroutine(tag, std::move(result));
 		break;
-    }            
+    }
 
     case MethodName::kConfigure:
     {
@@ -142,6 +142,15 @@ void BiometricCipherPlugin::HandleMethodCall(
 		}
 		break;
     }
+
+	case MethodName::kIsKeyValid:
+	{
+		auto arguments = m_Argument_parser.Parse(method, methodCall.arguments());
+		const std::string tag = arguments[ArgumentName::kTag].stringArgument;
+
+		IsKeyValidCoroutine(tag, std::move(result));
+		break;
+	}
 
 	case MethodName::kNotImplemented:
 	default:
@@ -186,7 +195,7 @@ winrt::fire_and_forget BiometricCipherPlugin::GetBiometryStatus(std::unique_ptr<
 
 winrt::fire_and_forget BiometricCipherPlugin::GenerateKeyCoroutine(
 	const std::string& tag,
-	std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) 
+	std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result)
 {
 	try {
 		co_await m_SecureService->GenerateKeyAsync(tag);
@@ -204,8 +213,8 @@ winrt::fire_and_forget BiometricCipherPlugin::GenerateKeyCoroutine(
 }
 
 winrt::fire_and_forget BiometricCipherPlugin::DeleteKeyCoroutine(
-	const std::string& tag, 
-	std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) 
+	const std::string& tag,
+	std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result)
 {
 	try {
 		co_await m_SecureService->DeleteKeyAsync(tag);
@@ -225,7 +234,7 @@ winrt::fire_and_forget BiometricCipherPlugin::DeleteKeyCoroutine(
 winrt::fire_and_forget BiometricCipherPlugin::EncryptCoroutine(
 	const std::string& tag,
 	const std::string& data,
-	std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) 
+	std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result)
 {
 	try {
 		auto encryptedHString = co_await m_SecureService->EncryptAsync(tag, data);
@@ -244,8 +253,8 @@ winrt::fire_and_forget BiometricCipherPlugin::EncryptCoroutine(
 }
 
 winrt::fire_and_forget BiometricCipherPlugin::DecryptCoroutine(
-	const std::string& tag, 
-	const std::string& data, 
+	const std::string& tag,
+	const std::string& data,
 	std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result)
 {
 	try {
@@ -253,6 +262,25 @@ winrt::fire_and_forget BiometricCipherPlugin::DecryptCoroutine(
 		std::string decryptedString = StringUtil::ConvertHStringToString(decryptedData);
 
 		result->Success(decryptedString);
+	}
+	catch (const hresult_error& e) {
+		auto hr = e.code();
+		auto message = e.message();
+		auto errorMessage = StringUtil::ConvertHStringToString(message);
+		OutputException(hr, errorMessage);
+
+		result->Error(GetErrorCodeString(hr), errorMessage);
+	}
+}
+
+winrt::fire_and_forget BiometricCipherPlugin::IsKeyValidCoroutine(
+	const std::string& tag,
+	std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result)
+{
+	try {
+		auto isValid = co_await m_SecureService->IsKeyValidAsync(tag);
+
+		result->Success(isValid);
 	}
 	catch (const hresult_error& e) {
 		auto hr = e.code();

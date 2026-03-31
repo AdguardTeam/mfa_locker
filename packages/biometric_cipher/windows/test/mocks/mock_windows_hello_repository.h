@@ -44,6 +44,13 @@ namespace biometric_cipher {
 				(const hstring tag),
 				(const, override)
 			);
+
+			MOCK_METHOD(
+				(IAsyncOperation<bool>),
+				IsKeyValidAsync,
+				(const hstring tag),
+				(const, override)
+			);
 		};
 	}
 }

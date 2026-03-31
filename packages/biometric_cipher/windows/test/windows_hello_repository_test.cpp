@@ -158,5 +158,86 @@ namespace biometric_cipher {
 				},
 				winrt::hresult_error);
 		}
+		// Test that `IsKeyValidAsync` returns true when OpenAsync returns Success
+		TEST_F(WindowsHelloRepositoryTest, IsKeyValidAsync_ReturnsTrueWhenOpenAsyncReturnsSuccess)
+		{
+			auto fakeResult = winrt::make<FakeKeyCredentialRetrievalResult>();
+			fakeResult.as<FakeKeyCredentialRetrievalResult>()->m_status = KeyCredentialStatus::Success;
+
+			// Arrange
+			EXPECT_CALL(*m_mockHelloWrapper, IsSupportedAsync())
+				.WillOnce(testing::Return(MakeCompletedAsyncBool(true)));
+
+			EXPECT_CALL(*m_mockHelloWrapper, OpenAsync)
+				.WillOnce(testing::Return(MakeCompletedAsyncKeyCredentialResult(fakeResult.as<KeyCredentialRetrievalResult>())));
+
+			// Act
+			auto result = m_Repository->IsKeyValidAsync(L"test_tag").get();
+
+			// Assert
+			EXPECT_TRUE(result);
+		}
+
+		// Test that `IsKeyValidAsync` returns false (not throw) when OpenAsync returns NotFound
+		TEST_F(WindowsHelloRepositoryTest, IsKeyValidAsync_ReturnsFalseWhenOpenAsyncReturnsNotFound)
+		{
+			auto fakeResult = winrt::make<FakeKeyCredentialRetrievalResult>();
+			fakeResult.as<FakeKeyCredentialRetrievalResult>()->m_status = KeyCredentialStatus::NotFound;
+
+			// Arrange
+			EXPECT_CALL(*m_mockHelloWrapper, IsSupportedAsync())
+				.WillOnce(testing::Return(MakeCompletedAsyncBool(true)));
+
+			EXPECT_CALL(*m_mockHelloWrapper, OpenAsync)
+				.WillOnce(testing::Return(MakeCompletedAsyncKeyCredentialResult(fakeResult.as<KeyCredentialRetrievalResult>())));
+
+			// Act
+			auto result = m_Repository->IsKeyValidAsync(L"test_tag").get();
+
+			// Assert
+			EXPECT_FALSE(result);
+		}
+
+		// Test that `IsKeyValidAsync` returns false for UserCanceled status
+		TEST_F(WindowsHelloRepositoryTest, IsKeyValidAsync_ReturnsFalseWhenOpenAsyncReturnsUserCanceled)
+		{
+			auto fakeResult = winrt::make<FakeKeyCredentialRetrievalResult>();
+			fakeResult.as<FakeKeyCredentialRetrievalResult>()->m_status = KeyCredentialStatus::UserCanceled;
+
+			// Arrange
+			EXPECT_CALL(*m_mockHelloWrapper, IsSupportedAsync())
+				.WillOnce(testing::Return(MakeCompletedAsyncBool(true)));
+
+			EXPECT_CALL(*m_mockHelloWrapper, OpenAsync)
+				.WillOnce(testing::Return(MakeCompletedAsyncKeyCredentialResult(fakeResult.as<KeyCredentialRetrievalResult>())));
+
+			// Act
+			auto result = m_Repository->IsKeyValidAsync(L"test_tag").get();
+
+			// Assert
+			EXPECT_FALSE(result);
+		}
+
+		// Test that `IsKeyValidAsync` throws when Windows Hello is not supported
+		TEST_F(WindowsHelloRepositoryTest, IsKeyValidAsync_ThrowsWhenWindowsHelloNotSupported)
+		{
+			// Arrange
+			EXPECT_CALL(*m_mockHelloWrapper, IsSupportedAsync())
+				.WillOnce(testing::Return(MakeCompletedAsyncBool(false)));
+
+			EXPECT_CALL(*m_mockHelloWrapper, CheckAvailabilityAsync())
+				.WillOnce(
+					testing::Return(
+					MakeCompletedAsyncUserConsent(UserConsentVerifierAvailability::DeviceNotPresent)
+					)
+				);
+
+			// Act & Assert
+			EXPECT_THROW(
+				{
+					m_Repository->IsKeyValidAsync(L"test_tag").get();
+				},
+				winrt::hresult_error);
+		}
 	}
 }

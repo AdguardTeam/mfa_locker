@@ -38,28 +38,28 @@ class StorageData {
     Uint8List? hmacSignature,
     Uint8List? salt,
     int? lockTimeout,
-  }) =>
-      StorageData(
-        entries: entries ?? this.entries,
-        masterKey: masterKey ?? this.masterKey,
-        hmacKey: hmacKey ?? this.hmacKey,
-        hmacSignature: hmacSignature ?? this.hmacSignature,
-        salt: salt ?? this.salt,
-        lockTimeout: lockTimeout ?? this.lockTimeout,
-      );
+  }) => StorageData(
+    entries: entries ?? this.entries,
+    masterKey: masterKey ?? this.masterKey,
+    hmacKey: hmacKey ?? this.hmacKey,
+    hmacSignature: hmacSignature ?? this.hmacSignature,
+    salt: salt ?? this.salt,
+    lockTimeout: lockTimeout ?? this.lockTimeout,
+  );
 
   /// Returns a copy with hmacSignature set to null
   StorageData withoutHmacSignature() => StorageData(
-        entries: entries,
-        masterKey: masterKey,
-        hmacKey: hmacKey,
-        salt: salt,
-        lockTimeout: lockTimeout,
-      );
+    entries: entries,
+    masterKey: masterKey,
+    hmacKey: hmacKey,
+    salt: salt,
+    lockTimeout: lockTimeout,
+  );
 
   factory StorageData.fromJson(Map<String, Object?> json) {
-    final entriesList =
-        (json[_entriesFieldName] as List).map((e) => StorageEntry.fromJson(e as Map<String, Object?>)).toList();
+    final entriesList = (json[_entriesFieldName] as List)
+        .map((e) => StorageEntry.fromJson(e as Map<String, Object?>))
+        .toList();
     final masterKey = WrappedKey.fromJson(json[_masterKeyFieldName] as Map<String, Object?>);
     final hmacKeyStr = json[_hmacKeyFieldName] as String?;
     final hmacSignatureStr = json[_hmacSignatureFieldName] as String?;
@@ -77,11 +77,11 @@ class StorageData {
   }
 
   Map<String, Object?> toJson() => {
-        _entriesFieldName: entries.map((e) => e.toJson()).toList(),
-        _masterKeyFieldName: masterKey.toJson(),
-        _saltFieldName: base64.encode(salt),
-        if (hmacKey != null) _hmacKeyFieldName: base64.encode(hmacKey!),
-        if (hmacSignature != null) _hmacSignatureFieldName: base64.encode(hmacSignature!),
-        _lockTimeoutFieldName: lockTimeout,
-      };
+    _entriesFieldName: entries.map((e) => e.toJson()).toList(),
+    _masterKeyFieldName: masterKey.toJson(),
+    _saltFieldName: base64.encode(salt),
+    if (hmacKey != null) _hmacKeyFieldName: base64.encode(hmacKey!),
+    if (hmacSignature != null) _hmacSignatureFieldName: base64.encode(hmacSignature!),
+    _lockTimeoutFieldName: lockTimeout,
+  };
 }

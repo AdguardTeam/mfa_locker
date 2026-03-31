@@ -5,6 +5,8 @@ import com.adguard.cryptowallet.biometric_cipher.enums.TPMStatus
 import com.adguard.cryptowallet.biometric_cipher.exceptions.BiometricException
 import com.adguard.cryptowallet.biometric_cipher.repositories.SecureRepository
 import junit.framework.TestCase.assertEquals
+import junit.framework.TestCase.assertFalse
+import junit.framework.TestCase.assertTrue
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertThrows
@@ -191,6 +193,29 @@ class SecureServiceTest {
 
         verify(authenticateService).getBiometryStatus()
         verify(secureRepository).deleteKey(TEST_KEY_ALIAS)
+    }
+
+    // ------------------------------------------------------------------------
+    //  isKeyValid
+    // ------------------------------------------------------------------------
+    @Test
+    fun `isKeyValid returns true when repository returns true`() {
+        whenever(secureRepository.isKeyValid(TEST_KEY_ALIAS)).thenReturn(true)
+
+        val result = secureService.isKeyValid(TEST_KEY_ALIAS)
+
+        assertTrue(result)
+        verify(secureRepository).isKeyValid(TEST_KEY_ALIAS)
+    }
+
+    @Test
+    fun `isKeyValid returns false when repository returns false`() {
+        whenever(secureRepository.isKeyValid(TEST_KEY_ALIAS)).thenReturn(false)
+
+        val result = secureService.isKeyValid(TEST_KEY_ALIAS)
+
+        assertFalse(result)
+        verify(secureRepository).isKeyValid(TEST_KEY_ALIAS)
     }
 
     companion object {
