@@ -951,7 +951,6 @@ void main() {
 
         _Helpers.verifyErasedAll([oldPwd, newPwd]);
       });
-
     });
 
     group('setupBiometry', () {
