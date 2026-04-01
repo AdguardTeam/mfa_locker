@@ -16,7 +16,7 @@ Companion to: `docs/idea-2349.md`, `docs/vision-2349.md`
 | 6 | Example app: `ScreenLockService` | :white_circle: Pending | |
 | 7 | Example app: DI wiring + event | :white_circle: Pending | |
 | 8 | Example app: BLoC integration | :white_circle: Pending | |
-**Current Phase:** 3
+**Current Phase:** 4
 
 ---
 
@@ -67,14 +67,14 @@ Companion to: `docs/idea-2349.md`, `docs/vision-2349.md`
 
 **Goal:** Detect screen lock via platform-specific notifications — `protectedDataWillBecomeUnavailable` (iOS) and `com.apple.screenIsLocked` (macOS).
 
-- [ ] **3.1** Create `ScreenLockStreamHandler`
+- [x] **3.1** Create `ScreenLockStreamHandler`
   - File: new — `packages/biometric_cipher/darwin/Classes/ScreenLockStreamHandler.swift`
   - `FlutterStreamHandler` with `#if os(iOS)` / `#elseif os(macOS)` guards
   - iOS: `NotificationCenter` + `protectedDataWillBecomeUnavailableNotification`
   - macOS: `DistributedNotificationCenter` + `com.apple.screenIsLocked`
   - `onListen`: add observer, `onCancel`: remove observer
 
-- [ ] **3.2** Register EventChannel in `BiometricCipherPlugin.register(with:)`
+- [x] **3.2** Register EventChannel in `BiometricCipherPlugin.register(with:)`
   - File: `packages/biometric_cipher/darwin/Classes/BiometricCipherPlugin.swift`
   - Create `FlutterEventChannel(name: "biometric_cipher/screen_lock")`, set stream handler
 
