@@ -9,7 +9,7 @@ Companion to: `docs/idea-2349.md`, `docs/vision-2349.md`
 | # | Iteration | Status | Notes |
 |---|-----------|--------|-------|
 | 1 | Dart plugin: `screenLockStream` | :green_circle: Done | |
-| 2 | Android: `ScreenLockStreamHandler` | :white_circle: Pending | |
+| 2 | Android: `ScreenLockStreamHandler` | :green_circle: Done | |
 | 3 | iOS/macOS: `ScreenLockStreamHandler` | :white_circle: Pending | |
 | 4 | Windows: `ScreenLockStreamHandler` | :white_circle: Pending | |
 | 5 | Plugin tests | :white_circle: Pending | |
@@ -46,17 +46,17 @@ Companion to: `docs/idea-2349.md`, `docs/vision-2349.md`
 
 **Goal:** Detect `ACTION_SCREEN_OFF` via `BroadcastReceiver` and push events through EventChannel.
 
-- [ ] **2.1** Create `ScreenLockStreamHandler`
+- [x] **2.1** Create `ScreenLockStreamHandler`
   - File: new — `packages/biometric_cipher/android/src/main/kotlin/com/adguard/cryptowallet/biometric_cipher/handlers/ScreenLockStreamHandler.kt`
   - `BroadcastReceiver` for `ACTION_SCREEN_OFF`, registered with application context
   - `onListen`: register receiver, `onCancel`: unregister receiver
 
-- [ ] **2.2** Register EventChannel in `BiometricCipherPlugin.onAttachedToEngine`
+- [x] **2.2** Register EventChannel in `BiometricCipherPlugin.onAttachedToEngine`
   - File: `packages/biometric_cipher/android/src/main/kotlin/com/adguard/cryptowallet/biometric_cipher/BiometricCipherPlugin.kt`
   - Create `EventChannel("biometric_cipher/screen_lock")`, set stream handler
   - Store references as class fields
 
-- [ ] **2.3** Clean up in `onDetachedFromEngine`
+- [x] **2.3** Clean up in `onDetachedFromEngine`
   - Same file — set stream handler to null, nullify references
 
 **Verify:** `cd example && fvm flutter build apk --debug`

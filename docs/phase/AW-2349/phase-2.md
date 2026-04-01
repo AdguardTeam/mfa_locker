@@ -15,17 +15,17 @@ Key design points:
 
 ## Tasks
 
-- [ ] **2.1** Create `ScreenLockStreamHandler`
+- [x] **2.1** Create `ScreenLockStreamHandler`
   - File: new — `packages/biometric_cipher/android/src/main/kotlin/com/adguard/cryptowallet/biometric_cipher/handlers/ScreenLockStreamHandler.kt`
   - `BroadcastReceiver` for `ACTION_SCREEN_OFF`, registered with application context
   - `onListen`: register receiver, `onCancel`: unregister receiver
 
-- [ ] **2.2** Register EventChannel in `BiometricCipherPlugin.onAttachedToEngine`
+- [x] **2.2** Register EventChannel in `BiometricCipherPlugin.onAttachedToEngine`
   - File: `packages/biometric_cipher/android/src/main/kotlin/com/adguard/cryptowallet/biometric_cipher/BiometricCipherPlugin.kt`
   - Create `EventChannel("biometric_cipher/screen_lock")`, set stream handler
   - Store references as class fields (`screenLockEventChannel`, `screenLockStreamHandler`)
 
-- [ ] **2.3** Clean up in `onDetachedFromEngine`
+- [x] **2.3** Clean up in `onDetachedFromEngine`
   - Same file — `screenLockEventChannel?.setStreamHandler(null)`, nullify both references
 
 ## Acceptance Criteria
