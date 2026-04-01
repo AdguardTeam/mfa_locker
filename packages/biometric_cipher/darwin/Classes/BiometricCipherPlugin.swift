@@ -24,9 +24,19 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
     public static func register(with registrar: FlutterPluginRegistrar) {
 #if os(iOS)
         let channel = FlutterMethodChannel(name: "biometric_cipher", binaryMessenger: registrar.messenger())
+        let screenLockChannel = FlutterEventChannel(
+            name: "biometric_cipher/screen_lock",
+            binaryMessenger: registrar.messenger()
+        )
 #elseif os(macOS)
         let channel = FlutterMethodChannel(name: "biometric_cipher", binaryMessenger: registrar.messenger)
+        let screenLockChannel = FlutterEventChannel(
+            name: "biometric_cipher/screen_lock",
+            binaryMessenger: registrar.messenger
+        )
 #endif
+        screenLockChannel.setStreamHandler(ScreenLockStreamHandler())
+
         let instance = BiometricCipherPlugin()
         registrar.addMethodCallDelegate(instance, channel: channel)
     }

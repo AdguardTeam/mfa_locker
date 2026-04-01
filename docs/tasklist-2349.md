@@ -10,7 +10,7 @@ Companion to: `docs/idea-2349.md`, `docs/vision-2349.md`
 |---|-----------|--------|-------|
 | 1 | Dart plugin: `screenLockStream` | :green_circle: Done | |
 | 2 | Android: `ScreenLockStreamHandler` | :green_circle: Done | |
-| 3 | iOS/macOS: `ScreenLockStreamHandler` | :white_circle: Pending | |
+| 3 | iOS/macOS: `ScreenLockStreamHandler` | :green_circle: Done | |
 | 4 | Windows: `ScreenLockStreamHandler` | :white_circle: Pending | |
 | 5 | Plugin tests | :white_circle: Pending | |
 | 6 | Example app: `ScreenLockService` | :white_circle: Pending | |

@@ -19,14 +19,14 @@ Key design points:
 
 ## Tasks
 
-- [ ] **3.1** Create `ScreenLockStreamHandler`
+- [x] **3.1** Create `ScreenLockStreamHandler`
   - File: new — `packages/biometric_cipher/darwin/Classes/ScreenLockStreamHandler.swift`
   - `FlutterStreamHandler` with `#if os(iOS)` / `#elseif os(macOS)` guards
   - iOS: `NotificationCenter` + `protectedDataWillBecomeUnavailableNotification`
   - macOS: `DistributedNotificationCenter` + `com.apple.screenIsLocked`
   - `onListen`: add observer, `onCancel`: remove observer
 
-- [ ] **3.2** Register EventChannel in `BiometricCipherPlugin.register(with:)`
+- [x] **3.2** Register EventChannel in `BiometricCipherPlugin.register(with:)`
   - File: `packages/biometric_cipher/darwin/Classes/BiometricCipherPlugin.swift`
   - Create `FlutterEventChannel(name: "biometric_cipher/screen_lock")`, set stream handler
 
