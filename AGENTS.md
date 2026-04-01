@@ -19,7 +19,7 @@ The repo contains:
 
 | Field | Value |
 |-------|-------|
-| **Language** | Dart 3.11+ / Flutter 3.41.4 |
+| **Language** | Dart 3.5+ / Flutter 3.35.1 |
 | **State Management** | `flutter_bloc` 8.1.6 + custom `action_bloc` (local package) with `freezed` for immutable states/events |
 | **Architecture** | Library: Locker → Security → Storage → Crypto. Example app: UI → BLoC → Repository → MFALocker |
 | **Encryption** | AES-256-GCM (authenticated encryption) via `cryptography` 2.7.0 |
@@ -43,17 +43,18 @@ mfa_locker/
 │   │   ├── locker.dart              # Locker abstract interface (public API)
 │   │   ├── mfa_locker.dart          # MFALocker — main implementation
 │   │   └── models/
-│   │       └── biometric_state.dart # BiometricState enum (9 states)
+│   │       └── biometric_state.dart # BiometricState enum (9 states: includes keyInvalidated)
 │   ├── security/
 │   │   ├── security_provider.dart          # SecurityProvider — password/biometric auth factory
-│   │   ├── biometric_cipher_provider.dart  # BiometricCipherProvider — TPM/Secure Enclave ops
+│   │   ├── biometric_cipher_provider.dart  # BiometricCipherProvider — TPM/Secure Enclave ops (includes isKeyValid)
 │   │   └── models/
 │   │       ├── cipher_func.dart            # Abstract CipherFunc (encrypt/decrypt + Erasable)
 │   │       ├── password_cipher_func.dart   # Argon2id-derived AES-GCM cipher
-│   │       ├── bio_cipher_func.dart        # TPM-backed biometric cipher
+│   │       ├── bio_cipher_func.dart        # TPM-backed biometric cipher (includes key validity checking)
 │   │       ├── biometric_config.dart       # Platform-specific biometric prompt config
+│   │       ├── key_validity_status.dart    # KeyValidityStatus enum (valid, invalid, unknown)
 │   │       └── exceptions/
-│   │           └── biometric_exception.dart # Typed biometric errors (7 types)
+│   │           └── biometric_exception.dart # BiometricException + BiometricExceptionType (7 types, includes keyInvalidated)
 │   ├── storage/
 │   │   ├── encrypted_storage.dart       # EncryptedStorage interface
 │   │   ├── encrypted_storage_impl.dart  # JSON file-backed implementation with atomic writes
@@ -115,7 +116,7 @@ mfa_locker/
 
 ## Build And Test Commands
 
-Flutter version is pinned via `.ci-flutter-version` → **3.41.4**. Use `fvm` to match.
+Flutter version is pinned via `.ci-flutter-version` → **3.35.1**. Use `fvm` to match.
 
 ### Library (root)
 
@@ -203,7 +204,7 @@ Layered architecture: **Locker (API) → Security (auth) → Storage (persistenc
 **Key design decisions:**
 
 - **Master key wrapping**: A random master key encrypts all entries. The master key itself is encrypted ("wrapped") per authentication method (password or biometric), stored as `WrappedKey` with multiple `KeyWrap` entries identified by `Origin` (`pwd` or `bio`).
-- **`CipherFunc`**: Abstraction over an authentication method. `PasswordCipherFunc` derives a key via Argon2id on every encrypt/decrypt call (intentional — minimizes derived key lifetime in memory). `BioCipherFunc` delegates to the TPM/Secure Enclave.
+- **`CipherFunc`**: Abstraction over an authentication method. `PasswordCipherFunc` derives a key via Argon2id on every encrypt/decrypt call (intentional — minimizes derived key lifetime in memory). `BioCipherFunc` delegates to the TPM/Secure Enclave and performs key validity checks before decrypt operations via `_checkKeyValidity`, translating TPM key-invalidated errors to `BiometricExceptionType.keyInvalidated`.
 - **`ErasableByteArray`**: Overwrites bytes to zero on `erase()`. All sensitive data implements `Erasable`. Every `MFALocker` operation calls `erase()` on its arguments in `finally` via `_executeWithCleanup`.
 - **`Sync`**: Reentrant `synchronized` lock guards all `MFALocker` and `EncryptedStorageImpl` state mutations.
 - **Metadata cache**: After unlock, `EntryMeta` objects are cached in `_metaCache`. Values (`EntryValue`) are never cached — fetched and erased on demand.
@@ -386,5 +387,5 @@ formatter:
 | `adguard_logger` | v1.0.1 (git) | Logging |
 | `biometric_cipher` | local path | Hardware-backed biometric operations |
 | `collection` | 1.19.1 | Collection utilities |
-| `meta` | 1.17.0 | Annotations (`@visibleForTesting`) |
+| `meta` | 1.16.0 | Annotations (`@visibleForTesting`) |
 | `path` | 1.9.1 | File path utilities |
