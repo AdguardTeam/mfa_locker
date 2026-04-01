@@ -16,7 +16,7 @@ Companion to: `docs/idea-2349.md`, `docs/vision-2349.md`
 | 6 | Example app: `ScreenLockService` | :white_circle: Pending | |
 | 7 | Example app: DI wiring + event | :white_circle: Pending | |
 | 8 | Example app: BLoC integration | :white_circle: Pending | |
-**Current Phase:** 1
+**Current Phase:** 2
 
 ---
 
