@@ -23,7 +23,7 @@ dependencies:
   locker:
     git:
       url: https://github.com/AdguardTeam/mfa_locker.git
-      ref: master
+      ref: v1.0.1  # Use the latest tag
 ```
 
 Or for local development:
