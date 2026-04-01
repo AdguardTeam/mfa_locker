@@ -22,11 +22,12 @@ class StorageEntry {
   StorageEntry copyWith({
     Uint8List? encryptedMeta,
     Uint8List? encryptedValue,
-  }) => StorageEntry(
-    id: id,
-    encryptedMeta: encryptedMeta ?? this.encryptedMeta,
-    encryptedValue: encryptedValue ?? this.encryptedValue,
-  );
+  }) =>
+      StorageEntry(
+        id: id,
+        encryptedMeta: encryptedMeta ?? this.encryptedMeta,
+        encryptedValue: encryptedValue ?? this.encryptedValue,
+      );
 
   factory StorageEntry.fromJson(Map<String, Object?> json) {
     final idStr = json[_idFieldName] as String;
@@ -41,8 +42,8 @@ class StorageEntry {
   }
 
   Map<String, Object?> toJson() => {
-    _idFieldName: base64.encode(utf8.encode(id.value)),
-    _metaFieldName: base64.encode(encryptedMeta),
-    _valueFieldName: base64.encode(encryptedValue),
-  };
+        _idFieldName: base64.encode(utf8.encode(id.value)),
+        _metaFieldName: base64.encode(encryptedMeta),
+        _valueFieldName: base64.encode(encryptedValue),
+      };
 }

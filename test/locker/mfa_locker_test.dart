@@ -951,7 +951,6 @@ void main() {
 
         _Helpers.verifyErasedAll([oldPwd, newPwd]);
       });
-
     });
 
     group('setupBiometry', () {
@@ -1208,9 +1207,9 @@ void main() {
         verifyInOrder([
           () => tpStorage.readAllMeta(cipherFunc: pwd),
           () => tpStorage.deleteWrap(
-            originToDelete: Origin.bio,
-            cipherFunc: pwd,
-          ),
+                originToDelete: Origin.bio,
+                cipherFunc: pwd,
+              ),
         ]);
       });
     });

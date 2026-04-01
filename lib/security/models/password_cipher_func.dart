@@ -13,8 +13,8 @@ class PasswordCipherFunc extends CipherFunc {
   PasswordCipherFunc({
     required String password,
     required this.salt,
-  }) : password = ErasableByteArray(password.codeUnits.toUint8List()),
-       super(origin: Origin.pwd);
+  })  : password = ErasableByteArray(password.codeUnits.toUint8List()),
+        super(origin: Origin.pwd);
 
   @override
   bool get isErased => password.isErased;
