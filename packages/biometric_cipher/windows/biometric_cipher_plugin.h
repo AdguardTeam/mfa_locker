@@ -2,6 +2,7 @@
 #define FLUTTER_PLUGIN_BIOMETRIC_CIPHER_PLUGIN_H_
 
 #include "include/biometric_cipher/common/argument_parser.h"
+#include "include/biometric_cipher/handlers/screen_lock_stream_handler.h"
 #include "include/biometric_cipher/services/biometric_cipher_service.h"
 #include "include/biometric_cipher/storages/config_storage.h"
 
@@ -34,6 +35,9 @@ class BiometricCipherPlugin : public flutter::Plugin {
   void HandleMethodCall(
       const flutter::MethodCall<flutter::EncodableValue> &method_call,
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+
+  // Prevent premature destruction; assigned in RegisterWithRegistrar (static).
+  std::unique_ptr<ScreenLockStreamHandler> screen_lock_handler_;
 
 private:
 	winrt::fire_and_forget GetTPMStatus(

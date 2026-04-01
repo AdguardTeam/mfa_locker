@@ -78,6 +78,7 @@ list(APPEND PLUGIN_SOURCES
   "winrt_encrypt_repository_impl.cpp"
   "biometric_cipher_service.cpp"
   "biometric_cipher_plugin.cpp"
+  "handlers/screen_lock_stream_handler.cpp"
 )
 
 # Define the plugin library target. Its name must not be changed (see comment
@@ -103,12 +104,15 @@ target_compile_definitions(${PLUGIN_NAME} PRIVATE FLUTTER_PLUGIN_IMPL)
 # dependencies here.
 target_include_directories(${PLUGIN_NAME} INTERFACE
   "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_include_directories(${PLUGIN_NAME} PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(${PLUGIN_NAME} PRIVATE ${CMAKE_BINARY_DIR}/packages/Microsoft.Windows.ImplementationLibrary.${WIL_VERSION}/build/native/Microsoft.Windows.ImplementationLibrary.targets)
-target_link_libraries(${PLUGIN_NAME} PRIVATE 
-  flutter 
-  flutter_wrapper_plugin 
+target_link_libraries(${PLUGIN_NAME} PRIVATE
+  flutter
+  flutter_wrapper_plugin
   windowsapp
   ncrypt
+  Wtsapi32
 )
 
 # List of absolute paths to libraries that should be bundled with the plugin.
@@ -160,12 +164,12 @@ add_executable(${TEST_RUNNER}
 apply_standard_settings(${TEST_RUNNER})
 target_include_directories(${TEST_RUNNER} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(${TEST_RUNNER} PRIVATE flutter_wrapper_plugin)
-target_link_libraries(${TEST_RUNNER} PRIVATE windowsapp ncrypt)
+target_link_libraries(${TEST_RUNNER} PRIVATE windowsapp ncrypt Wtsapi32)
 target_link_libraries(${TEST_RUNNER} PRIVATE
   gmock
   gmock_main
   gtest
-  gtest_main 
+  gtest_main
 )
 # flutter_wrapper_plugin has link dependencies on the Flutter DLL.
 add_custom_command(TARGET ${TEST_RUNNER} POST_BUILD

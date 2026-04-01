@@ -11,7 +11,7 @@ Companion to: `docs/idea-2349.md`, `docs/vision-2349.md`
 | 1 | Dart plugin: `screenLockStream` | :green_circle: Done | |
 | 2 | Android: `ScreenLockStreamHandler` | :green_circle: Done | |
 | 3 | iOS/macOS: `ScreenLockStreamHandler` | :green_circle: Done | |
-| 4 | Windows: `ScreenLockStreamHandler` | :white_circle: Pending | |
+| 4 | Windows: `ScreenLockStreamHandler` | :green_circle: Done | |
 | 5 | Plugin tests | :white_circle: Pending | |
 | 6 | Example app: `ScreenLockService` | :white_circle: Pending | |
 | 7 | Example app: DI wiring + event | :white_circle: Pending | |
@@ -86,23 +86,23 @@ Companion to: `docs/idea-2349.md`, `docs/vision-2349.md`
 
 **Goal:** Detect session lock via `WTSRegisterSessionNotification` + `WM_WTSSESSION_CHANGE` / `WTS_SESSION_LOCK`.
 
-- [ ] **4.1** Create `ScreenLockStreamHandler` header
+- [x] **4.1** Create `ScreenLockStreamHandler` header
   - File: new — `packages/biometric_cipher/windows/include/biometric_cipher/handlers/screen_lock_stream_handler.h`
   - Class with `CreateStreamHandler()`, window proc delegate, register/unregister
 
-- [ ] **4.2** Create `ScreenLockStreamHandler` implementation
+- [x] **4.2** Create `ScreenLockStreamHandler` implementation
   - File: new — `packages/biometric_cipher/windows/handlers/screen_lock_stream_handler.cpp`
   - `RegisterWindowProc`: `WTSRegisterSessionNotification` + `RegisterTopLevelWindowProcDelegate`
   - `HandleWindowMessage`: check `WM_WTSSESSION_CHANGE` + `WTS_SESSION_LOCK`
 
-- [ ] **4.3** Register EventChannel in `BiometricCipherPlugin::RegisterWithRegistrar`
+- [x] **4.3** Register EventChannel in `BiometricCipherPlugin::RegisterWithRegistrar`
   - File: `packages/biometric_cipher/windows/biometric_cipher_plugin.cpp`
   - Create EventChannel, set stream handler, store in plugin instance
 
-- [ ] **4.4** Add `screen_lock_handler_` member to plugin header
+- [x] **4.4** Add `screen_lock_handler_` member to plugin header
   - File: `packages/biometric_cipher/windows/include/biometric_cipher/biometric_cipher_plugin.h`
 
-- [ ] **4.5** Update CMakeLists.txt
+- [x] **4.5** Update CMakeLists.txt
   - File: `packages/biometric_cipher/windows/CMakeLists.txt`
   - Add `handlers/screen_lock_stream_handler.cpp` to sources
   - Link `Wtsapi32` library

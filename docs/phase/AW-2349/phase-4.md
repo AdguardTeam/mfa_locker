@@ -21,23 +21,23 @@ Key design points:
 
 ## Tasks
 
-- [ ] **4.1** Create `ScreenLockStreamHandler` header
+- [x] **4.1** Create `ScreenLockStreamHandler` header
   - File: new — `packages/biometric_cipher/windows/include/biometric_cipher/handlers/screen_lock_stream_handler.h`
   - Class with `CreateStreamHandler()`, window proc delegate, register/unregister
 
-- [ ] **4.2** Create `ScreenLockStreamHandler` implementation
+- [x] **4.2** Create `ScreenLockStreamHandler` implementation
   - File: new — `packages/biometric_cipher/windows/handlers/screen_lock_stream_handler.cpp`
   - `RegisterWindowProc`: `WTSRegisterSessionNotification` + `RegisterTopLevelWindowProcDelegate`
   - `HandleWindowMessage`: check `WM_WTSSESSION_CHANGE` + `WTS_SESSION_LOCK`
 
-- [ ] **4.3** Register EventChannel in `BiometricCipherPlugin::RegisterWithRegistrar`
+- [x] **4.3** Register EventChannel in `BiometricCipherPlugin::RegisterWithRegistrar`
   - File: `packages/biometric_cipher/windows/biometric_cipher_plugin.cpp`
   - Create EventChannel, set stream handler, store in plugin instance
 
-- [ ] **4.4** Add `screen_lock_handler_` member to plugin header
+- [x] **4.4** Add `screen_lock_handler_` member to plugin header
   - File: `packages/biometric_cipher/windows/include/biometric_cipher/biometric_cipher_plugin.h`
 
-- [ ] **4.5** Update CMakeLists.txt
+- [x] **4.5** Update CMakeLists.txt
   - File: `packages/biometric_cipher/windows/CMakeLists.txt`
   - Add `handlers/screen_lock_stream_handler.cpp` to sources
   - Link `Wtsapi32` library
@@ -207,3 +207,20 @@ target_link_libraries(${PLUGIN_NAME} PRIVATE Wtsapi32)
 - `registrar_windows` is the `flutter::PluginRegistrarWindows*` cast from `registrar` — check the existing `biometric_cipher_plugin.cpp` for the pattern already used.
 - The `window_proc_delegate_id_` initialized to `-1` serves as a sentinel for "not registered" — guard `UnregisterWindowProc` with `>= 0` check.
 - Look at the existing `biometric_cipher_plugin.cpp` to understand the exact variable name used for `registrar_windows` and the method channel setup pattern before wiring task 4.3.
+
+## Code Review Fixes
+
+- [x] **Task 6: Add `namespace biometric_cipher` to `ScreenLockStreamHandler`**
+  - Wrap `ScreenLockStreamHandler` class in `namespace biometric_cipher { ... }` in both the header (`.h`) and implementation (`.cpp`) files
+  - Every other header in `packages/biometric_cipher/windows/include/biometric_cipher/` uses `namespace biometric_cipher`; the new handler should be consistent
+  - Acceptance criteria:
+    - `screen_lock_stream_handler.h` wraps its class declaration in `namespace biometric_cipher { ... }`
+    - `screen_lock_stream_handler.cpp` wraps its method definitions in `namespace biometric_cipher { ... }`
+    - The code compiles without errors (verify on Windows or by inspection that all references resolve correctly)
+
+- [x] **Task 7: Synchronize main tasklist with Phase 4 completion**
+  - Update `docs/tasklist-2349.md` to mark tasks 4.1-4.5 as `[x]` (checked)
+  - Update the Progress Report table to show Iteration 4 as `:green_circle: Done`
+  - Acceptance criteria:
+    - All five Phase 4 task checkboxes in `docs/tasklist-2349.md` are `[x]`
+    - Progress Report row for Iteration 4 shows `:green_circle: Done`
