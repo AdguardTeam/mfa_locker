@@ -10,8 +10,7 @@ class BiometricException implements Exception {
   });
 
   @override
-  String toString() =>
-      message != null ? 'BiometricException(type: $type, message: $message)' : 'BiometricException(type: $type)';
+  String toString() => 'BiometricException(type: $type, message: $message)';
 }
 
 enum BiometricExceptionType {
