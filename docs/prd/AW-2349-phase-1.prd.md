@@ -1,6 +1,6 @@
 # AW-2349-phase-1: Screen Lock Detection — Dart Plugin Layer (`screenLockStream`)
 
-Status: DRAFT
+Status: PRD_READY
 
 ## Context / Idea
 
@@ -21,20 +21,20 @@ Phase 1 is a pure Dart change inside `packages/biometric_cipher/`. It establishe
 | File | Change |
 |------|--------|
 | `packages/biometric_cipher/lib/biometric_cipher_platform_interface.dart` | Add `screenLockStream` getter with empty-stream default |
-| `packages/biometric_cipher/lib/biometric_cipher_method_channel.dart` | Add `EventChannel` constant + `late final` `screenLockStream` impl |
+| `packages/biometric_cipher/lib/biometric_cipher_method_channel.dart` | Add `static const` `EventChannel` field + `late final` `screenLockStream` impl |
 | `packages/biometric_cipher/lib/biometric_cipher.dart` | Expose `screenLockStream` on public `BiometricCipher` class |
-| `packages/biometric_cipher/test/biometric_cipher_test.dart` | Add `screenLockStream` test group |
-| `packages/biometric_cipher/test/mock_biometric_cipher_platform.dart` | Add `screenLockStream` support to mock |
+| `packages/biometric_cipher/test/biometric_cipher_test.dart` | Add `group('screenLockStream', ...)` inside existing test file |
+| `packages/biometric_cipher/test/mock_biometric_cipher_platform.dart` | Add public `StreamController<bool>` field backing `screenLockStream` |
 
 ---
 
 ## Goals
 
 1. Define the `screenLockStream` contract as a `Stream<bool>` on `BiometricCipherPlatform` with a safe default (`const Stream.empty()`) for unsupported/unimplemented platforms.
-2. Implement `screenLockStream` in `MethodChannelBiometricCipher` using `EventChannel('biometric_cipher/screen_lock')` with `receiveBroadcastStream()` — lazily initialized via `late final`.
+2. Implement `screenLockStream` in `MethodChannelBiometricCipher` using a `static const EventChannel('biometric_cipher/screen_lock')` field with `receiveBroadcastStream()` — lazily initialized via `late final`.
 3. Expose `screenLockStream` on the public `BiometricCipher` facade, explicitly documenting that it does not require `configure()`.
 4. Pass static analysis (`fvm flutter analyze --fatal-warnings --fatal-infos --no-pub .`) on `packages/biometric_cipher/`.
-5. Add unit tests for the new API surface that verify the stream contract through the mock platform.
+5. Add unit tests for the new API surface inside the existing `biometric_cipher_test.dart` that verify the stream contract through the mock platform.
 
 ---
 
@@ -42,9 +42,9 @@ Phase 1 is a pure Dart change inside `packages/biometric_cipher/`. It establishe
 
 **As a library consumer** (future phases / example app), I want a `Stream<bool>` available on `BiometricCipher` that emits `true` when the device screen is locked, so that I can subscribe to it without knowing the platform-specific channel details.
 
-**As a platform implementer** (native phase authors), I want the `EventChannel` name (`"biometric_cipher/screen_lock"`) and stream type (`Stream<bool>`) to be established in Dart before I implement the native side, so that the native registration can reference an agreed-upon channel name.
+**As a platform implementer** (native phase authors), I want the `EventChannel` name (`"biometric_cipher/screen_lock"`) and stream type (`Stream<bool>`) to be established in Dart before I implement the native side, so that the native registration can reference an agreed-upon channel name via the `static const` field.
 
-**As a test author**, I want the mock platform to carry a controllable `screenLockStream` so that I can exercise the full stream path in unit tests without native code.
+**As a test author**, I want the mock platform to carry a controllable `screenLockStream` backed by a public `StreamController<bool>` field, so that I can exercise the full stream path in unit tests without native code.
 
 ---
 
@@ -68,10 +68,10 @@ Phase 1 is a pure Dart change inside `packages/biometric_cipher/`. It establishe
 - Both Dart listeners receive events when the native side fires.
 
 ### Scenario 4 — Unit test with mock platform
-- `MockBiometricCipherPlatform` exposes a `StreamController<bool>` that backs `screenLockStream`.
-- Test calls `streamController.add(true)`.
+- `MockBiometricCipherPlatform` exposes a public `StreamController<bool>` field (consistent with existing mock fields such as `isConfigured` and `keys`).
+- Test calls `mockPlatform.screenLockStreamController.add(true)`.
 - `BiometricCipher.screenLockStream` emits `true` to the listener.
-- Test verifies the event is received.
+- Test verifies the event is received inside the existing `biometric_cipher_test.dart` under a new `group('screenLockStream', ...)`.
 
 ### Scenario 5 — `configure()` independence
 - Consumer accesses `BiometricCipher().screenLockStream` without ever calling `configure()`.
@@ -85,11 +85,11 @@ Phase 1 is a pure Dart change inside `packages/biometric_cipher/`. It establishe
 | Criterion | How verified |
 |-----------|-------------|
 | `screenLockStream` added to `BiometricCipherPlatform` with `Stream.empty()` default | Code review / analyze |
-| `MethodChannelBiometricCipher` implements `screenLockStream` via `EventChannel('biometric_cipher/screen_lock')` | Code review / analyze |
+| `MethodChannelBiometricCipher` implements `screenLockStream` via `static const EventChannel('biometric_cipher/screen_lock')` | Code review / analyze |
 | `BiometricCipher.screenLockStream` delegates to `_instance.screenLockStream` with no `_configured` guard | Code review |
 | `fvm flutter analyze --fatal-warnings --fatal-infos --no-pub .` passes with zero warnings/infos | CI analyze step |
-| Unit tests for `screenLockStream` added to `biometric_cipher_test.dart` | Test file present, tests pass |
-| `MockBiometricCipherPlatform.screenLockStream` is controllable in tests | Code review / tests green |
+| `group('screenLockStream', ...)` added to `biometric_cipher_test.dart`; all tests pass | Test file present, tests green |
+| `MockBiometricCipherPlatform` has a public `StreamController<bool>` field backing `screenLockStream` | Code review / tests green |
 | No changes outside `packages/biometric_cipher/` | Diff scope |
 
 ---
@@ -98,10 +98,13 @@ Phase 1 is a pure Dart change inside `packages/biometric_cipher/`. It establishe
 
 - **Dart-only scope:** Phase 1 touches no native code (Kotlin, Swift, C++). Native handlers are out of scope.
 - **EventChannel name is fixed:** `"biometric_cipher/screen_lock"` — must be identical in Dart and all future native implementations.
-- **Stream type is `Stream<bool>`:** Only emits `true` (lock event). Unlock detection is handled by existing `AppLifecycleState.resumed` logic. The `false` value is reserved but not used.
+- **Stream type is `Stream<bool>`:** Matches the raw `EventChannel` payload type and reserves `false` for a potential future unlock signal. Only `true` (lock event) is emitted in practice.
+- **`static const` EventChannel field:** The `EventChannel` is declared as a `static const` field on `MethodChannelBiometricCipher` so the channel name is referenceable by name in tests and native phases.
 - **`late final` initialization:** `MethodChannelBiometricCipher.screenLockStream` must be `late final` to lazily create and cache the native subscription — exactly one native subscription regardless of listener count.
 - **No `_configured` guard:** Unlike `decrypt()`, `screenLockStream` must be accessible without prior `configure()` call. The doc comment on `BiometricCipher.screenLockStream` must state this explicitly.
 - **Default is `const Stream.empty()`:** The platform interface provides a non-throwing default, making all platforms safe even before native support is added.
+- **Mock field style:** `MockBiometricCipherPlatform` exposes a public `StreamController<bool>` field for `screenLockStream`, consistent with the existing pattern of public fields (`isConfigured`, `keys`). No constructor parameter is needed.
+- **Test placement:** `screenLockStream` tests are added as a new `group('screenLockStream', ...)` inside the existing `biometric_cipher_test.dart`. A separate test file is not created.
 - **Plugin analyze scope:** Acceptance criterion is `fvm flutter analyze` scoped to `packages/biometric_cipher/` only. Root-level analyze is not part of Phase 1 acceptance.
 - **Existing tests must remain green:** No regressions to the existing `biometric_cipher_test.dart` test groups (`configure`, `encrypt-decrypt cycle`, `generateKey`, `encrypt`, `decrypt`, `deleteKey`, `isKeyValid`).
 
@@ -112,19 +115,22 @@ Phase 1 is a pure Dart change inside `packages/biometric_cipher/`. It establishe
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
 | `late final` field initialization order causes issues if accessed before engine is ready | Low | Medium | `late final` defers until first access; no eager initialization risk |
-| Mock platform not updated to include `screenLockStream`, causing test compilation failure | Medium | Low | Phase 1 tasks explicitly include updating `MockBiometricCipherPlatform` |
-| EventChannel name typo mismatching future native implementations | Low | High | Channel name `"biometric_cipher/screen_lock"` defined as a `static const` in `MethodChannelBiometricCipher`, referenced by name in native phases |
+| EventChannel name typo mismatching future native implementations | Low | High | Channel name defined as a `static const` field on `MethodChannelBiometricCipher`; native phases reference it by this constant |
 | `receiveBroadcastStream()` behavior differs between Flutter versions | Low | Low | Flutter version is pinned at 3.41.4 via `.ci-flutter-version` |
 | `const Stream.empty()` default not recognized as `Stream<bool>` in all Dart type contexts | Low | Low | Explicit type parameter `Stream<bool>.empty()` or cast may be needed; verify during implementation |
 
 ---
 
+## Resolved Questions
+
+1. **Mock platform design for `screenLockStream`:** Resolved — use a public `StreamController<bool>` field on `MockBiometricCipherPlatform`, consistent with the existing pattern of public fields (`isConfigured`, `keys`). No constructor parameter.
+
+2. **Test file location for `screenLockStream` tests:** Resolved — add a new `group('screenLockStream', ...)` inside the existing `biometric_cipher_test.dart`. Do not create a separate file.
+
+3. **`Stream<bool>` vs `Stream<void>`:** Resolved — use `Stream<bool>`. This matches the raw `EventChannel` payload type and reserves the `false` value for a potential future unlock signal.
+
+4. **`static const` vs inline EventChannel definition:** Resolved — declare `EventChannel` as a `static const` field on `MethodChannelBiometricCipher`. This makes the channel name referenceable by name in tests and in future native phases.
+
 ## Open Questions
 
-1. **Mock platform design for `screenLockStream`:** The idea doc shows `mockPlatform.screenLockStreamController = controller` — should `MockBiometricCipherPlatform` expose a `StreamController<bool>` as a public field, or should the field be set via a constructor parameter? The existing mock uses public fields (e.g., `isConfigured`, `keys`) — is a public `StreamController` field consistent with the mock's style?
-
-2. **Test file location for `screenLockStream` tests:** The idea doc places them in `packages/biometric_cipher/test/biometric_cipher_test.dart` as a new `group('screenLockStream', ...)`. Is this preferred over a separate `screen_lock_stream_test.dart` file? (The one-type-per-file convention applies to types, not test groups — but a separate file would improve discoverability.)
-
-3. **`Stream<bool>` vs `Stream<void>`:** The stream only ever emits `true`. Should the type be `Stream<void>` to better express the semantic (an event with no payload), or is `Stream<bool>` preferred because it aligns with what the native `EventChannel` carries (a boolean value) and leaves room for a hypothetical `false` (unlock) event?
-
-4. **`static const` vs `late static const` for EventChannel name:** Should `_screenLockEventChannel` be a `static const EventChannel(...)` field on `MethodChannelBiometricCipher`, or defined inline in the `late final` initializer? A `static const` field makes the channel name referenceable for testing.
+_(none)_

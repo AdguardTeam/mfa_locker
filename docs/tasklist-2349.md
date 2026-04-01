@@ -8,7 +8,7 @@ Companion to: `docs/idea-2349.md`, `docs/vision-2349.md`
 
 | # | Iteration | Status | Notes |
 |---|-----------|--------|-------|
-| 1 | Dart plugin: `screenLockStream` | :white_circle: Pending | |
+| 1 | Dart plugin: `screenLockStream` | :green_circle: Done | |
 | 2 | Android: `ScreenLockStreamHandler` | :white_circle: Pending | |
 | 3 | iOS/macOS: `ScreenLockStreamHandler` | :white_circle: Pending | |
 | 4 | Windows: `ScreenLockStreamHandler` | :white_circle: Pending | |
@@ -24,16 +24,16 @@ Companion to: `docs/idea-2349.md`, `docs/vision-2349.md`
 
 **Goal:** Add `screenLockStream` getter through the Dart plugin layer — platform interface, method channel, and public API.
 
-- [ ] **1.1** Add `screenLockStream` to `BiometricCipherPlatform`
+- [x] **1.1** Add `screenLockStream` to `BiometricCipherPlatform`
   - File: `packages/biometric_cipher/lib/biometric_cipher_platform_interface.dart`
   - Add `Stream<bool> get screenLockStream => const Stream.empty();`
 
-- [ ] **1.2** Implement `screenLockStream` in `MethodChannelBiometricCipher`
+- [x] **1.2** Implement `screenLockStream` in `MethodChannelBiometricCipher`
   - File: `packages/biometric_cipher/lib/biometric_cipher_method_channel.dart`
   - Add `EventChannel('biometric_cipher/screen_lock')`
   - Add `late final Stream<bool> screenLockStream` via `receiveBroadcastStream().map()`
 
-- [ ] **1.3** Expose `screenLockStream` from `BiometricCipher`
+- [x] **1.3** Expose `screenLockStream` from `BiometricCipher`
   - File: `packages/biometric_cipher/lib/biometric_cipher.dart`
   - Add `Stream<bool> get screenLockStream => _instance.screenLockStream;`
   - No `_configured` check — independent of biometric configuration

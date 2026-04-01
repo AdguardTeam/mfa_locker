@@ -238,6 +238,30 @@ void main() {
         );
       });
     });
+
+    group('screenLockStream', () {
+      test('emits events from platform', () async {
+        final stream = biometricCipher.screenLockStream;
+
+        final future = expectLater(stream, emits(true));
+        mockPlatform.screenLockStreamController.add(true);
+        await future;
+      });
+
+      test('works without configure', () {
+        expect(() => biometricCipher.screenLockStream, returnsNormally);
+      });
+
+      test('emits multiple events', () async {
+        final stream = biometricCipher.screenLockStream;
+
+        final future = expectLater(stream, emitsInOrder([true, true, true]));
+        mockPlatform.screenLockStreamController.add(true);
+        mockPlatform.screenLockStreamController.add(true);
+        mockPlatform.screenLockStreamController.add(true);
+        await future;
+      });
+    });
   });
 
   group('BiometricCipherExceptionCode', () {

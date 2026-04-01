@@ -1,7 +1,9 @@
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'dart:async';
+
 import 'package:biometric_cipher/data/biometric_status.dart';
 import 'package:biometric_cipher/data/model/config_data.dart';
 import 'package:biometric_cipher/data/tpm_status.dart';
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'biometric_cipher_method_channel.dart';
 
@@ -27,6 +29,12 @@ abstract class BiometricCipherPlatform extends PlatformInterface {
     PlatformInterface.verifyToken(instance, _token);
     _instance = instance;
   }
+
+  /// Stream that emits `true` when the device screen is locked.
+  ///
+  /// The stream uses an EventChannel to receive native screen lock events.
+  /// Returns an empty stream on platforms that do not support screen lock detection.
+  Stream<bool> get screenLockStream => const Stream<bool>.empty();
 
   /// Configures the biometric cipher plugin with platform-specific settings.
   ///

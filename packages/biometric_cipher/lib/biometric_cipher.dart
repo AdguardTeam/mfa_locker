@@ -26,6 +26,17 @@ class BiometricCipher {
     _configured = true;
   }
 
+  /// Stream that emits `true` when the device screen is locked.
+  ///
+  /// Uses platform-specific silent detection:
+  /// - Android: `ACTION_SCREEN_OFF` broadcast
+  /// - iOS: `protectedDataWillBecomeUnavailableNotification`
+  /// - macOS: `com.apple.screenIsLocked` distributed notification
+  /// - Windows: `WTS_SESSION_LOCK` session change event
+  ///
+  /// Does NOT require [configure] to be called first.
+  Stream<bool> get screenLockStream => _instance.screenLockStream;
+
   Future<TPMStatus> getTPMStatus() => _instance.getTPMStatus();
 
   Future<BiometricStatus> getBiometryStatus() => _instance.getBiometryStatus();

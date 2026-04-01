@@ -9,9 +9,16 @@ import 'package:biometric_cipher/biometric_cipher_platform_interface.dart';
 
 /// An implementation of [BiometricCipherPlatform] that uses method channels.
 class MethodChannelBiometricCipher extends BiometricCipherPlatform {
+  static const _screenLockEventChannel = EventChannel('biometric_cipher/screen_lock');
+
   /// The method channel used to interact with the native platform.
   @visibleForTesting
   final methodChannel = const MethodChannel(BiometricCipherPlatform.channelName);
+
+  @override
+  late final Stream<bool> screenLockStream = _screenLockEventChannel
+      .receiveBroadcastStream()
+      .map((event) => event as bool);
 
   @override
   Future<void> configure({required ConfigData configData}) =>
