@@ -118,38 +118,40 @@ class BiometricCipherProviderImpl implements BiometricCipherProvider {
   Future<bool> isKeyValid({required String tag}) => _biometricCipher.isKeyValid(tag: tag);
 
   BiometricException _mapExceptionToBiometricException(BiometricCipherException e) => switch (e.code) {
-    BiometricCipherExceptionCode.keyNotFound => BiometricException(
-      BiometricExceptionType.keyNotFound,
-      message: e.message,
-    ),
-    BiometricCipherExceptionCode.keyAlreadyExists => BiometricException(
-      BiometricExceptionType.keyAlreadyExists,
-      message: e.message,
-    ),
-    BiometricCipherExceptionCode.keyPermanentlyInvalidated => BiometricException(
-      BiometricExceptionType.keyInvalidated,
-      message: e.message,
-    ),
-    BiometricCipherExceptionCode.authenticationUserCanceled => BiometricException(
-      BiometricExceptionType.cancel,
-      message: e.message,
-    ),
-    BiometricCipherExceptionCode.authenticationError ||
-    BiometricCipherExceptionCode.encryptionError ||
-    BiometricCipherExceptionCode.decryptionError => BiometricException(
-      BiometricExceptionType.failure,
-      message: e.message,
-    ),
-    BiometricCipherExceptionCode.biometricNotSupported ||
-    BiometricCipherExceptionCode.secureEnclaveUnavailable ||
-    BiometricCipherExceptionCode.tpmUnsupported => BiometricException(
-      BiometricExceptionType.notAvailable,
-      message: e.message,
-    ),
-    BiometricCipherExceptionCode.configureError => BiometricException(
-      BiometricExceptionType.notConfigured,
-      message: e.message,
-    ),
-    _ => BiometricException(BiometricExceptionType.failure, message: e.message, originalError: e),
-  };
+        BiometricCipherExceptionCode.keyNotFound => BiometricException(
+            BiometricExceptionType.keyNotFound,
+            message: e.message,
+          ),
+        BiometricCipherExceptionCode.keyAlreadyExists => BiometricException(
+            BiometricExceptionType.keyAlreadyExists,
+            message: e.message,
+          ),
+        BiometricCipherExceptionCode.keyPermanentlyInvalidated => BiometricException(
+            BiometricExceptionType.keyInvalidated,
+            message: e.message,
+          ),
+        BiometricCipherExceptionCode.authenticationUserCanceled => BiometricException(
+            BiometricExceptionType.cancel,
+            message: e.message,
+          ),
+        BiometricCipherExceptionCode.authenticationError ||
+        BiometricCipherExceptionCode.encryptionError ||
+        BiometricCipherExceptionCode.decryptionError =>
+          BiometricException(
+            BiometricExceptionType.failure,
+            message: e.message,
+          ),
+        BiometricCipherExceptionCode.biometricNotSupported ||
+        BiometricCipherExceptionCode.secureEnclaveUnavailable ||
+        BiometricCipherExceptionCode.tpmUnsupported =>
+          BiometricException(
+            BiometricExceptionType.notAvailable,
+            message: e.message,
+          ),
+        BiometricCipherExceptionCode.configureError => BiometricException(
+            BiometricExceptionType.notConfigured,
+            message: e.message,
+          ),
+        _ => BiometricException(BiometricExceptionType.failure, message: e.message, originalError: e),
+      };
 }

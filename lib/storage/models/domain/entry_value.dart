@@ -8,8 +8,9 @@ class EntryValue extends ErasableByteArray {
 
   static EntryValue fromErasable({
     required ErasableByteArray erasable,
-  }) => EntryValue._(
-    erasable.bytes,
-    onEraseCallback: erasable.erase,
-  );
+  }) =>
+      EntryValue._(
+        erasable.bytes,
+        onEraseCallback: erasable.erase,
+      );
 }

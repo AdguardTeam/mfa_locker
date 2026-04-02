@@ -156,11 +156,11 @@ class CryptographyUtils {
   }
 
   static Uint8List generateSalt() => Uint8List.fromList(
-    List.generate(
-      saltSizeBytes,
-      (i) => _random.nextInt(exclusiveByteUpperBound),
-    ),
-  );
+        List.generate(
+          saltSizeBytes,
+          (i) => _random.nextInt(exclusiveByteUpperBound),
+        ),
+      );
 
   static String generateUuid() => _uuid.v4();
 

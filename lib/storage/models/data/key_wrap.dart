@@ -29,7 +29,7 @@ class KeyWrap {
   }
 
   Map<String, Object?> toJson() => {
-    _originFieldName: origin.name,
-    _encryptedKeyFieldName: base64.encode(encryptedKey),
-  };
+        _originFieldName: origin.name,
+        _encryptedKeyFieldName: base64.encode(encryptedKey),
+      };
 }

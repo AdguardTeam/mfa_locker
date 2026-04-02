@@ -8,8 +8,9 @@ class EntryMeta extends ErasableByteArray {
 
   static EntryMeta fromErasable({
     required ErasableByteArray erasable,
-  }) => EntryMeta._(
-    erasable.bytes,
-    onEraseCallback: erasable.erase,
-  );
+  }) =>
+      EntryMeta._(
+        erasable.bytes,
+        onEraseCallback: erasable.erase,
+      );
 }
