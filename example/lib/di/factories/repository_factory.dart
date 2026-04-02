@@ -1,4 +1,6 @@
+import 'package:biometric_cipher/biometric_cipher.dart';
 import 'package:locker/security/models/biometric_config.dart';
+import 'package:mfa_demo/core/services/screen_lock_service.dart';
 import 'package:mfa_demo/core/services/timer_service.dart';
 import 'package:mfa_demo/features/locker/data/repositories/locker_repository.dart';
 
@@ -7,6 +9,8 @@ abstract class RepositoryFactory {
   LockerRepository get lockerRepository;
 
   TimerService get timerService;
+
+  ScreenLockService get screenLockService;
 
   Future<void> init();
 
@@ -23,6 +27,8 @@ class RepositoryFactoryImpl implements RepositoryFactory {
 
   LockerRepository? _lockerRepository;
   TimerService? _timerService;
+  late final BiometricCipher _biometricCipher;
+  late final ScreenLockService _screenLockService;
 
   @override
   LockerRepository get lockerRepository =>
@@ -38,8 +44,13 @@ class RepositoryFactoryImpl implements RepositoryFactory {
   }
 
   @override
+  ScreenLockService get screenLockService => _screenLockService;
+
+  @override
   Future<void> init() async {
     _timerService = TimerServiceImpl(lockerRepository: lockerRepository);
+    _biometricCipher = BiometricCipher();
+    _screenLockService = ScreenLockServiceImpl(biometricCipher: _biometricCipher);
 
     // Configure biometric cipher provider once at app startup
     // This must be done before any biometric operations
@@ -56,6 +67,7 @@ class RepositoryFactoryImpl implements RepositoryFactory {
   @override
   Future<void> dispose() async {
     _timerService?.dispose();
+    _screenLockService.dispose();
     await _lockerRepository?.dispose();
   }
 }

@@ -17,23 +17,23 @@ Key design points:
 
 ## Tasks
 
-- [ ] **7.1** Add `ScreenLockService` to `RepositoryFactory`
+- [x] **7.1** Add `ScreenLockService` to `RepositoryFactory`
   - File: `example/lib/di/factories/repository_factory.dart`
   - Create in `init()`, expose via getter, dispose in `dispose()`
 
-- [ ] **7.2** Pass `ScreenLockService` through `BlocFactory`
+- [x] **7.2** Pass `ScreenLockService` through `BlocFactory`
   - File: `example/lib/di/factories/bloc_factory.dart`
   - Add constructor parameter, pass to `LockerBloc`
 
-- [ ] **7.3** Wire in `main.dart`
+- [x] **7.3** Wire in `main.dart`
   - File: `example/lib/main.dart`
   - Pass `repositoryFactory.screenLockService` to `BlocFactoryImpl`
 
-- [ ] **7.4** Add `screenLocked` event
+- [x] **7.4** Add `screenLocked` event
   - File: `example/lib/features/locker/bloc/locker_event.dart`
   - Add `const factory LockerEvent.screenLocked() = _ScreenLocked;`
 
-- [ ] **7.5** Run code generation
+- [x] **7.5** Run code generation
   - `cd example && make g`
 
 ## Acceptance Criteria
@@ -145,3 +145,25 @@ This regenerates `locker_event.freezed.dart` and `locker_event.g.dart` (or which
 - Check `bloc_factory.dart` for the existing constructor parameter ordering and field declaration order — insert `ScreenLockService` after `TimerService` in both.
 - The `LockerBloc` constructor will fail compilation until Iteration 8 adds the `screenLockService` parameter — that's expected. The compile error is resolved in Iteration 8.
 - If `LockerBloc` constructor doesn't accept `screenLockService` yet, add only the `BlocFactory` and `RepositoryFactory` changes in this iteration and defer the `BlocFactory` → `LockerBloc` wiring to Iteration 8.
+
+## Code Review Fixes
+
+- [x] **Task 7.6: Revert `locker_bloc.dart` changes — Phase 8 scope** *(Won't fix — user approved keeping current state; LockerBloc wiring pulled into Phase 7 to resolve unused-field warning)*
+  - Revert all changes made to `example/lib/features/locker/bloc/locker_bloc.dart` in this phase: remove `ScreenLockService` import, constructor parameter, `_screenLockService` field, and `_screenLockService.dispose()` in `close()`
+  - These changes belong to Phase 8 (tasks 8.1 and 8.4)
+  - Accordingly, revert the `BlocFactoryImpl.lockerBloc` getter change in `bloc_factory.dart` — remove `screenLockService: _screenLockService` from the `LockerBloc(...)` call, since `LockerBloc` should not accept that parameter yet
+  - Acceptance criteria:
+    - `locker_bloc.dart` has no diff compared to HEAD (the committed version)
+    - `BlocFactoryImpl.lockerBloc` getter creates `LockerBloc` without passing `screenLockService`
+    - `BlocFactoryImpl` still stores `_screenLockService` as a field (for Phase 8 use)
+    - `_screenLockService.dispose()` is called only in `RepositoryFactoryImpl.dispose()`, not in `LockerBloc.close()`
+    - `cd example && fvm flutter analyze --fatal-warnings --fatal-infos --no-pub .` passes
+
+- [x] **Task 7.7: Fix `BlocFactoryImpl` field and parameter ordering**
+  - Move `_screenLockService` field declaration after `_timerService` (not between `_lockerRepository` and `_timerService`)
+  - Move `required ScreenLockService screenLockService` constructor parameter after `required TimerService timerService`
+  - Move `_screenLockService = screenLockService` initializer after `_timerService = timerService`
+  - Acceptance criteria:
+    - Field order is: `_lockerRepository`, `_timerService`, `_screenLockService`
+    - Constructor parameter order is: `lockerRepository`, `timerService`, `screenLockService`
+    - Initializer list order is: `_lockerRepository`, `_timerService`, `_screenLockService`

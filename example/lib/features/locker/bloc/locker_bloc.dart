@@ -8,6 +8,7 @@ import 'package:locker/locker/models/biometric_state.dart';
 import 'package:locker/security/models/exceptions/biometric_exception.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/exceptions/decrypt_failed_exception.dart';
+import 'package:mfa_demo/core/services/screen_lock_service.dart';
 import 'package:mfa_demo/core/services/timer_service.dart';
 import 'package:mfa_demo/features/locker/data/models/repository_locker_state.dart';
 import 'package:mfa_demo/features/locker/data/repositories/locker_repository.dart';
@@ -20,12 +21,15 @@ part 'locker_state.dart';
 /// BLoC for managing locker state and operations
 class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
   final LockerRepository _lockerRepository;
+  final ScreenLockService _screenLockService;
   final TimerService _timerService;
 
   LockerBloc({
     required LockerRepository lockerRepository,
+    required ScreenLockService screenLockService,
     required TimerService timerService,
   }) : _lockerRepository = lockerRepository,
+       _screenLockService = screenLockService,
        _timerService = timerService,
        super(const LockerState()) {
     on<_InitializeRequested>(_onInitializeRequested);
@@ -64,6 +68,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
   @override
   Future<void> close() async {
     await _lockerStateSubscription?.cancel();
+    _screenLockService.dispose();
 
     return super.close();
   }

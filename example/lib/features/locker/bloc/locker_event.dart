@@ -118,4 +118,7 @@ sealed class LockerEvent with _$LockerEvent {
 
   /// External notification that the biometric key has been invalidated (e.g. detected from settings flow).
   const factory LockerEvent.biometricKeyInvalidationDetected() = _BiometricKeyInvalidationDetected;
+
+  /// Device screen was locked. Triggers immediate locker lock.
+  const factory LockerEvent.screenLocked() = _ScreenLocked;
 }

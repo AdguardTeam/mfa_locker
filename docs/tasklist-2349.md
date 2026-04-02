@@ -145,23 +145,23 @@ Companion to: `docs/idea-2349.md`, `docs/vision-2349.md`
 
 **Goal:** Wire `ScreenLockService` through DI and add `screenLocked` Freezed event.
 
-- [ ] **7.1** Add `ScreenLockService` to `RepositoryFactory`
+- [x] **7.1** Add `ScreenLockService` to `RepositoryFactory`
   - File: `example/lib/di/factories/repository_factory.dart`
   - Create in `init()`, expose via getter, dispose in `dispose()`
 
-- [ ] **7.2** Pass `ScreenLockService` through `BlocFactory`
+- [x] **7.2** Pass `ScreenLockService` through `BlocFactory`
   - File: `example/lib/di/factories/bloc_factory.dart`
   - Add constructor parameter, pass to `LockerBloc`
 
-- [ ] **7.3** Wire in `main.dart`
+- [x] **7.3** Wire in `main.dart`
   - File: `example/lib/main.dart`
   - Pass `repositoryFactory.screenLockService` to `BlocFactoryImpl`
 
-- [ ] **7.4** Add `screenLocked` event
+- [x] **7.4** Add `screenLocked` event
   - File: `example/lib/features/locker/bloc/locker_event.dart`
   - Add `const factory LockerEvent.screenLocked() = _ScreenLocked;`
 
-- [ ] **7.5** Run code generation
+- [x] **7.5** Run code generation
   - `cd example && make g`
 
 **Verify:** `cd example && fvm flutter analyze --fatal-warnings --fatal-infos --no-pub .`

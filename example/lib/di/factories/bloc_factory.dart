@@ -1,3 +1,4 @@
+import 'package:mfa_demo/core/services/screen_lock_service.dart';
 import 'package:mfa_demo/core/services/timer_service.dart';
 import 'package:mfa_demo/features/locker/bloc/locker_bloc.dart';
 import 'package:mfa_demo/features/locker/data/repositories/locker_repository.dart';
@@ -14,16 +15,20 @@ abstract class BlocFactory {
 class BlocFactoryImpl implements BlocFactory {
   final LockerRepository _lockerRepository;
   final TimerService _timerService;
+  final ScreenLockService _screenLockService;
 
   const BlocFactoryImpl({
     required LockerRepository lockerRepository,
     required TimerService timerService,
+    required ScreenLockService screenLockService,
   }) : _lockerRepository = lockerRepository,
-       _timerService = timerService;
+       _timerService = timerService,
+       _screenLockService = screenLockService;
 
   @override
   LockerBloc get lockerBloc => LockerBloc(
     lockerRepository: _lockerRepository,
+    screenLockService: _screenLockService,
     timerService: _timerService,
   );
 
