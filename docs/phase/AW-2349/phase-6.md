@@ -16,7 +16,7 @@ Key design points:
 
 ## Tasks
 
-- [ ] **6.1** Create `ScreenLockService` interface and implementation
+- [x] **6.1** Create `ScreenLockService` interface and implementation
   - File: new — `example/lib/core/services/screen_lock_service.dart`
   - Abstract: `onScreenLockedCallback` setter, `startListening()`, `stopListening()`, `dispose()`
   - Impl: subscribes to `BiometricCipher.screenLockStream`, invokes callback on event
