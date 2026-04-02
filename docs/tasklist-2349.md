@@ -12,11 +12,11 @@ Companion to: `docs/idea-2349.md`, `docs/vision-2349.md`
 | 2 | Android: `ScreenLockStreamHandler` | :green_circle: Done | |
 | 3 | iOS/macOS: `ScreenLockStreamHandler` | :green_circle: Done | |
 | 4 | Windows: `ScreenLockStreamHandler` | :green_circle: Done | |
-| 5 | Plugin tests | :white_circle: Pending | |
+| 5 | Plugin tests | :green_circle: Done | |
 | 6 | Example app: `ScreenLockService` | :white_circle: Pending | |
 | 7 | Example app: DI wiring + event | :white_circle: Pending | |
 | 8 | Example app: BLoC integration | :white_circle: Pending | |
-**Current Phase:** 5
+**Current Phase:** 6
 
 ---
 
@@ -115,11 +115,11 @@ Companion to: `docs/idea-2349.md`, `docs/vision-2349.md`
 
 **Goal:** Unit tests for `screenLockStream` in the Dart plugin layer.
 
-- [ ] **5.1** Add `screenLockStream` to mock platform
+- [x] **5.1** Add `screenLockStream` to mock platform
   - File: `packages/biometric_cipher/test/mock_biometric_cipher_platform.dart`
   - Add `StreamController<bool>` and override `screenLockStream`
 
-- [ ] **5.2** Add `screenLockStream` test group
+- [x] **5.2** Add `screenLockStream` test group
   - File: `packages/biometric_cipher/test/biometric_cipher_test.dart`
   - Test: emits events from platform stream
   - Test: default platform returns empty stream

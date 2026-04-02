@@ -15,11 +15,11 @@ Key design points:
 
 ## Tasks
 
-- [ ] **5.1** Add `screenLockStream` to mock platform
+- [x] **5.1** Add `screenLockStream` to mock platform
   - File: `packages/biometric_cipher/test/mock_biometric_cipher_platform.dart`
   - Add `StreamController<bool>` field and override `screenLockStream`
 
-- [ ] **5.2** Add `screenLockStream` test group
+- [x] **5.2** Add `screenLockStream` test group
   - File: `packages/biometric_cipher/test/biometric_cipher_test.dart`
   - Test: emits events from platform stream
   - Test: default platform returns empty stream

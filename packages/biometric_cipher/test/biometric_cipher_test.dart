@@ -240,6 +240,10 @@ void main() {
     });
 
     group('screenLockStream', () {
+      tearDown(() async {
+        await mockPlatform.screenLockStreamController.close();
+      });
+
       test('emits events from platform', () async {
         final stream = biometricCipher.screenLockStream;
 
@@ -261,6 +265,17 @@ void main() {
         mockPlatform.screenLockStreamController.add(true);
         await future;
       });
+
+      test('default platform returns empty stream', () async {
+        final defaultPlatform = _DefaultBiometricCipherPlatform();
+        final events = <bool>[];
+        final subscription = defaultPlatform.screenLockStream.listen(events.add);
+
+        await Future<void>.delayed(Duration.zero);
+
+        expect(events, isEmpty);
+        await subscription.cancel();
+      });
     });
   });
 
@@ -279,3 +294,7 @@ void main() {
     });
   });
 }
+
+/// A minimal concrete [BiometricCipherPlatform] that does not override
+/// [screenLockStream], used to verify the default empty stream behavior.
+class _DefaultBiometricCipherPlatform extends BiometricCipherPlatform {}
