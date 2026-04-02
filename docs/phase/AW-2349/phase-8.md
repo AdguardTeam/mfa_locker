@@ -29,18 +29,18 @@ Key design decision from the idea doc (Section G): The `_onScreenLocked` handler
 
 ## Tasks
 
-- [ ] **8.1** Register `on<_ScreenLocked>` handler and set callback in constructor
+- [x] **8.1** Register `on<_ScreenLocked>` handler and set callback in constructor
   - File: `example/lib/features/locker/bloc/locker_bloc.dart`
   - Add `on<_ScreenLocked>(_onScreenLocked);` after the existing `on<_BiometricKeyInvalidationDetected>` registration
   - Add `_screenLockService.onScreenLockedCallback = _onScreenLockDetected;` after `_timerService.onLockCallback = _onTimerExpired;`
 
-- [ ] **8.2** Implement `_onScreenLockDetected` callback and `_onScreenLocked` handler
+- [x] **8.2** Implement `_onScreenLockDetected` callback and `_onScreenLocked` handler
   - Same file
   - `_onScreenLockDetected`: checks `!isClosed && state.status == LockerStatus.unlocked`, then `add(const LockerEvent.screenLocked())`
   - `_onScreenLocked`: checks `state.status != LockerStatus.unlocked` (return early if already locked), then `await _lockerRepository.lock()`
   - **No** `BiometricOperationState` guard — screen lock is unconditional
 
-- [ ] **8.3** Start/stop listening on state transitions
+- [x] **8.3** Start/stop listening on state transitions
   - Same file
   - Add `_screenLockService.startListening()` in `_refreshUnlockedState()` after `await _timerService.startTimer()`
   - Add `_screenLockService.startListening()` in `_onInitialEntrySubmitted()` after `await _timerService.startTimer()`

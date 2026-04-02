@@ -58,8 +58,10 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     on<_BiometricOperationStateChanged>(_onBiometricOperationStateChanged);
     on<_ActivityDetected>(_onActivityDetected);
     on<_BiometricKeyInvalidationDetected>(_onBiometricKeyInvalidationDetected);
+    on<_ScreenLocked>(_onScreenLocked);
 
     _timerService.onLockCallback = _onTimerExpired;
+    _screenLockService.onScreenLockedCallback = _onScreenLockDetected;
     _createSub();
   }
 
@@ -180,6 +182,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
 
         final entries = await _lockerRepository.getAllEntries();
         await _timerService.startTimer();
+        _screenLockService.startListening();
 
         if (isClosed) {
           return;
@@ -1158,6 +1161,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
 
       case RepositoryLockerState.locked when previousStatus != LockerStatus.locked:
         _timerService.stopTimer();
+        _screenLockService.stopListening();
         emit(
           state.copyWith(
             status: LockerStatus.locked,
@@ -1187,6 +1191,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     try {
       final entries = await _lockerRepository.getAllEntries();
       await _timerService.startTimer();
+      _screenLockService.startListening();
 
       if (isClosed) {
         return;
@@ -1261,6 +1266,26 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     if (!isClosed) {
       emit(state.copyWith(biometricState: BiometricState.keyInvalidated));
     }
+  }
+
+  /// Called by [ScreenLockService] when the device screen is locked.
+  void _onScreenLockDetected() {
+    if (!isClosed && state.status == LockerStatus.unlocked) {
+      add(const LockerEvent.screenLocked());
+    }
+  }
+
+  /// Handles the screen lock event.
+  ///
+  /// Bypasses the [BiometricOperationState] guard — a physical device lock
+  /// is an explicit security action that overrides any in-progress biometric flow.
+  /// The OS has already dismissed the biometric dialog.
+  Future<void> _onScreenLocked(
+    _ScreenLocked event,
+    Emitter<LockerState> emit,
+  ) async {
+    if (state.status != LockerStatus.unlocked) return;
+    await _lockerRepository.lock();
   }
 
   void _onTimerExpired() {
