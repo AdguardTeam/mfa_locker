@@ -14,9 +14,9 @@ Companion to: `docs/idea-2349.md`, `docs/vision-2349.md`
 | 4 | Windows: `ScreenLockStreamHandler` | :green_circle: Done | |
 | 5 | Plugin tests | :green_circle: Done | |
 | 6 | Example app: `ScreenLockService` | :green_circle: Done | |
-| 7 | Example app: DI wiring + event | :white_circle: Pending | |
+| 7 | Example app: DI wiring + event | :green_circle: Done | |
 | 8 | Example app: BLoC integration | :white_circle: Pending | |
-**Current Phase:** 7
+**Current Phase:** 8
 
 ---
 
