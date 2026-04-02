@@ -13,10 +13,10 @@ Companion to: `docs/idea-2349.md`, `docs/vision-2349.md`
 | 3 | iOS/macOS: `ScreenLockStreamHandler` | :green_circle: Done | |
 | 4 | Windows: `ScreenLockStreamHandler` | :green_circle: Done | |
 | 5 | Plugin tests | :green_circle: Done | |
-| 6 | Example app: `ScreenLockService` | :white_circle: Pending | |
+| 6 | Example app: `ScreenLockService` | :green_circle: Done | |
 | 7 | Example app: DI wiring + event | :white_circle: Pending | |
 | 8 | Example app: BLoC integration | :white_circle: Pending | |
-**Current Phase:** 6
+**Current Phase:** 7
 
 ---
 
@@ -132,7 +132,7 @@ Companion to: `docs/idea-2349.md`, `docs/vision-2349.md`
 
 **Goal:** Create `ScreenLockService` wrapping the platform stream — mirrors `TimerService` pattern.
 
-- [ ] **6.1** Create `ScreenLockService` interface and implementation
+- [x] **6.1** Create `ScreenLockService` interface and implementation
   - File: new — `example/lib/core/services/screen_lock_service.dart`
   - Abstract: `onScreenLockedCallback` setter, `startListening()`, `stopListening()`, `dispose()`
   - Impl: subscribes to `BiometricCipher.screenLockStream`, invokes callback on event
