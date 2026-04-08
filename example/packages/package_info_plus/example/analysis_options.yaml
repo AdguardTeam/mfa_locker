@@ -1,6 +1,10 @@
 # TODO: Remove this when migrated to null safety
 include: package:flutter_lints/flutter.yaml
 
+formatter:
+  page_width: 120
+  trailing_commas: preserve
+
 linter:
   rules:
     - prefer_final_in_for_each

@@ -20,7 +20,7 @@ namespace biometric_cipher
 			std::shared_ptr<WindowsHelloRepository> windowsHelloRepository,
 			std::shared_ptr<WindowsTpmRepository> windowsTpmRepository,
 			std::shared_ptr<WinrtEncryptRepository> winrtEncryptRepository
-		) 
+		)
 			: m_ConfigStorage(configStorage),
 			m_WindowsHelloRepository(std::move(windowsHelloRepository)),
 			m_WindowsTpmRepository(std::move(windowsTpmRepository)),
@@ -39,8 +39,10 @@ namespace biometric_cipher
 
 		winrt::Windows::Foundation::IAsyncOperation<winrt::hstring> DecryptAsync(const std::string& tag, const std::string& data) const;
 
+		winrt::Windows::Foundation::IAsyncOperation<bool> IsKeyValidAsync(const std::string& tag) const;
+
 	private:
-		winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::Security::Cryptography::Core::CryptographicKey> 
+		winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::Security::Cryptography::Core::CryptographicKey>
 			CreateAESKeyAsync(
 				const winrt::hstring hTag,
 				const winrt::Windows::Storage::Streams::IBuffer signature) const;

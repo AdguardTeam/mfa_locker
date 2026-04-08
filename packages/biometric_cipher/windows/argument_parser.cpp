@@ -37,6 +37,7 @@ namespace biometric_cipher
 			break;
 
 
+		case MethodName::kIsKeyValid:
 		case MethodName::kGenerateKey:
 		case MethodName::kDeleteKey:
 			result[ArgumentName::kTag] = FetchAndValidateArgument(*argumentMap, ArgumentName::kTag);
@@ -61,7 +62,7 @@ namespace biometric_cipher
 		auto it = argumentMap.find(flutter::EncodableValue(argName));
 		if (it == argumentMap.end()) {
 			auto message = CreateMissingArgumentMessage(argName);
-			throw hresult_error(error_invalid_argument, message.c_str());			
+			throw hresult_error(error_invalid_argument, message.c_str());
 		}
 		if (const auto* argStr = std::get_if<std::string>(&it->second)) {
 			argument.stringArgument = *argStr;

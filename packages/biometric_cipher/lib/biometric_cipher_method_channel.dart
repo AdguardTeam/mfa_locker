@@ -95,6 +95,22 @@ class MethodChannelBiometricCipher extends BiometricCipherPlatform {
     }
   }
 
+  @override
+  Future<bool> isKeyValid({required String tag}) async {
+    try {
+      final result = await methodChannel.invokeMethod<bool>(
+        'isKeyValid',
+        {
+          'tag': tag,
+        },
+      );
+
+      return result ?? false;
+    } on PlatformException catch (e) {
+      throw _mapPlatformException(e);
+    }
+  }
+
   BiometricCipherException _mapPlatformException(PlatformException e) {
     return BiometricCipherException(
       code: BiometricCipherExceptionCode.fromString(e.code),

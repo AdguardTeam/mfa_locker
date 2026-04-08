@@ -151,11 +151,15 @@ abstract interface class Locker {
     required PasswordCipherFunc passwordCipherFunc,
   });
 
-  /// Disable biometric authentication (requires password confirmation)
-  /// This method handles storage update and key deletion.
+  /// Disable biometric authentication using password confirmation.
+  ///
+  /// Removes the biometric wrap from storage. When [biometricKeyTag] is
+  /// provided, attempts to delete the hardware key afterwards; errors during
+  /// key deletion are suppressed because the key may already be inaccessible
+  /// or deleted by the OS.
   Future<void> teardownBiometry({
-    required BioCipherFunc bioCipherFunc,
     required PasswordCipherFunc passwordCipherFunc,
+    String? biometricKeyTag,
   });
 
   /// Updates the lock timeout.
@@ -168,8 +172,15 @@ abstract interface class Locker {
 
   /// Determines the biometric state.
   ///
-  /// Returns the [BiometricState] state.
-  Future<BiometricState> determineBiometricState();
+  /// When [biometricKeyTag] is provided and biometrics are enabled in app
+  /// settings, silently checks whether the hardware key is still valid.
+  /// Returns [BiometricState.keyInvalidated] if the key has been permanently
+  /// invalidated (e.g., after a biometric enrollment change). No biometric
+  /// prompt is shown.
+  ///
+  /// When [biometricKeyTag] is omitted, the method returns the biometric state
+  /// based solely on hardware availability and app settings (existing behavior).
+  Future<BiometricState> determineBiometricState({String? biometricKeyTag});
 
   /// Completely erases all data from the storage.
   ///

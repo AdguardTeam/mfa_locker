@@ -323,7 +323,7 @@ class LockerRepositoryImpl implements LockerRepository {
   Future<BiometricState> determineBiometricState() async {
     await _ensureLockerInstance();
 
-    return _locker.determineBiometricState();
+    return _locker.determineBiometricState(biometricKeyTag: AppConstants.biometricKeyTag);
   }
 
   @override
@@ -350,15 +350,11 @@ class LockerRepositoryImpl implements LockerRepository {
   @override
   Future<void> disableBiometric({required String password}) async {
     await _ensureLockerInstance();
-
-    // Create cipher functions
     final passwordCipherFunc = await _securityProvider.authenticatePassword(password: password);
-    final bioCipherFunc = await _securityProvider.authenticateBiometric();
 
-    // Teardown biometry in locker (handles storage update and key deletion)
     await _locker.teardownBiometry(
-      bioCipherFunc: bioCipherFunc,
       passwordCipherFunc: passwordCipherFunc,
+      biometricKeyTag: AppConstants.biometricKeyTag,
     );
   }
 

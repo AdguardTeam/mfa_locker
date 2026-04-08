@@ -16,7 +16,7 @@ using namespace Windows::Storage::Streams;
 namespace biometric_cipher
 {
 	IAsyncOperation<int> BiometricCipherService::GetTPMStatusAsync() const
-	{		
+	{
 		try
 		{
 			auto tpmVersion = m_WindowsTpmRepository->GetWindowsTpmVersion();
@@ -57,7 +57,7 @@ namespace biometric_cipher
 		co_return;
 	}
 
-	IAsyncAction BiometricCipherService::DeleteKeyAsync(const std::string& tag) const 
+	IAsyncAction BiometricCipherService::DeleteKeyAsync(const std::string& tag) const
 	{
 		auto hTag = StringUtil::ConvertStringToHString(tag);
 
@@ -74,7 +74,7 @@ namespace biometric_cipher
 		co_return;
 	}
 
-	IAsyncOperation<winrt::hstring> BiometricCipherService::EncryptAsync(const std::string& tag, const std::string& data) const 
+	IAsyncOperation<winrt::hstring> BiometricCipherService::EncryptAsync(const std::string& tag, const std::string& data) const
 	{
 		if (!m_ConfigStorage->getIsConfigured()) {
 			throw winrt::hresult_error(error_invalid_argument, L"Data to sign is empty");
@@ -116,6 +116,11 @@ namespace biometric_cipher
 		co_return decryptedData;
 	}
 
+	IAsyncOperation<bool> BiometricCipherService::IsKeyValidAsync(const std::string& tag) const
+	{
+		auto hTag = StringUtil::ConvertStringToHString(tag);
+		co_return co_await m_WindowsHelloRepository->IsKeyValidAsync(hTag);
+	}
 
 	IAsyncOperation<CryptographicKey> BiometricCipherService::CreateAESKeyAsync(const winrt::hstring hTag, const IBuffer signature) const
 	{

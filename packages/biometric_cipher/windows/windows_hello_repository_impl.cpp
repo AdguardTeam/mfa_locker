@@ -126,6 +126,16 @@ namespace biometric_cipher
 		co_return;
 	}
 
+	IAsyncOperation<bool> WindowsHelloRepositoryImpl::IsKeyValidAsync(const winrt::hstring tag) const
+	{
+		co_await CheckWindowsHelloIsStatusAsync();
+
+		auto&& keyCredentialRetrievalResult = co_await m_HelloWrapper->OpenAsync(tag);
+		auto status = keyCredentialRetrievalResult.Status();
+
+		co_return status == KeyCredentialStatus::Success;
+	}
+
 	IAsyncAction WindowsHelloRepositoryImpl::CheckWindowsHelloIsStatusAsync() const
 	{
 		auto biometryStatusValue = co_await GetWindowsHelloStatusAsync();

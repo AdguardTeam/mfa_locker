@@ -39,6 +39,10 @@ enum BiometricCipherExceptionCode {
   /// Platform plugin configuration failed.
   configureError,
 
+  /// The hardware-backed biometric key has been permanently invalidated
+  /// due to a biometric enrollment change (e.g., fingerprint added/removed).
+  keyPermanentlyInvalidated,
+
   /// An unknown or unclassified error occurred.
   unknown;
 
@@ -91,6 +95,8 @@ enum BiometricCipherExceptionCode {
     'INVALID_TAG_ERROR' ||
     'INVALID_AUTH_TITLE_ERROR' ||
     'ACTIVITY_NOT_SET' => configureError,
+
+    'KEY_PERMANENTLY_INVALIDATED' => keyPermanentlyInvalidated,
 
     'UNKNOWN_ERROR' || 'UNKNOWN_EXCEPTION' || 'CONVERTING_STRING_ERROR' || _ => unknown,
   };

@@ -47,7 +47,7 @@ class LockedScreen extends StatelessWidget {
                       ? null
                       : () => _showAuthenticationSheet(context, state),
                   child: Text(
-                    state.biometricState.isEnabled ? 'Unlock Storage' : 'Unlock with Password',
+                    state.canUseBiometric ? 'Unlock Storage' : 'Unlock with Password',
                   ),
                 ),
               ],
@@ -61,6 +61,7 @@ class LockedScreen extends StatelessWidget {
 
   Future<void> _showAuthenticationSheet(BuildContext context, LockerState state) async {
     final bloc = context.read<LockerBloc>();
+    final showBiometric = state.canUseBiometric;
 
     final result = await showModalBottomSheet<AuthenticationResult?>(
       context: context,
@@ -69,11 +70,9 @@ class LockedScreen extends StatelessWidget {
       enableDrag: false,
       builder: (context) => AuthenticationBottomSheet(
         title: 'Unlock Storage',
-        showBiometricButton: state.biometricState.isEnabled,
+        showBiometricButton: showBiometric,
         biometricResultStream: bloc.biometricResultStream,
-        onBiometricPressed: state.biometricState.isEnabled
-            ? () => bloc.add(const LockerEvent.unlockWithBiometricRequested())
-            : null,
+        onBiometricPressed: showBiometric ? () => bloc.add(const LockerEvent.unlockWithBiometricRequested()) : null,
       ),
     );
 
@@ -81,9 +80,10 @@ class LockedScreen extends StatelessWidget {
       return;
     }
 
-    if (result?.password != null) {
+    final password = result?.password;
+    if (password != null) {
       context.read<LockerBloc>().add(
-        LockerEvent.unlockPasswordSubmitted(password: result!.password!),
+        LockerEvent.unlockPasswordSubmitted(password: password),
       );
     }
   }

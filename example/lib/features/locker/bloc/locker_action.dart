@@ -27,6 +27,9 @@ sealed class LockerAction with _$LockerAction {
   /// Biometric not available on device
   const factory LockerAction.biometricNotAvailable() = BiometricNotAvailableAction;
 
+  /// Biometric key has been permanently invalidated by biometric enrollment change
+  const factory LockerAction.biometricKeyInvalidated() = BiometricKeyInvalidatedAction;
+
   /// Navigate back
   const factory LockerAction.navigateBack() = NavigateBack;
 

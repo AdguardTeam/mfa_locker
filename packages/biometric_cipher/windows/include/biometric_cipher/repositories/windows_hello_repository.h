@@ -19,5 +19,7 @@ namespace biometric_cipher
 		virtual winrt::Windows::Foundation::IAsyncAction CreateCredentialAsync(const winrt::hstring tag) const = 0;
 
 		virtual winrt::Windows::Foundation::IAsyncAction DeleteCredentialAsync(const winrt::hstring tag) const = 0;
+
+		virtual winrt::Windows::Foundation::IAsyncOperation<bool> IsKeyValidAsync(const winrt::hstring tag) const = 0;
 	};
 }

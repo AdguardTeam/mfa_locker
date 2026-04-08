@@ -13,6 +13,7 @@ import 'package:locker/security/biometric_cipher_provider.dart';
 import 'package:locker/security/models/bio_cipher_func.dart';
 import 'package:locker/security/models/biometric_config.dart';
 import 'package:locker/security/models/cipher_func.dart';
+import 'package:locker/security/models/exceptions/biometric_exception.dart';
 import 'package:locker/security/models/password_cipher_func.dart';
 import 'package:locker/storage/encrypted_storage.dart';
 import 'package:locker/storage/encrypted_storage_impl.dart';
@@ -28,19 +29,20 @@ import 'package:rxdart/rxdart.dart';
 
 class MFALocker implements Locker {
   final EncryptedStorage _storage;
+  final BiometricCipherProvider _secureProvider;
 
   final BehaviorSubject<LockerState> _stateController = BehaviorSubject<LockerState>.seeded(LockerState.locked);
 
   MFALocker({
     required File file,
     @visibleForTesting EncryptedStorage? storage,
-  }) : _storage = storage ?? EncryptedStorageImpl(file: file);
+    @visibleForTesting BiometricCipherProvider? secureProvider,
+  })  : _storage = storage ?? EncryptedStorageImpl(file: file),
+        _secureProvider = secureProvider ?? BiometricCipherProviderImpl.instance;
 
   Map<EntryId, EntryMeta> _metaCache = {};
 
   final _sync = Sync();
-
-  BiometricCipherProvider get _secureProvider => BiometricCipherProviderImpl.instance;
 
   @override
   ValueStream<LockerState> get stateStream => _stateController.stream;
@@ -63,7 +65,7 @@ class MFALocker implements Locker {
   }
 
   @override
-  // TODO: (d.seloustev) A test needs to be added
+  // TODO(d.seloustev): A test needs to be added
   Future<bool> get isBiometricEnabled => _storage.isBiometricEnabled;
 
   @override
@@ -283,36 +285,6 @@ class MFALocker implements Locker {
     _stateController.add(LockerState.unlocked);
   }
 
-  @visibleForTesting
-  Future<void> enableBiometry({
-    required BioCipherFunc bioCipherFunc,
-    required PasswordCipherFunc passwordCipherFunc,
-  }) =>
-      _sync(
-        () => _executeWithCleanup(
-          erasables: [bioCipherFunc, passwordCipherFunc],
-          callback: () async {
-            await loadAllMetaIfLocked(passwordCipherFunc);
-            await _storage.addOrReplaceWrap(newWrapFunc: bioCipherFunc, existingWrapFunc: passwordCipherFunc);
-          },
-        ),
-      );
-
-  @visibleForTesting
-  Future<void> disableBiometry({
-    required BioCipherFunc bioCipherFunc,
-    required PasswordCipherFunc passwordCipherFunc,
-  }) =>
-      _sync(
-        () => _executeWithCleanup(
-          erasables: [bioCipherFunc, passwordCipherFunc],
-          callback: () async {
-            await loadAllMetaIfLocked(passwordCipherFunc);
-            await _storage.deleteWrap(originToDelete: Origin.bio, cipherFunc: passwordCipherFunc);
-          },
-        ),
-      );
-
   void _cleanupState() {
     for (final meta in _metaCache.values) {
       meta.erase();
@@ -325,7 +297,7 @@ class MFALocker implements Locker {
   Future<void> configureBiometricCipher(BiometricConfig config) => _secureProvider.configure(config);
 
   @override
-  Future<BiometricState> determineBiometricState() async {
+  Future<BiometricState> determineBiometricState({String? biometricKeyTag}) async {
     final tpmStatus = await _secureProvider.getTPMStatus();
     // TPM checks first
     if (tpmStatus == TPMStatus.unsupported) {
@@ -356,7 +328,19 @@ class MFALocker implements Locker {
     final isEnabledInSettings = await isBiometricEnabled;
 
     // Finally check app settings
-    return isEnabledInSettings ? BiometricState.enabled : BiometricState.availableButDisabled;
+    if (!isEnabledInSettings) {
+      return BiometricState.availableButDisabled;
+    }
+
+    // Proactive key validity check — no biometric prompt shown.
+    if (biometricKeyTag != null) {
+      final isValid = await _secureProvider.isKeyValid(tag: biometricKeyTag);
+      if (!isValid) {
+        return BiometricState.keyInvalidated;
+      }
+    }
+
+    return BiometricState.enabled;
   }
 
   /// Enable biometric authentication (requires password confirmation)
@@ -366,76 +350,87 @@ class MFALocker implements Locker {
     required BioCipherFunc bioCipherFunc,
     required PasswordCipherFunc passwordCipherFunc,
   }) =>
-      _executeWithCleanup(
-        erasables: [bioCipherFunc, passwordCipherFunc],
-        callback: () async {
-          // Step 1: Check TPM status
-          final tpmStatus = await _secureProvider.getTPMStatus();
-          if (tpmStatus != TPMStatus.supported) {
-            throw Exception('TPM not supported on this device');
-          }
-
-          // Step 2: Check biometry status
-          final biometryStatus = await _secureProvider.getBiometryStatus();
-          if (biometryStatus != BiometricStatus.supported) {
-            throw Exception('Biometric authentication not available: $biometryStatus');
-          }
-
-          try {
-            // Step 3: Defensive key management - delete before generate
-            try {
-              await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
-            } catch (e) {
-              // Ignore errors - key might not exist yet
-              logger.logInfo('Key might not exist yet: $e');
-            }
-
-            // Step 4: Generate new key
-            await _secureProvider.generateKey(tag: bioCipherFunc.keyTag);
-
-            // Step 5: Enable biometry in locker
-            await enableBiometry(
-              bioCipherFunc: bioCipherFunc,
-              passwordCipherFunc: passwordCipherFunc,
-            );
-          } catch (error, stackTrace) {
-            logger.logError(
-              'MFALocker: Failed to enable biometric, cleaning up biometric key',
-              error: error,
-              stackTrace: stackTrace,
-            );
-
-            try {
-              await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
-            } catch (cleanupError, cleanupStackTrace) {
-              logger.logError(
-                'MFALocker: Failed to cleanup biometric key after enableBiometric failure',
-                error: cleanupError,
-                stackTrace: cleanupStackTrace,
+      _sync(
+        () => _executeWithCleanup(
+          erasables: [bioCipherFunc, passwordCipherFunc],
+          callback: () async {
+            // Step 1: Check TPM status
+            final tpmStatus = await _secureProvider.getTPMStatus();
+            if (tpmStatus != TPMStatus.supported) {
+              throw const BiometricException(
+                BiometricExceptionType.notAvailable,
+                message: 'TPM not supported on this device',
               );
             }
 
-            rethrow;
-          }
-        },
+            // Step 2: Check biometry status
+            final biometryStatus = await _secureProvider.getBiometryStatus();
+            if (biometryStatus != BiometricStatus.supported) {
+              throw BiometricException(
+                BiometricExceptionType.notAvailable,
+                message: 'Biometric authentication not available: $biometryStatus',
+              );
+            }
+
+            try {
+              // Step 3: Defensive key management - delete before generate
+              try {
+                await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
+              } catch (e) {
+                // Ignore errors - key might not exist yet
+                logger.logInfo('Key might not exist yet: $e');
+              }
+
+              // Step 4: Generate new key
+              await _secureProvider.generateKey(tag: bioCipherFunc.keyTag);
+
+              // Step 5: Enable biometry in locker
+              await loadAllMetaIfLocked(passwordCipherFunc);
+              await _storage.addOrReplaceWrap(newWrapFunc: bioCipherFunc, existingWrapFunc: passwordCipherFunc);
+            } catch (error, stackTrace) {
+              logger.logError(
+                'MFALocker: Failed to enable biometric, cleaning up biometric key',
+                error: error,
+                stackTrace: stackTrace,
+              );
+
+              try {
+                await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
+              } catch (cleanupError, cleanupStackTrace) {
+                logger.logError(
+                  'MFALocker: Failed to cleanup biometric key after enableBiometric failure',
+                  error: cleanupError,
+                  stackTrace: cleanupStackTrace,
+                );
+              }
+
+              rethrow;
+            }
+          },
+        ),
       );
 
-  /// Disable biometric authentication (requires password confirmation)
-  /// This method handles storage update and key deletion.
   @override
   Future<void> teardownBiometry({
-    required BioCipherFunc bioCipherFunc,
     required PasswordCipherFunc passwordCipherFunc,
-  }) async {
-    // Disable biometry in locker
-    await disableBiometry(
-      bioCipherFunc: bioCipherFunc,
-      passwordCipherFunc: passwordCipherFunc,
-    );
-
-    // Delete biometric key from secure storage
-    await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
-  }
+    String? biometricKeyTag,
+  }) =>
+      _sync(
+        () => _executeWithCleanup(
+          erasables: [passwordCipherFunc],
+          callback: () async {
+            await loadAllMetaIfLocked(passwordCipherFunc);
+            await _storage.deleteWrap(originToDelete: Origin.bio, cipherFunc: passwordCipherFunc);
+            if (biometricKeyTag != null) {
+              try {
+                await _secureProvider.deleteKey(tag: biometricKeyTag);
+              } catch (_) {
+                logger.logWarning('teardownBiometry: failed to delete biometric key, suppressing');
+              }
+            }
+          },
+        ),
+      );
 
   Future<T> _executeWithCleanup<T>({
     required List<Erasable> erasables,

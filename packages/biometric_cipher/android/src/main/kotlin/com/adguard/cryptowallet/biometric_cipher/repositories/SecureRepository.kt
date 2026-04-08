@@ -18,4 +18,6 @@ interface SecureRepository {
     fun decrypt(cipher: Cipher, data: String): String
 
     fun deleteKey(tag: String)
+
+    fun isKeyValid(tag: String): Boolean
 }

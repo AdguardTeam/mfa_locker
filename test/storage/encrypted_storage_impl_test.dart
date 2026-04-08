@@ -797,8 +797,11 @@ void main() {
         const explicitId = 'my-entry-id';
 
         final returnedId = await storage.addEntry(
-          input:
-              EntryAddInput(meta: _Helpers.createEntryMeta(), value: _Helpers.createEntryValue(), id: EntryId(explicitId)),
+          input: EntryAddInput(
+            meta: _Helpers.createEntryMeta(),
+            value: _Helpers.createEntryValue(),
+            id: EntryId(explicitId),
+          ),
           cipherFunc: cipherFunc,
         );
 
@@ -1388,11 +1391,17 @@ void main() {
         final v2 = _Helpers.createEntryValue([2]);
 
         // Act:
-        final f1 = storage.addEntry(input: EntryAddInput(meta: m1, value: v1), cipherFunc: cipher);
+        final f1 = storage.addEntry(
+          input: EntryAddInput(meta: m1, value: v1),
+          cipherFunc: cipher,
+        );
         await Future<void>.delayed(delayDuration);
         expect(readCalls, 1, reason: 'the first operation entered and is waiting at the gate');
 
-        final f2 = storage.addEntry(input: EntryAddInput(meta: m2, value: v2), cipherFunc: cipher);
+        final f2 = storage.addEntry(
+          input: EntryAddInput(meta: m2, value: v2),
+          cipherFunc: cipher,
+        );
         await Future<void>.delayed(delayDuration);
         expect(readCalls, 1, reason: 'the second operation must not enter until the lock is released');
 

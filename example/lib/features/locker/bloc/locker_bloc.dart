@@ -53,6 +53,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     on<_AppResumed>(_onAppResumed);
     on<_BiometricOperationStateChanged>(_onBiometricOperationStateChanged);
     on<_ActivityDetected>(_onActivityDetected);
+    on<_BiometricKeyInvalidationDetected>(_onBiometricKeyInvalidationDetected);
 
     _timerService.onLockCallback = _onTimerExpired;
     _createSub();
@@ -228,6 +229,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
             message: 'Unlocked successfully',
           ),
         );
+        await _autoDisableBiometricIfInvalidated(password: event.password, emit: emit);
       },
       onDecryptFailed: (error) => _handleDecryptFailure(
         emit,
@@ -286,6 +288,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
           ),
         );
         action(const LockerAction.navigateBack());
+        await _autoDisableBiometricIfInvalidated(password: event.password, emit: emit);
       },
       onDecryptFailed: (error) => _handleDecryptFailure(
         emit,
@@ -372,7 +375,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         onError: (error) => _handleBiometricFailure(
           emit,
           error,
-          fallbackMessage: 'Failed to enable biometric: $error',
+          fallbackMessage: 'Failed to enable biometric authentication.',
         ),
         operationDescription: 'enable biometric authentication',
       );
@@ -409,55 +412,24 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     _DisableBiometricRequested event,
     Emitter<LockerState> emit,
   ) async {
-    emit(
-      state.copyWith(
-        loadState: LoadState.loading,
-        biometricOperationState: BiometricOperationState.inProgress,
-      ),
-    );
+    emit(state.copyWith(loadState: LoadState.loading));
 
-    try {
-      await _handleVaultOperation(
-        operation: () async {
-          await _lockerRepository.disableBiometric(password: event.password);
-          await _refreshBiometricState(emit, resetLoadState: true);
-          action(
-            const LockerAction.showSuccess(
-              message: 'Biometric authentication disabled',
-            ),
-          );
-          // Reset biometric operation state after success (processed after finally block)
-          if (!isClosed) {
-            add(
-              const LockerEvent.biometricOperationStateChanged(
-                biometricOperationState: BiometricOperationState.idle,
-              ),
-            );
-          }
-        },
-        onDecryptFailed: (error) => _handleDecryptFailure(
-          emit,
-          LockerAction.showError(
-            message: 'Incorrect password: $error',
-          ),
-        ),
-        onError: (error) => _handleBiometricFailure(
-          emit,
-          error,
-          fallbackMessage: 'Failed to disable biometric: $error',
-        ),
-        operationDescription: 'disable biometric authentication',
-      );
-    } finally {
-      if (!isClosed) {
-        emit(
-          state.copyWith(
-            loadState: LoadState.none,
-            biometricOperationState: BiometricOperationState.awaitingResume,
-          ),
-        );
-      }
-    }
+    await _handleVaultOperation(
+      operation: () async {
+        await _lockerRepository.disableBiometric(password: event.password);
+        await _refreshBiometricState(emit, resetLoadState: true);
+        action(const LockerAction.showSuccess(message: 'Biometric authentication disabled'));
+      },
+      onDecryptFailed: (error) => _handleDecryptFailure(
+        emit,
+        LockerAction.showError(message: 'Incorrect password: $error'),
+      ),
+      onError: (error) => _handleGenericFailure(
+        emit,
+        LockerAction.showError(message: 'Failed to disable biometric: $error'),
+      ),
+      operationDescription: 'disable biometric authentication',
+    );
   }
 
   Future<void> _onUnlockWithBiometricRequested(
@@ -489,7 +461,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         onError: (error) => _handleBiometricFailure(
           emit,
           error,
-          fallbackMessage: 'Failed to unlock with biometric: $error',
+          fallbackMessage: 'Biometric authentication failed. Please try again or use your password.',
         ),
         operationDescription: 'unlock locker with biometric',
       );
@@ -549,7 +521,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         onError: (error) => _handleBiometricFailure(
           emit,
           error,
-          fallbackMessage: 'Failed to add entry: $error',
+          fallbackMessage: 'Failed to add entry. Please try again.',
         ),
         operationDescription: 'add entry with biometric',
       );
@@ -611,12 +583,12 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         onDecryptFailed: (error) => _handleBiometricFailure(
           emit,
           error,
-          fallbackMessage: 'Failed to read entry: $error',
+          fallbackMessage: 'Failed to read entry. Please try again.',
         ),
         onError: (error) => _handleBiometricFailure(
           emit,
           error,
-          fallbackMessage: 'Failed to read entry: $error',
+          fallbackMessage: 'Failed to read entry. Please try again.',
         ),
         operationDescription: 'read entry with biometric',
       );
@@ -692,7 +664,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         onError: (error) => _handleBiometricFailure(
           emit,
           error,
-          fallbackMessage: 'Failed to delete entry: $error',
+          fallbackMessage: 'Failed to delete entry. Please try again.',
         ),
         operationDescription: 'delete entry with biometric',
       );
@@ -736,6 +708,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
             value: value,
           ),
         );
+        await _autoDisableBiometricIfInvalidated(password: event.password, emit: emit);
       },
       onDecryptFailed: (error) => _handleDecryptFailure(
         emit,
@@ -788,6 +761,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
           ),
         );
         action(const LockerAction.showSuccess(message: 'Entry deleted successfully'));
+        await _autoDisableBiometricIfInvalidated(password: event.password, emit: emit);
       },
       onDecryptFailed: (error) {
         if (isClosed) {
@@ -827,6 +801,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         emit(state.copyWith(loadState: LoadState.none));
         action(const LockerAction.showSuccess(message: 'Password changed successfully'));
         action(const LockerAction.navigateBack());
+        await _autoDisableBiometricIfInvalidated(password: event.newPassword, emit: emit);
       },
       onDecryptFailed: (error) {
         if (isClosed) {
@@ -1008,6 +983,32 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     bool resetLoadState = false,
   }) => _determineBiometricStateAndEmit(emit, resetLoadState: resetLoadState);
 
+  Future<void> _autoDisableBiometricIfInvalidated({
+    required String password,
+    required Emitter<LockerState> emit,
+  }) async {
+    if (!state.biometricState.isKeyInvalidated) {
+      return;
+    }
+
+    try {
+      await _lockerRepository.disableBiometric(password: password);
+      await _refreshBiometricState(emit);
+      action(
+        const LockerAction.showSuccess(
+          message: 'Biometrics were disabled due to enrollment changes. Re-enable in Settings.',
+        ),
+      );
+    } catch (e) {
+      logger.logWarning('Auto-disable biometric failed: $e');
+      action(
+        const LockerAction.showError(
+          message: 'Could not auto-disable invalidated biometrics. Please disable manually in Settings.',
+        ),
+      );
+    }
+  }
+
   Future<void> _handleBiometricFailure(
     Emitter<LockerState> emit,
     Object error, {
@@ -1078,11 +1079,22 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
 
           return;
 
+        case BiometricExceptionType.keyInvalidated:
+          emit(state.copyWith(biometricState: BiometricState.keyInvalidated));
+          action(const LockerAction.biometricKeyInvalidated());
+          add(
+            const LockerEvent.biometricOperationStateChanged(
+              biometricOperationState: BiometricOperationState.idle,
+            ),
+          );
+
+          return;
+
         case BiometricExceptionType.failure:
           await _determineBiometricStateAndEmit(emit);
+          break;
 
         case BiometricExceptionType.notConfigured:
-          // Fall through to generic error handling
           break;
       }
     }
@@ -1202,14 +1214,16 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     }
   }
 
-  void _onAppResumed(
+  Future<void> _onAppResumed(
     _AppResumed event,
     Emitter<LockerState> emit,
-  ) {
+  ) async {
     if (_timerService.shouldLockOnResume &&
         state.status == LockerStatus.unlocked &&
         state.biometricOperationState == BiometricOperationState.idle) {
       add(const LockerEvent.lockRequested());
+
+      return;
     }
 
     // Clear biometric operation state when app resumes after biometric operation.
@@ -1218,6 +1232,33 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     if (state.biometricOperationState == BiometricOperationState.awaitingResume) {
       emit(state.copyWith(biometricOperationState: BiometricOperationState.idle));
       logger.logInfo('LockerBloc: Biometric operation state cleared on app resume');
+    }
+
+    if (state.status == LockerStatus.unlocked && state.biometricState.isEnabled) {
+      await _checkBiometricKeyValidity(emit);
+    }
+  }
+
+  /// Checks biometric key validity and locks the app if the key has been invalidated.
+  Future<void> _checkBiometricKeyValidity(Emitter<LockerState> emit) async {
+    try {
+      final biometricState = await _lockerRepository.determineBiometricState();
+
+      if (isClosed) {
+        return;
+      }
+
+      if (biometricState.isKeyInvalidated) {
+        logger.logInfo('LockerBloc: Biometric key invalidated while app was in background, locking');
+        emit(state.copyWith(biometricState: biometricState));
+        await _lockerRepository.lock();
+      }
+    } catch (error, stackTrace) {
+      logger.logError(
+        'LockerBloc: Failed to check biometric key validity on resume',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -1234,6 +1275,15 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     // so no appResumed event would be received.
     if (state.biometricOperationState == BiometricOperationState.awaitingResume) {
       emit(state.copyWith(biometricOperationState: BiometricOperationState.idle));
+    }
+  }
+
+  void _onBiometricKeyInvalidationDetected(
+    _BiometricKeyInvalidationDetected event,
+    Emitter<LockerState> emit,
+  ) {
+    if (!isClosed) {
+      emit(state.copyWith(biometricState: BiometricState.keyInvalidated));
     }
   }
 

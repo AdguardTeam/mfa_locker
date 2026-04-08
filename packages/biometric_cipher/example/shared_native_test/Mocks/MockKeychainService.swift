@@ -9,13 +9,23 @@ final class MockKeychainService: KeychainServiceProtocol {
     var createRandomKeyError: KeychainServiceError? = nil
     
     var deleteItemError: KeychainServiceError? = nil
+
+    /// Tracks whether `createRandomKey` has been called successfully.
+    /// Used by `getPrivateKey` fallback to simulate realistic keychain behavior.
+    private(set) var keyCreated = false
     
     var copyPublicKeyResult: SecKey?
     
     var isAlgorithmSupportedResult: Bool = true
     
+    /// Controls what `getPrivateKey` returns. When non-nil, takes priority.
+    /// When nil, falls back to `createRandomKeyResult` for backward compatibility.
+    var getPrivateKeyResult: SecKey?
+
     var encryptDataResult: Data?
     var decryptDataResult: Data?
+    var decryptDataError: KeychainServiceError? = nil
+    var itemExistsResult: Bool = false
     
     // MARK: - KeychainServiceProtocol Methods
     
@@ -26,6 +36,7 @@ final class MockKeychainService: KeychainServiceProtocol {
         guard let key = createRandomKeyResult else {
             throw KeychainServiceError.failedToCreateRandomKey(nil)
         }
+        keyCreated = true
         return key
     }
     
@@ -33,14 +44,17 @@ final class MockKeychainService: KeychainServiceProtocol {
         if let error = deleteItemError {
             throw error
         }
-        // Successful deletion does not require any action
+        keyCreated = false
     }
     
     func getPrivateKey(_ query: CFDictionary) -> SecKey? {
+        if let result = getPrivateKeyResult {
+            return result
+        }
         if createRandomKeyError != nil {
             return nil
         }
-        guard let key = createRandomKeyResult else {
+        guard keyCreated, let key = createRandomKeyResult else {
             return nil
         }
         return key
@@ -65,9 +79,16 @@ final class MockKeychainService: KeychainServiceProtocol {
     }
     
     func decryptData(key: SecKey, algorithm: SecKeyAlgorithm, data: Data) throws -> Data {
+        if let error = decryptDataError {
+            throw error
+        }
         guard let decryptedData = decryptDataResult else {
             throw KeychainServiceError.failedToDecryptData(nil)
         }
         return decryptedData
+    }
+
+    func itemExists(_ query: CFDictionary) -> Bool {
+        return itemExistsResult
     }
 }

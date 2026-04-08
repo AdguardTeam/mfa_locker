@@ -307,5 +307,52 @@ namespace biometric_cipher {
 			std::wstring resultW(result.c_str());
 			EXPECT_EQ(resultW, decryptedString);
 		}
+		TEST_F(BiometricCipherServiceTest, IsKeyValidAsync_ReturnsTrueWhenRepositoryReturnsTrue)
+		{
+			// Arrange
+			std::string testTag = "valid_tag";
+			std::wstring wTestTag(testTag.begin(), testTag.end());
+
+			EXPECT_CALL(*m_WindowsHelloRepository, IsKeyValidAsync)
+				.Times(1)
+				.WillOnce([&, wTestTag](const winrt::hstring& hTag) -> IAsyncOperation<bool>
+					{
+						std::wstring wTag(hTag.c_str());
+						EXPECT_TRUE(wTag.find(wTestTag) != std::wstring::npos);
+						co_return true;
+					}
+				);
+
+			// Act
+			auto asyncOp = m_Service->IsKeyValidAsync(testTag);
+			auto result = asyncOp.get();
+
+			// Assert
+			EXPECT_TRUE(result);
+		}
+
+		TEST_F(BiometricCipherServiceTest, IsKeyValidAsync_ReturnsFalseWhenRepositoryReturnsFalse)
+		{
+			// Arrange
+			std::string testTag = "invalid_tag";
+			std::wstring wTestTag(testTag.begin(), testTag.end());
+
+			EXPECT_CALL(*m_WindowsHelloRepository, IsKeyValidAsync)
+				.Times(1)
+				.WillOnce([&, wTestTag](const winrt::hstring& hTag) -> IAsyncOperation<bool>
+					{
+						std::wstring wTag(hTag.c_str());
+						EXPECT_TRUE(wTag.find(wTestTag) != std::wstring::npos);
+						co_return false;
+					}
+				);
+
+			// Act
+			auto asyncOp = m_Service->IsKeyValidAsync(testTag);
+			auto result = asyncOp.get();
+
+			// Assert
+			EXPECT_FALSE(result);
+		}
 	}  // namespace test
 }  // namespace biometric_cipher

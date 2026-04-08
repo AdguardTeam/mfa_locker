@@ -3,24 +3,24 @@
 /// These errors cover scenarios such as the unavailability of Secure Enclave,
 /// invalid input arguments, and failures during cryptographic operations.
 enum SecureEnclavePluginError: BaseError {
-    
+
     /// Indicates that the Secure Enclave is unavailable on the device.
     case secureEnclaveNoAvailable
 
     /// Indicates that biometric authentication is not available on the device.
     case biometryNotAvailable
-    
+
     /// Indicates that the provided arguments are invalid.
     case invalidArgument
-    
+
     /// Represents an error that occurred during key pair generation or export.
     /// - Parameter error: The underlying error that caused the failure.
     case keyGenerationError(error: Error)
-    
+
     /// Represents an error that occurred during encryption.
     /// - Parameter error: The underlying error that caused the failure.
     case encryptionError(error: Error)
-    
+
     /// Represents an error that occurred during decryption.
     /// - Parameter error: The underlying error that caused the failure.
     case decryptionError(error: Error)
@@ -28,10 +28,13 @@ enum SecureEnclavePluginError: BaseError {
     /// Represents an error that occurred during key deletion.
     /// - Parameter error: The underlying error that caused the failure.
     case keyDeletionError(error: Error)
-    
+
+    /// The biometric key has been permanently invalidated due to a biometric enrollment change.
+    case keyPermanentlyInvalidated
+
     /// Represents an unknown error.
     case unknown
-    
+
     /// A unique string representing the error code.
     var code: String {
         switch self {
@@ -49,11 +52,13 @@ enum SecureEnclavePluginError: BaseError {
             return "DECRYPTION_ERROR"
         case .keyDeletionError:
             return "KEY_DELETION_ERROR"
+        case .keyPermanentlyInvalidated:
+            return "KEY_PERMANENTLY_INVALIDATED"
         case .unknown:
             return "UNKNOWN_ERROR"
         }
     }
-    
+
     /// A message describing the error.
     var errorDescription: String {
         switch self {
@@ -71,6 +76,8 @@ enum SecureEnclavePluginError: BaseError {
             return "Failed to decrypt data: \(error.localizedDescription)"
         case .keyDeletionError(let error):
             return "Failed to delete key: \(error.localizedDescription)"
+        case .keyPermanentlyInvalidated:
+            return "Biometric key has been permanently invalidated."
         case .unknown:
             return "An unknown error occurred."
         }

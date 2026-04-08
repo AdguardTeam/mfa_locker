@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "include/biometric_cipher/repositories/windows_hello_repository_impl.h"
+#include "include/biometric_cipher/enums/biometry_status.h"
 #include "include/biometric_cipher/enums/tpm_status.h"
 
 namespace biometric_cipher
@@ -55,6 +56,31 @@ namespace biometric_cipher
 				SUCCEED() << "Credential deleted successfully.";
 			}
 			catch (const winrt::hresult_error & ex) {
+				ADD_FAILURE() << "Exception thrown: " << winrt::to_string(ex.message());
+			}
+		}
+		// Test that `IsKeyValidAsync` returns false for a tag that does not exist.
+		// Safe to run unattended — OpenAsync is a metadata-only lookup, no UI prompt.
+		TEST_F(WindowsHelloRepositoryIntegrationTest, IsKeyValidAsync_ReturnsFalseForNonExistentTag) {
+			try {
+				// First check if Windows Hello is supported; skip if not
+				auto statusOp = m_Repository.GetWindowsHelloStatusAsync();
+				auto status = statusOp.get();
+
+				if (status != BiometryStatusToInteger(BiometryStatus::kSupported)) {
+					GTEST_SKIP() << "Windows Hello not supported on this machine, skipping integration test.";
+				}
+
+				// Use a tag that almost certainly does not exist
+				winrt::hstring tag = L"nonexistent_integration_test_tag_12345";
+
+				// Act
+				auto result = m_Repository.IsKeyValidAsync(tag).get();
+
+				// Assert
+				EXPECT_FALSE(result) << "Expected IsKeyValidAsync to return false for a non-existent credential tag";
+			}
+			catch (const winrt::hresult_error& ex) {
 				ADD_FAILURE() << "Exception thrown: " << winrt::to_string(ex.message());
 			}
 		}

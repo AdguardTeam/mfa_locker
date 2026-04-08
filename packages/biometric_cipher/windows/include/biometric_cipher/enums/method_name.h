@@ -12,6 +12,7 @@ namespace biometric_cipher {
 		kDecrypt,
 		kDeleteKey,
 		kConfigure,
+		kIsKeyValid,
 		kNotImplemented,
 	};
 

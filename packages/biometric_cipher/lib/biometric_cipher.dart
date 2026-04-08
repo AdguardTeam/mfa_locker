@@ -94,4 +94,15 @@ class BiometricCipher {
 
     return _instance.deleteKey(tag: tag);
   }
+
+  Future<bool> isKeyValid({required String tag}) {
+    if (tag.isEmpty) {
+      throw const BiometricCipherException(
+        code: BiometricCipherExceptionCode.invalidArgument,
+        message: 'Tag cannot be empty',
+      );
+    }
+
+    return _instance.isKeyValid(tag: tag);
+  }
 }

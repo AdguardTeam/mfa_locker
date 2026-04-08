@@ -30,7 +30,7 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/package_info_plus/macos
 
 SPEC CHECKSUMS:
-  biometric_cipher: eb4b91010b7e7410ff7e9c7965dcceb0d8e1e042
+  biometric_cipher: c4deca3d229fb9dec79cc0ad464a05a77e52c848
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
   macos_window_utils: 23f54331a0fd51eea9e0ed347253bf48fd379d1d
   objective_c: ec13431e45ba099cb734eb2829a5c1cd37986cba

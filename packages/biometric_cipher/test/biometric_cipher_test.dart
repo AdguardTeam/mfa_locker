@@ -178,5 +178,80 @@ void main() {
         expect(mockPlatform.keys.containsKey(tag), isFalse);
       });
     });
+
+    group('isKeyValid', () {
+      setUp(() async {
+        await biometricCipher.configure(
+          config: const ConfigData(
+            biometricPromptTitle: 'Title',
+            biometricPromptSubtitle: 'Subtitle',
+            windowsDataToSign: 'DataToSign',
+          ),
+        );
+      });
+
+      test('returns true for existing key', () async {
+        // Arrange
+        const tag = 'valid_tag';
+        await biometricCipher.generateKey(tag: tag);
+
+        // Act
+        final result = await biometricCipher.isKeyValid(tag: tag);
+
+        // Assert
+        expect(result, isTrue);
+      });
+
+      test('returns false for non-existent key', () async {
+        // Arrange
+        const tag = 'nonexistent_tag';
+
+        // Act
+        final result = await biometricCipher.isKeyValid(tag: tag);
+
+        // Assert
+        expect(result, isFalse);
+      });
+
+      test('returns false after key deletion', () async {
+        // Arrange
+        const tag = 'deleted_tag';
+        await biometricCipher.generateKey(tag: tag);
+        await biometricCipher.deleteKey(tag: tag);
+
+        // Act
+        final result = await biometricCipher.isKeyValid(tag: tag);
+
+        // Assert
+        expect(result, isFalse);
+      });
+
+      test('throws BiometricCipherException for empty tag', () {
+        // Act & Assert
+        expect(
+          () => biometricCipher.isKeyValid(tag: ''),
+          throwsA(
+            predicate(
+              (e) => e is BiometricCipherException && e.code == BiometricCipherExceptionCode.invalidArgument,
+            ),
+          ),
+        );
+      });
+    });
+  });
+
+  group('BiometricCipherExceptionCode', () {
+    group('fromString', () {
+      test('KEY_PERMANENTLY_INVALIDATED returns keyPermanentlyInvalidated', () {
+        // Arrange
+        const code = 'KEY_PERMANENTLY_INVALIDATED';
+
+        // Act
+        final result = BiometricCipherExceptionCode.fromString(code);
+
+        // Assert
+        expect(result, BiometricCipherExceptionCode.keyPermanentlyInvalidated);
+      });
+    });
   });
 }

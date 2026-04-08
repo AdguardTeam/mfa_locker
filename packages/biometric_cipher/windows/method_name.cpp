@@ -14,6 +14,7 @@ namespace biometric_cipher {
 		{"decrypt", MethodName::kDecrypt},
 		{"deleteKey", MethodName::kDeleteKey},
 		{"configure", MethodName::kConfigure},
+		{"isKeyValid", MethodName::kIsKeyValid},
 		{"notImplemented", MethodName::kNotImplemented},
 	};
 

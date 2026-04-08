@@ -60,6 +60,10 @@ private:
 		const std::string& data,
 		std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
 
+	winrt::fire_and_forget IsKeyValidCoroutine(
+		const std::string& tag,
+		std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+
 	void OutputException(winrt::hresult hr, std::string& errorMessage);
 
 	biometric_cipher::ArgumentParser m_Argument_parser;

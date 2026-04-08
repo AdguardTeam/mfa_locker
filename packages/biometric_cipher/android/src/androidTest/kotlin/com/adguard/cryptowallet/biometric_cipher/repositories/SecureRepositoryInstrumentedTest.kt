@@ -16,11 +16,13 @@ import javax.crypto.Cipher
 
 // JUnit & Test Frameworks
 import junit.framework.TestCase.assertEquals
+import junit.framework.TestCase.assertFalse
 import junit.framework.TestCase.fail
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -145,6 +147,7 @@ class SecureRepositoryInstrumentedTest {
      * Note:
      * - This test must be run on a device/emulator with proper biometric/keystore support.
      */
+    @Ignore("Requires biometric prompt interaction — cannot run in automated test environments")
     @Test
     fun testNonDeterministicEncryption() {
         // Generate a unique key alias to avoid conflicts.
@@ -189,6 +192,33 @@ class SecureRepositoryInstrumentedTest {
 
         // Clean up: delete the generated key.
         repository.deleteKey(uniqueKeyAlias)
+    }
+
+    // ------------------------------------------------------------------------
+    //  Key Validity (isKeyValid)
+    // ------------------------------------------------------------------------
+    @Test
+    fun isKeyValid_returnsFalseForNonExistentKey() {
+        assertFalse(repository.isKeyValid("nonexistent.key.tag"))
+    }
+
+    @Test
+    fun isKeyValid_returnsTrueAfterKeyGeneration() {
+        assumeTrue(canAuthenticate())
+        generateTestKey()
+
+        assertTrue(repository.isKeyValid(TEST_KEY_ALIAS))
+
+        deleteTestKey()
+    }
+
+    @Test
+    fun isKeyValid_returnsFalseAfterKeyDeletion() {
+        assumeTrue(canAuthenticate())
+        generateTestKey()
+        repository.deleteKey(TEST_KEY_ALIAS)
+
+        assertFalse(repository.isKeyValid(TEST_KEY_ALIAS))
     }
 
     private fun deleteTestKey() {
