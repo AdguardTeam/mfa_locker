@@ -2,10 +2,12 @@
 #define FLUTTER_PLUGIN_BIOMETRIC_CIPHER_PLUGIN_H_
 
 #include "include/biometric_cipher/common/argument_parser.h"
+#include "include/biometric_cipher/handlers/screen_lock_stream_handler.h"
 #include "include/biometric_cipher/services/biometric_cipher_service.h"
 #include "include/biometric_cipher/storages/config_storage.h"
 
 
+#include <flutter/event_channel.h>
 #include <flutter/method_channel.h>
 #include <flutter/plugin_registrar_windows.h>
 
@@ -69,6 +71,8 @@ private:
 	biometric_cipher::ArgumentParser m_Argument_parser;
 	std::shared_ptr<biometric_cipher::ConfigStorage> m_ConfigStorage;
 	std::shared_ptr<biometric_cipher::BiometricCipherService> m_SecureService;
+	std::unique_ptr<flutter::EventChannel<flutter::EncodableValue>> screen_lock_channel_;
+	std::unique_ptr<ScreenLockStreamHandler> screen_lock_handler_;
 };
 
 }  // namespace biometric_cipher

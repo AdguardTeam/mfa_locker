@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:biometric_cipher/data/biometric_status.dart';
 import 'package:biometric_cipher/data/model/config_data.dart';
@@ -20,6 +22,12 @@ class MockBiometricCipherPlatform with MockPlatformInterfaceMixin implements Bio
 
   /// Provides read-only access to the stored keys (for test verifications).
   Map<String, String> get keys => Map.unmodifiable(_storedKeys);
+
+  /// Controller for simulating screen lock events in tests.
+  final screenLockStreamController = StreamController<bool>.broadcast();
+
+  @override
+  Stream<bool> get screenLockStream => screenLockStreamController.stream;
 
   /// Configures the mock platform with the provided [configData].
   ///

@@ -8,6 +8,7 @@ import 'package:locker/locker/models/biometric_state.dart';
 import 'package:locker/security/models/exceptions/biometric_exception.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/exceptions/decrypt_failed_exception.dart';
+import 'package:mfa_demo/core/services/screen_lock_service.dart';
 import 'package:mfa_demo/core/services/timer_service.dart';
 import 'package:mfa_demo/features/locker/data/models/repository_locker_state.dart';
 import 'package:mfa_demo/features/locker/data/repositories/locker_repository.dart';
@@ -20,12 +21,15 @@ part 'locker_state.dart';
 /// BLoC for managing locker state and operations
 class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
   final LockerRepository _lockerRepository;
+  final ScreenLockService _screenLockService;
   final TimerService _timerService;
 
   LockerBloc({
     required LockerRepository lockerRepository,
+    required ScreenLockService screenLockService,
     required TimerService timerService,
   }) : _lockerRepository = lockerRepository,
+       _screenLockService = screenLockService,
        _timerService = timerService,
        super(const LockerState()) {
     on<_InitializeRequested>(_onInitializeRequested);
@@ -54,16 +58,19 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     on<_BiometricOperationStateChanged>(_onBiometricOperationStateChanged);
     on<_ActivityDetected>(_onActivityDetected);
     on<_BiometricKeyInvalidationDetected>(_onBiometricKeyInvalidationDetected);
+    on<_ScreenLocked>(_onScreenLocked);
 
     _timerService.onLockCallback = _onTimerExpired;
     _createSub();
   }
 
   StreamSubscription<RepositoryLockerState>? _lockerStateSubscription;
+  StreamSubscription<void>? _screenLockSubscription;
 
   @override
   Future<void> close() async {
     await _lockerStateSubscription?.cancel();
+    await _screenLockSubscription?.cancel();
 
     return super.close();
   }
@@ -175,6 +182,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
 
         final entries = await _lockerRepository.getAllEntries();
         await _timerService.startTimer();
+        await _subscribeToScreenLock();
 
         if (isClosed) {
           return;
@@ -1153,6 +1161,11 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
 
       case RepositoryLockerState.locked when previousStatus != LockerStatus.locked:
         _timerService.stopTimer();
+        await _screenLockSubscription?.cancel();
+        _screenLockSubscription = null;
+        if (isClosed) {
+          return;
+        }
         emit(
           state.copyWith(
             status: LockerStatus.locked,
@@ -1182,6 +1195,7 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     try {
       final entries = await _lockerRepository.getAllEntries();
       await _timerService.startTimer();
+      await _subscribeToScreenLock();
 
       if (isClosed) {
         return;
@@ -1287,9 +1301,34 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     }
   }
 
+  void _onScreenLockDetected() {
+    if (!isClosed && state.status == LockerStatus.unlocked) {
+      add(const LockerEvent.screenLocked());
+    }
+  }
+
+  Future<void> _onScreenLocked(
+    _ScreenLocked event,
+    Emitter<LockerState> emit,
+  ) async {
+    if (state.status != LockerStatus.unlocked) {
+      return;
+    }
+    try {
+      await _lockerRepository.lock();
+    } catch (e, s) {
+      logger.logError('LockerBloc: Failed to lock on screen lock', error: e, stackTrace: s);
+    }
+  }
+
   void _onTimerExpired() {
     if (!isClosed && state.status == LockerStatus.unlocked) {
       add(const LockerEvent.lockRequested());
     }
+  }
+
+  Future<void> _subscribeToScreenLock() async {
+    await _screenLockSubscription?.cancel();
+    _screenLockSubscription = _screenLockService.onScreenLocked.listen((_) => _onScreenLockDetected());
   }
 }

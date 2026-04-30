@@ -1,4 +1,6 @@
+import 'package:locker/security/biometric_cipher_provider.dart';
 import 'package:locker/security/models/biometric_config.dart';
+import 'package:mfa_demo/core/services/screen_lock_service.dart';
 import 'package:mfa_demo/core/services/timer_service.dart';
 import 'package:mfa_demo/features/locker/data/repositories/locker_repository.dart';
 
@@ -7,6 +9,8 @@ abstract class RepositoryFactory {
   LockerRepository get lockerRepository;
 
   TimerService get timerService;
+
+  ScreenLockService get screenLockService;
 
   Future<void> init();
 
@@ -23,6 +27,7 @@ class RepositoryFactoryImpl implements RepositoryFactory {
 
   LockerRepository? _lockerRepository;
   TimerService? _timerService;
+  ScreenLockService? _screenLockService;
 
   @override
   LockerRepository get lockerRepository =>
@@ -30,16 +35,30 @@ class RepositoryFactoryImpl implements RepositoryFactory {
 
   @override
   TimerService get timerService {
-    if (_timerService == null) {
+    final service = _timerService;
+    if (service == null) {
       throw StateError('TimerService not initialized. Call init() first.');
     }
 
-    return _timerService!;
+    return service;
+  }
+
+  @override
+  ScreenLockService get screenLockService {
+    final service = _screenLockService;
+    if (service == null) {
+      throw StateError('ScreenLockService not initialized. Call init() first.');
+    }
+
+    return service;
   }
 
   @override
   Future<void> init() async {
     _timerService = TimerServiceImpl(lockerRepository: lockerRepository);
+    _screenLockService = ScreenLockServiceImpl(
+      biometricCipherProvider: BiometricCipherProviderImpl.instance,
+    );
 
     // Configure biometric cipher provider once at app startup
     // This must be done before any biometric operations
