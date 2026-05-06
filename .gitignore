@@ -21,6 +21,7 @@ migrate_working_dir/
 .claude/
 .cursor/
 .windsurf/
+.agents/
 
 # Flutter/Dart/Pub related
 **/doc/api/
