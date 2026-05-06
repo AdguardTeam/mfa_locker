@@ -38,7 +38,6 @@ void main() {
 
       final blocFactory = BlocFactoryImpl(
         lockerRepository: repositoryFactory.lockerRepository,
-        screenLockService: repositoryFactory.screenLockService,
         timerService: repositoryFactory.timerService,
       );
 

@@ -11,8 +11,6 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
 
     private let secureEnclaveManager: SecureEnclaveManagerProtocol
     private let laContextFactory: LAContextFactoryProtocol
-    private var screenLockEventChannel: FlutterEventChannel?
-    private let screenLockHandler = ScreenLockStreamHandler()
 
     public override init() {
         self.laContextFactory = LAContextFactory()
@@ -24,18 +22,12 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
     ///
     /// - Parameter registrar: The Flutter plugin registrar.
     public static func register(with registrar: FlutterPluginRegistrar) {
-        let instance = BiometricCipherPlugin()
 #if os(iOS)
-        let messenger = registrar.messenger()
+        let channel = FlutterMethodChannel(name: "biometric_cipher", binaryMessenger: registrar.messenger())
 #elseif os(macOS)
-        let messenger = registrar.messenger
+        let channel = FlutterMethodChannel(name: "biometric_cipher", binaryMessenger: registrar.messenger)
 #endif
-        let channel = FlutterMethodChannel(name: "biometric_cipher", binaryMessenger: messenger)
-        instance.screenLockEventChannel = FlutterEventChannel(
-            name: "biometric_cipher/screen_lock",
-            binaryMessenger: messenger
-        )
-        instance.screenLockEventChannel?.setStreamHandler(instance.screenLockHandler)
+        let instance = BiometricCipherPlugin()
         registrar.addMethodCallDelegate(instance, channel: channel)
     }
 

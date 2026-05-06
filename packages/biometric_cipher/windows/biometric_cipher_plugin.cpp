@@ -1,7 +1,6 @@
 #include "biometric_cipher_plugin.h"
 #include "include/biometric_cipher/enums/method_name.h"
 #include "include/biometric_cipher/common/string_util.h"
-#include "include/biometric_cipher/handlers/screen_lock_stream_handler.h"
 #include "include/biometric_cipher/repositories/windows_tpm_repository_impl.h"
 #include "include/biometric_cipher/repositories/windows_hello_repository_impl.h"
 #include "include/biometric_cipher/repositories/winrt_encrypt_repository_impl.h"
@@ -11,7 +10,6 @@
 // This must be included before many other Windows headers.
 #include <windows.h>
 
-#include <flutter/event_channel.h>
 #include <flutter/method_channel.h>
 #include <flutter/plugin_registrar_windows.h>
 #include <flutter/standard_method_codec.h>
@@ -47,19 +45,6 @@ void BiometricCipherPlugin::RegisterWithRegistrar(
         plugin_pointer->HandleMethodCall(call, std::move(result));
       });
 
-  auto screen_lock_handler = std::make_unique<ScreenLockStreamHandler>(registrar);
-
-  auto screen_lock_channel =
-      std::make_unique<flutter::EventChannel<flutter::EncodableValue>>(
-          registrar->messenger(), "biometric_cipher/screen_lock",
-          &flutter::StandardMethodCodec::GetInstance());
-
-  screen_lock_channel->SetStreamHandler(
-      screen_lock_handler->CreateStreamHandler());
-
-  plugin->screen_lock_channel_ = std::move(screen_lock_channel);
-  plugin->screen_lock_handler_ = std::move(screen_lock_handler);
-
   registrar->AddPlugin(std::move(plugin));
 }
 
@@ -78,12 +63,7 @@ BiometricCipherPlugin::BiometricCipherPlugin() :
 }
 
 
-BiometricCipherPlugin::~BiometricCipherPlugin() {
-	if (screen_lock_channel_) {
-		screen_lock_channel_->SetStreamHandler(nullptr);
-	}
-	screen_lock_handler_.reset();
-}
+BiometricCipherPlugin::~BiometricCipherPlugin() {}
 
 void BiometricCipherPlugin::HandleMethodCall(
     const flutter::MethodCall<flutter::EncodableValue> &methodCall,
