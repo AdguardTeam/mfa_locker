@@ -86,9 +86,10 @@ mfa_locker/
 ├── packages/
 │   └── biometric_cipher/             # Native Flutter plugin
 │       ├── lib/                      # Platform interface + method channel
+│       ├── darwin/                   # Shared Darwin source (Secure Enclave, iOS + macOS)
 │       ├── android/                  # Kotlin: AuthenticationRepository, SecureService
-│       ├── ios/                      # Shared Darwin source (Secure Enclave)
-│       ├── macos/                    # Shared Darwin source (Secure Enclave)
+│       ├── ios/                      # iOS platform channel + podspec
+│       ├── macos/                    # macOS platform channel + podspec
 │       └── windows/                  # C++: Windows Hello + TPM
 ├── example/
 │   ├── lib/
@@ -96,7 +97,11 @@ mfa_locker/
 │   │   │   ├── locker/              # Core vault feature (unlock, entries CRUD, biometric)
 │   │   │   ├── settings/            # Settings feature (auto-lock timeout)
 │   │   │   └── tpm_test/            # TPM/biometric testing feature
-│   │   ├── core/                    # Shared widgets, constants, extensions
+│   │   ├── core/
+│   │   │   ├── constants/            # AppConstants (filenames, timeouts, biometric key tag)
+│   │   │   ├── extensions/           # BuildContext extensions
+│   │   │   ├── services/             # TimerService (auto-lock timer)
+│   │   │   └── utils/                # App version, fullscreen, logging, macOS init, time format
 │   │   └── di/                      # DependencyScope, RepositoryFactory, BlocFactory
 │   ├── packages/
 │   │   ├── action_bloc/             # Custom flutter_bloc extension adding side-effect Actions
@@ -108,6 +113,8 @@ mfa_locker/
 │   ├── storage/                     # EncryptedStorage tests
 │   ├── utils/                       # Utility tests
 │   └── mocks/                       # Mock classes (mocktail)
+├── specs/                           # Feature specifications
+├── docker/                          # CI Dockerfiles (Android, toolchain)
 ├── pubspec.yaml
 ├── analysis_options.yaml
 ├── Makefile                         # Proxy to example/Makefile
@@ -156,14 +163,20 @@ Flutter version is pinned via `.ci-flutter-version` → **3.41.4**. Use `fvm` to
 
 | Tool | Purpose |
 |------|---------|
-| `mcp__dart__analyze_files` | Analyze entire project |
-| `mcp__dart__dart_format` | Format files (always use `paths` parameter) |
-| `mcp__dart__dart_fix` | Run `dart fix --apply` |
-| `mcp__dart__run_tests` | Run tests |
-| `mcp__dart__pub` | Pub commands (add, get, remove, upgrade) |
-| `mcp__dart__hot_reload` | Hot reload running app |
+| `dart_format` | Format a single Dart file by absolute path |
+| `dart_fix` | Run `dart fix --apply` on a file or entire workspace |
+| `mcp_dart_sdk_mcp__pub` | Pub commands (add, get, remove, upgrade, deps, outdated) |
+| `mcp_dart_sdk_mcp__hot_reload` | Hot reload running app |
+| `mcp_dart_sdk_mcp__get_runtime_errors` | Retrieve runtime errors from running app |
 
-Shell commands (`cp`, `mv`, `git`, `build_runner`) are fine.
+**No MCP equivalent exists for these — use shell commands:**
+
+| Command | Purpose |
+|---------|---------|
+| `fvm flutter analyze --fatal-warnings --fatal-infos --no-pub .` | Static analysis (zero warnings required) |
+| `fvm flutter test` | Run tests |
+
+Other shell commands (`cp`, `mv`, `git`, `build_runner`) are fine.
 
 ## Contribution Instructions
 
@@ -175,9 +188,9 @@ Shell commands (`cp`, `mv`, `git`, `build_runner`) are fine.
 
 ### After Making Changes
 
-1. Run `fvm flutter analyze --fatal-warnings --fatal-infos --no-pub .` or use `mcp__dart__analyze_files` — zero warnings/infos required.
-2. Format changed files with `mcp__dart__dart_format` (with `paths` parameter) or `fvm dart format <files> --line-length 120`.
-3. Run relevant tests via `mcp__dart__run_tests` or `fvm flutter test`.
+1. Run `fvm flutter analyze --fatal-warnings --fatal-infos --no-pub .` — zero warnings/infos required.
+2. Format changed files with `dart_format` MCP tool or `fvm dart format <files> --line-length 120`.
+3. Run relevant tests via `fvm flutter test`.
 4. If you changed freezed models in the example app, run `cd example && make g`.
 
 ### Dependencies
