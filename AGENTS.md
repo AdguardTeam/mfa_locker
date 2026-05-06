@@ -19,17 +19,17 @@ The repo contains:
 
 | Field | Value |
 |-------|-------|
-| **Language** | Dart 3.5+ / Flutter 3.35.1 |
+| **Language** | Dart ^3.11.0 / Flutter ^3.41.4 |
 | **State Management** | `flutter_bloc` 8.1.6 + custom `action_bloc` (local package) with `freezed` for immutable states/events |
 | **Architecture** | Library: Locker → Security → Storage → Crypto. Example app: UI → BLoC → Repository → MFALocker |
-| **Encryption** | AES-256-GCM (authenticated encryption) via `cryptography` 2.7.0 |
+| **Encryption** | AES-256-GCM (authenticated encryption) via `cryptography` 2.9.0 |
 | **Key Derivation** | Argon2id (OWASP recommended: 19 MiB memory, 1 parallelism, 2 iterations) |
 | **Integrity** | HMAC-SHA256 over entire storage structure with constant-time comparison |
 | **Storage** | JSON file-backed with atomic writes (temp file + rename), `chmod 600` on macOS |
 | **Biometrics** | `biometric_cipher` (local plugin) — TPM/Secure Enclave key generation, encryption, validation |
-| **Testing** | `flutter_test`, `mocktail` 1.0.3, Arrange-Act-Assert pattern |
+| **Testing** | `flutter_test`, `mocktail` 1.0.5, Arrange-Act-Assert pattern |
 | **Code Generation** | `build_runner`, `freezed` (example app only) |
-| **Linting** | `lints` 3.0.0 + 90+ rules, `strict-casts: true`, `strict-raw-types: true` |
+| **Linting** | `lints` 6.1.0 + 90+ rules, `strict-casts: true`, `strict-raw-types: true` |
 | **Target Platforms** | iOS, Android, macOS, Windows |
 | **DI** | Manual constructor-based injection with factory classes (example app) |
 | **Project Type** | Flutter library with local plugin package and example app |
@@ -116,7 +116,7 @@ mfa_locker/
 
 ## Build And Test Commands
 
-Flutter version is pinned via `.ci-flutter-version` → **3.35.1**. Use `fvm` to match.
+Flutter version is pinned via `.ci-flutter-version` → **3.41.4**. Use `fvm` to match.
 
 ### Library (root)
 
@@ -380,12 +380,12 @@ formatter:
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `cryptography` | 2.7.0 | AES-GCM, Argon2id, HMAC-SHA256 |
+| `cryptography` | 2.9.0 | AES-GCM, Argon2id, HMAC-SHA256 |
 | `rxdart` | 0.28.0 | BehaviorSubject for state streams |
-| `synchronized` | 3.4.0 | Reentrant lock |
-| `uuid` | 4.5.1 | UUID v4 generation |
+| `synchronized` | 3.4.0+1 | Reentrant lock |
+| `uuid` | 4.5.3 | UUID v4 generation |
 | `adguard_logger` | v1.0.1 (git) | Logging |
 | `biometric_cipher` | local path | Hardware-backed biometric operations |
 | `collection` | 1.19.1 | Collection utilities |
-| `meta` | 1.16.0 | Annotations (`@visibleForTesting`) |
+| `meta` | 1.17.0 | Annotations (`@visibleForTesting`) |
 | `path` | 1.9.1 | File path utilities |
