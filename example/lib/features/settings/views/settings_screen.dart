@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:locker/locker/models/biometric_state.dart';
 import 'package:mfa_demo/core/constants/app_constants.dart';
 import 'package:mfa_demo/core/extensions/context_extensions.dart';
+import 'package:mfa_demo/features/about/views/about_screen.dart';
 import 'package:mfa_demo/features/locker/bloc/locker_bloc.dart';
 import 'package:mfa_demo/features/locker/data/models/authentication_result.dart';
 import 'package:mfa_demo/features/locker/views/widgets/authentication_bottom_sheet.dart';
@@ -104,6 +105,15 @@ class _SettingsViewState extends State<_SettingsView> {
                                 ],
                               ),
                             ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.info_outline),
+                            title: const Text('About'),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => context.push(const AboutScreen()),
                           ),
                         ),
                       ],
