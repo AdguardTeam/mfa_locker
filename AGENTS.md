@@ -210,7 +210,6 @@ Layered architecture: **Locker (API) → Security (auth) → Storage (persistenc
 - **Metadata cache**: After unlock, `EntryMeta` objects are cached in `_metaCache`. Values (`EntryValue`) are never cached — fetched and erased on demand.
 - **Storage format**: JSON file containing `salt`, `lockTimeout`, `masterKey` (wrapped key list), `entries` (array of encrypted meta+value), `hmacKey`, `hmacSignature`.
 - **Atomic writes**: Storage writes to a temp file first, then atomically renames to target path. macOS restricts file permissions via `chmod 600`.
-- **Screen-lock auto-lock**: `biometric_cipher` exposes a `screenLockStream` that emits when the OS locks the screen (Android keyguard, iOS/macOS lock notifications, Windows `WTSRegisterSessionNotification`). The stream emits **lock events only** (never unlock). `MFALocker` subscribes and locks itself in response.
 
 #### Example App Layer (`example/lib/`)
 

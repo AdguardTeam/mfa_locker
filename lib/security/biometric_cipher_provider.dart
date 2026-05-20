@@ -54,12 +54,6 @@ abstract class BiometricCipherProvider {
   ///
   /// Does not trigger a biometric prompt.
   Future<bool> isKeyValid({required String tag});
-
-  /// Broadcast stream that emits `true` whenever the device screen is locked.
-  ///
-  /// Unlock is not signalled — the vault must require explicit re-authentication.
-  /// See [BiometricCipher.screenLockStream] for per-platform semantics.
-  Stream<bool> get screenLockStream;
 }
 
 /// Implementation of [BiometricCipherProvider] using the `biometric_cipher` package.
@@ -74,40 +68,16 @@ class BiometricCipherProviderImpl implements BiometricCipherProvider {
   BiometricCipherProviderImpl.forTesting(this._biometricCipher);
 
   @override
-  Future<void> configure(BiometricConfig config) async {
-    try {
-      await _biometricCipher.configure(config: config.toConfigData());
-    } on BiometricCipherException catch (e, stackTrace) {
-      Error.throwWithStackTrace(_mapExceptionToBiometricException(e), stackTrace);
-    }
-  }
+  Future<void> configure(BiometricConfig config) => _biometricCipher.configure(config: config.toConfigData());
 
   @override
-  Future<TPMStatus> getTPMStatus() async {
-    try {
-      return await _biometricCipher.getTPMStatus();
-    } on BiometricCipherException catch (e, stackTrace) {
-      Error.throwWithStackTrace(_mapExceptionToBiometricException(e), stackTrace);
-    }
-  }
+  Future<TPMStatus> getTPMStatus() => _biometricCipher.getTPMStatus();
 
   @override
-  Future<BiometricStatus> getBiometryStatus() async {
-    try {
-      return await _biometricCipher.getBiometryStatus();
-    } on BiometricCipherException catch (e, stackTrace) {
-      Error.throwWithStackTrace(_mapExceptionToBiometricException(e), stackTrace);
-    }
-  }
+  Future<BiometricStatus> getBiometryStatus() => _biometricCipher.getBiometryStatus();
 
   @override
-  Future<void> generateKey({required String tag}) async {
-    try {
-      await _biometricCipher.generateKey(tag: tag);
-    } on BiometricCipherException catch (e, stackTrace) {
-      Error.throwWithStackTrace(_mapExceptionToBiometricException(e), stackTrace);
-    }
-  }
+  Future<void> generateKey({required String tag}) => _biometricCipher.generateKey(tag: tag);
 
   @override
   Future<Uint8List> encrypt({required String tag, required Uint8List data}) async {
@@ -142,25 +112,10 @@ class BiometricCipherProviderImpl implements BiometricCipherProvider {
   }
 
   @override
-  Future<void> deleteKey({required String tag}) async {
-    try {
-      await _biometricCipher.deleteKey(tag: tag);
-    } on BiometricCipherException catch (e, stackTrace) {
-      Error.throwWithStackTrace(_mapExceptionToBiometricException(e), stackTrace);
-    }
-  }
+  Future<void> deleteKey({required String tag}) => _biometricCipher.deleteKey(tag: tag);
 
   @override
-  Future<bool> isKeyValid({required String tag}) async {
-    try {
-      return await _biometricCipher.isKeyValid(tag: tag);
-    } on BiometricCipherException catch (e, stackTrace) {
-      Error.throwWithStackTrace(_mapExceptionToBiometricException(e), stackTrace);
-    }
-  }
-
-  @override
-  Stream<bool> get screenLockStream => _biometricCipher.screenLockStream;
+  Future<bool> isKeyValid({required String tag}) => _biometricCipher.isKeyValid(tag: tag);
 
   BiometricException _mapExceptionToBiometricException(BiometricCipherException e) => switch (e.code) {
         BiometricCipherExceptionCode.keyNotFound => BiometricException(
