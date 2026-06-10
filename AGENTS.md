@@ -13,6 +13,7 @@ The repo contains:
 - **`lib/`** — the `locker` library itself (core encryption, storage, authentication)
 - **`packages/biometric_cipher/`** — native Flutter plugin wrapping TPM/Secure Enclave
 - **`example/`** — `mfa_demo` Flutter app demonstrating the library
+- **`example/packages/`** — local packages used by the demo app (`action_bloc`, `package_info_plus` fork)
 - **`test/`** — unit tests with `mocktail` mocks
 
 ## Technical Context
@@ -20,6 +21,7 @@ The repo contains:
 | Field | Value |
 |-------|-------|
 | **Language** | Dart ^3.11.0 / Flutter ^3.41.4 |
+| **Package** | `locker` 1.0.2, `publish_to: none` |
 | **State Management** | `flutter_bloc` 8.1.6 + custom `action_bloc` (local package) with `freezed` for immutable states/events |
 | **Architecture** | Library: Locker → Security → Storage → Crypto. Example app: UI → BLoC → Repository → MFALocker |
 | **Encryption** | AES-256-GCM (authenticated encryption) via `cryptography` 2.9.0 |
@@ -27,9 +29,9 @@ The repo contains:
 | **Integrity** | HMAC-SHA256 over entire storage structure with constant-time comparison |
 | **Storage** | JSON file-backed with atomic writes (temp file + rename), `chmod 600` on macOS |
 | **Biometrics** | `biometric_cipher` (local plugin) — TPM/Secure Enclave key generation, encryption, validation |
-| **Testing** | `flutter_test`, `mocktail` 1.0.5, Arrange-Act-Assert pattern |
+| **Testing** | `flutter_test`, `test` 1.30.0, `mocktail` 1.0.5, Arrange-Act-Assert pattern |
 | **Code Generation** | `build_runner`, `freezed` (example app only) |
-| **Linting** | `lints` 6.1.0 + 90+ rules, `strict-casts: true`, `strict-raw-types: true` |
+| **Linting** | Root: `lints` 6.1.0 + strict analyzer. Example/plugin: `flutter_lints` 6.0.0. |
 | **Target Platforms** | iOS, Android, macOS, Windows |
 | **DI** | Manual constructor-based injection with factory classes (example app) |
 | **Project Type** | Flutter library with local plugin package and example app |
@@ -85,7 +87,8 @@ mfa_locker/
 │       └── list_extensions.dart       # toUint8List() extension
 ├── packages/
 │   └── biometric_cipher/             # Native Flutter plugin
-│       ├── lib/                      # Platform interface + method channel
+│       ├── lib/                      # API, platform interface, method channel, data models/exceptions
+│       │   └── data/                 # BiometricStatus, TPMStatus, ConfigData, plugin exceptions
 │       ├── darwin/                   # Shared Darwin source (Secure Enclave, iOS + macOS)
 │       ├── android/                  # Kotlin: AuthenticationRepository, SecureService
 │       ├── ios/                      # iOS platform channel + podspec
@@ -95,17 +98,20 @@ mfa_locker/
 │   ├── lib/
 │   │   ├── features/
 │   │   │   ├── locker/              # Core vault feature (unlock, entries CRUD, biometric)
+│   │   │   │   ├── bloc/            # LockerBloc events, states, actions
+│   │   │   │   ├── data/            # LockerRepository and repository result models
+│   │   │   │   └── views/           # auth/, storage/, widgets/, utils/
 │   │   │   ├── settings/            # Settings feature (auto-lock timeout)
 │   │   │   └── tpm_test/            # TPM/biometric testing feature
 │   │   ├── core/
-│   │   │   ├── constants/            # AppConstants (filenames, timeouts, biometric key tag)
+│   │   │   ├── constants/            # AppConstants (storage file, timeouts, biometric key tag)
 │   │   │   ├── extensions/           # BuildContext extensions
 │   │   │   ├── services/             # TimerService (auto-lock timer)
 │   │   │   └── utils/                # App version, fullscreen, logging, macOS init, time format
 │   │   └── di/                      # DependencyScope, RepositoryFactory, BlocFactory
 │   ├── packages/
 │   │   ├── action_bloc/             # Custom flutter_bloc extension adding side-effect Actions
-│   │   └── package_info_plus/       # Platform integration
+│   │   └── package_info_plus/       # Local fork/copy of package_info_plus 8.1.4 plugin
 │   └── Makefile                     # Build targets for example app
 ├── test/
 │   ├── locker/                      # MFALocker tests
@@ -117,13 +123,17 @@ mfa_locker/
 ├── docker/                          # CI Dockerfiles (Android, toolchain)
 ├── pubspec.yaml
 ├── analysis_options.yaml
-├── Makefile                         # Proxy to example/Makefile
+├── Makefile                         # Proxy to example/Makefile; exports CI_FLUTTER_VERSION
 └── .ci-flutter-version              # Pinned Flutter version: 3.41.4
 ```
 
 ## Build And Test Commands
 
 Flutter version is pinned via `.ci-flutter-version` → **3.41.4**. Use `fvm` to match.
+
+The root `Makefile` is a proxy that forwards targets to `example/Makefile` and exports `CI_FLUTTER_VERSION`
+from `.ci-flutter-version`. `example/Makefile` defaults to `USE_FVM=true` and falls back to system
+`flutter`/`dart` when `fvm` is not available.
 
 ### Library (root)
 
@@ -149,6 +159,9 @@ Flutter version is pinned via `.ci-flutter-version` → **3.41.4**. Use `fvm` to
 | `make ci-build-macos` | macOS build (CI) |
 | `make ci-build-ios` | iOS build (CI) |
 | `make ci-build-windows` | Windows build (CI) |
+| `make ci-build-msix` | Windows MSIX packaging via `msix` |
+| `make dcm-analyze` | Optional Dart Code Metrics analysis |
+| `make clean-build-env` | Clean build_runner state, pub get, regenerate code |
 
 ### Biometric Cipher Plugin (`cd packages/biometric_cipher` first)
 
@@ -218,11 +231,14 @@ Layered architecture: **Locker (API) → Security (auth) → Storage (persistenc
 
 - **Master key wrapping**: A random master key encrypts all entries. The master key itself is encrypted ("wrapped") per authentication method (password or biometric), stored as `WrappedKey` with multiple `KeyWrap` entries identified by `Origin` (`pwd` or `bio`).
 - **`CipherFunc`**: Abstraction over an authentication method. `PasswordCipherFunc` derives a key via Argon2id on every encrypt/decrypt call (intentional — minimizes derived key lifetime in memory). `BioCipherFunc` delegates to the TPM/Secure Enclave and performs key validity checks before decrypt operations via `_checkKeyValidity`, translating TPM key-invalidated errors to `BiometricExceptionType.keyInvalidated`.
+- **Security providers**: `SecurityProviderImpl` creates password and biometric cipher functions. `BiometricCipherProviderImpl` wraps the plugin API and maps plugin-layer errors into library-layer biometric exceptions.
 - **`ErasableByteArray`**: Overwrites bytes to zero on `erase()`. All sensitive data implements `Erasable`. Every `MFALocker` operation calls `erase()` on its arguments in `finally` via `_executeWithCleanup`.
 - **`Sync`**: Reentrant `synchronized` lock guards all `MFALocker` and `EncryptedStorageImpl` state mutations.
 - **Metadata cache**: After unlock, `EntryMeta` objects are cached in `_metaCache`. Values (`EntryValue`) are never cached — fetched and erased on demand.
+- **Storage interface**: `EncryptedStorage` is an `abstract interface class`; `EncryptedStorageImpl` mixes in `HmacStorageMixin` for integrity verification.
 - **Storage format**: JSON file containing `salt`, `lockTimeout`, `masterKey` (wrapped key list), `entries` (array of encrypted meta+value), `hmacKey`, `hmacSignature`.
 - **Atomic writes**: Storage writes to a temp file first, then atomically renames to target path. macOS restricts file permissions via `chmod 600`.
+- **Exception layering**: The plugin exposes `BiometricCipherException`/`BiometricCipherExceptionCode`. The library exposes `BiometricException`/`BiometricExceptionType` and translates plugin failures at the security/provider boundary.
 
 #### Example App Layer (`example/lib/`)
 
@@ -234,6 +250,12 @@ State management uses `action_bloc` (local package in `example/packages/`) + Fre
 - **Actions** (one-off side effects): `ShowErrorAction`, `NavigateAction`
 
 The **Repository** layer creates `CipherFunc` objects and wraps all MFALocker exceptions. BLoCs receive plain types (e.g., `String password`) and never interact with `CipherFunc` directly.
+
+`AppConstants` defines the demo storage file (`mfa_demo_storage.json`), biometric key tag (`mfa_demo_bio_key`),
+default lock timeout, disabled auto-lock sentinel, and timeout choices shown in settings.
+
+The example app uses `msix` for Windows installer packaging, `macos_window_utils` for macOS window behavior,
+`path_provider` for app storage paths, and a local `package_info_plus` fork for app package metadata.
 
 ### Naming Conventions
 
@@ -313,7 +335,9 @@ The **Repository** layer creates `CipherFunc` objects and wraps all MFALocker ex
 
 ## Testing
 
-Tests live in `test/` alongside mocks in `test/mocks/`. Use `mocktail` for mocking.
+Root library tests live in `test/` alongside mocks in `test/mocks/`. Use `mocktail` for mocking.
+Package-level tests also exist under local packages such as `packages/biometric_cipher/test/`,
+`example/packages/action_bloc/test/`, and `example/packages/package_info_plus/test/`.
 
 ### Patterns
 
@@ -364,6 +388,13 @@ formatter:
   trailing_commas: preserve
 ```
 
+`example/analysis_options.yaml` uses `package:flutter_lints/flutter.yaml`, keeps strict raw/casts, treats
+`todo` as info, excludes generated `*.freezed.dart`/`*.g.dart` files and `packages/**`, and configures Dart Code
+Metrics rules for member ordering, BLoC naming, and widget conventions.
+
+`packages/biometric_cipher/analysis_options.yaml` uses `package:flutter_lints/flutter.yaml` with the same formatter
+page width and trailing comma settings.
+
 ### Key Linter Rules
 
 | Rule | Effect |
@@ -385,20 +416,54 @@ formatter:
 
 | Package | Location | Purpose |
 |---------|----------|---------|
-| `biometric_cipher` | `packages/biometric_cipher/` | Native Flutter plugin wrapping TPM/Secure Enclave for biometric key operations (generate, encrypt, decrypt, validate, delete). Supports Android (Kotlin), iOS/macOS (Swift, Secure Enclave), Windows (C++, Windows Hello). |
+| `biometric_cipher` | `packages/biometric_cipher/` | Native Flutter plugin wrapping TPM/Secure Enclave for biometric key operations (generate, encrypt, decrypt, validate, delete). Supports Android (Kotlin), iOS/macOS with `sharedDarwinSource: true` (Swift, Secure Enclave), and Windows (C++, Windows Hello). Its Dart layer contains `ConfigData`, `AndroidConfig`, `BiometricStatus`, `TPMStatus`, and plugin-specific exception codes. |
 | `action_bloc` | `example/packages/action_bloc/` | Custom `flutter_bloc` extension. `ActionBloc<E, S, A>` emits both state updates and one-off side-effect actions via separate streams. Provides `BlocActionConsumer`, `BlocActionListener`, `BlocActionStateConsumer` widgets. |
-| `package_info_plus` | `example/packages/package_info_plus/` | Platform integration for app package info. |
+| `package_info_plus` | `example/packages/package_info_plus/` | Local fork/copy of `package_info_plus` 8.1.4 with Android, iOS, Linux, macOS, web, and Windows implementations. |
 
 ### Key Dependencies (root library)
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `cryptography` | 2.9.0 | AES-GCM, Argon2id, HMAC-SHA256 |
-| `rxdart` | 0.28.0 | BehaviorSubject for state streams |
-| `synchronized` | 3.4.0+1 | Reentrant lock |
-| `uuid` | 4.5.3 | UUID v4 generation |
 | `adguard_logger` | v1.0.1 (git) | Logging |
 | `biometric_cipher` | local path | Hardware-backed biometric operations |
 | `collection` | 1.19.1 | Collection utilities |
+| `cryptography` | 2.9.0 | AES-GCM, Argon2id, HMAC-SHA256 |
 | `meta` | 1.17.0 | Annotations (`@visibleForTesting`) |
 | `path` | 1.9.1 | File path utilities |
+| `rxdart` | 0.28.0 | BehaviorSubject for state streams |
+| `synchronized` | 3.4.0+1 | Reentrant lock |
+| `uuid` | 4.5.3 | UUID v4 generation |
+
+### Key Dev Dependencies (root library)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `flutter_test` | Flutter SDK | Flutter-aware test harness |
+| `lints` | 6.1.0 | Root lint rules |
+| `mocktail` | 1.0.5 | Test mocks |
+| `test` | 1.30.0 | Dart test APIs |
+
+### Key Dependencies (example app)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `action_bloc` | local path | BLoC side-effect action streams |
+| `adguard_logger` | v1.0.1 (git) | Logging |
+| `biometric_cipher` | local path | Biometric plugin integration |
+| `flutter_bloc` | 8.1.6 | BLoC state management |
+| `freezed_annotation` | 3.1.0 | Freezed annotations |
+| `locker` | local path | Library under test/demo |
+| `macos_window_utils` | 1.9.1 | macOS window integration |
+| `msix` | 3.16.12 | Windows MSIX packaging |
+| `package_info_plus` | local path | Package metadata plugin fork |
+| `path_provider` | 2.1.5 | Platform storage paths |
+| `rxdart` | 0.28.0 | Reactive streams |
+
+### Key Dev Dependencies (example app)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `build_runner` | 2.7.0 | Code generation runner |
+| `flutter_lints` | 6.0.0 | Example app lint rules |
+| `freezed` | 3.2.0 | Freezed code generation |
+| `flutter_test` | Flutter SDK | Widget/unit test harness |
