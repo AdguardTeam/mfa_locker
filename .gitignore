@@ -23,6 +23,7 @@ migrate_working_dir/
 .windsurf/
 .agents/
 .github/
+.copilot/
 
 # Flutter/Dart/Pub related
 **/doc/api/
