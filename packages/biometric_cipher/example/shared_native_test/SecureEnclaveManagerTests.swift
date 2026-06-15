@@ -131,6 +131,54 @@ final class SecureEnclaveManagerTests: XCTestCase {
         XCTAssertNoThrow(try manager.generateKeyPair(tag: tag), "There should be no error when a key pair is successfully created.")
     }
     
+    func testGenerateKeyPair_BiometricAuthenticationFailure_DeletesKey() throws {
+        let tag = "test.sec.enclave.biometric.auth.fail"
+
+        guard let tempKey = createTemporarySecKey() else {
+            XCTFail("Failed to create a temporary SecKey")
+            return
+        }
+        mockKeychain.createRandomKeyResult = tempKey
+        mockLAContext.evaluatePolicySuccess = false
+        mockLAContext.evaluatePolicyError = NSError(
+            domain: LAError.errorDomain,
+            code: LAError.authenticationFailed.rawValue,
+            userInfo: nil
+        )
+
+        XCTAssertThrowsError(try manager.generateKeyPair(tag: tag)) { error in
+            guard case AuthenticationError.authenticationFailed = error else {
+                return XCTFail("Expected AuthenticationError.authenticationFailed, got \(error)")
+            }
+        }
+
+        XCTAssertFalse(mockKeychain.keyCreated, "Biometric authentication failure must roll back the generated key.")
+    }
+
+    func testGenerateKeyPair_BiometricAuthenticationCanceled_DeletesKey() throws {
+        let tag = "test.sec.enclave.biometric.auth.cancel"
+
+        guard let tempKey = createTemporarySecKey() else {
+            XCTFail("Failed to create a temporary SecKey")
+            return
+        }
+        mockKeychain.createRandomKeyResult = tempKey
+        mockLAContext.evaluatePolicySuccess = false
+        mockLAContext.evaluatePolicyError = NSError(
+            domain: LAError.errorDomain,
+            code: LAError.userCancel.rawValue,
+            userInfo: nil
+        )
+
+        XCTAssertThrowsError(try manager.generateKeyPair(tag: tag)) { error in
+            guard case AuthenticationError.authenticationFailed = error else {
+                return XCTFail("Expected AuthenticationError.authenticationFailed, got \(error)")
+            }
+        }
+
+        XCTAssertFalse(mockKeychain.keyCreated, "Biometric authentication cancellation must roll back the generated key.")
+    }
+
     func testGenerateKeyPair_FailureMock() throws {
         let tag = "mock.tag"
         

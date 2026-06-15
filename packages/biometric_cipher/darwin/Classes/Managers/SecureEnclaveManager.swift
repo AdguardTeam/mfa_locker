@@ -85,6 +85,14 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         // Generating a key pair
         _ = try keychainService.createRandomKey(attributes as CFDictionary)
         saveEnrollmentState(tag: privateKeyTag)
+
+        do {
+            let reason = authTitle ?? "Authenticate to enable biometric access"
+            try AuthenticationManager.requestBiometricAuthentication(laContext, reason: reason)
+        } catch {
+            try? deleteKey(tag: tag)
+            throw error
+        }
     }
 
     func deleteKey(tag: String) throws {
