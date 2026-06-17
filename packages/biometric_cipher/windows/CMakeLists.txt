@@ -12,6 +12,12 @@ project(${PROJECT_NAME} LANGUAGES CXX)
 # versions of CMake.
 cmake_policy(VERSION 3.14...3.25)
 
+# MSVC 14.51+ (VS 2026, shipped by the windows-latest CI runner) makes the legacy
+# /await + <experimental/coroutine> path a hard error (STL1011). The C++/WinRT plugins
+# biometric_cipher and permission_handler_windows still compile with /await, so silence the
+# deprecation to keep them building until they migrate to the C++20 <coroutine> header.
+add_definitions(-D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+
 # Enable a specific C++ standard
 set(CMAKE_CXX_STANDARD 20)
 
