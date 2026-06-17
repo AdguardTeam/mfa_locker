@@ -32,6 +32,12 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
 
+# MSVC 14.51+ (VS 2026, shipped by the windows-latest CI runner) makes the legacy
+# /await + <experimental/coroutine> path a hard error (STL1011). The C++/WinRT plugins
+# biometric_cipher and permission_handler_windows still compile with /await, so silence the
+# deprecation to keep them building until they migrate to the C++20 <coroutine> header.
+add_definitions(-D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+
 # Compilation settings that should be applied to most targets.
 #
 # Be cautious about adding new options here, as plugins use this function by
