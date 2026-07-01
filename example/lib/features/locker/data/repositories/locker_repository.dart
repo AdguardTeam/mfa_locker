@@ -62,7 +62,7 @@ abstract class LockerRepository {
   });
 
   /// Delete entry
-  Future<bool> deleteEntry({
+  Future<void> deleteEntry({
     required String password,
     required EntryId id,
   });
@@ -108,7 +108,7 @@ abstract class LockerRepository {
   Future<String> readEntryWithBiometric({required EntryId id});
 
   /// Delete entry using biometric authentication
-  Future<bool> deleteEntryWithBiometric({required EntryId id});
+  Future<void> deleteEntryWithBiometric({required EntryId id});
 
   /// Dispose of resources
   Future<void> dispose();
@@ -263,20 +263,17 @@ class LockerRepositoryImpl implements LockerRepository {
   }
 
   @override
-  Future<bool> deleteEntry({
+  Future<void> deleteEntry({
     required String password,
     required EntryId id,
   }) async {
     await _ensureLockerInstance();
     final passwordCipherFunc = await _securityProvider.authenticatePassword(password: password);
 
-    // Delete the entry
-    final result = await _locker.delete(
+    await _locker.delete(
       id: id,
       cipherFunc: passwordCipherFunc,
     );
-
-    return result;
   }
 
   @override
@@ -398,17 +395,14 @@ class LockerRepositoryImpl implements LockerRepository {
   }
 
   @override
-  Future<bool> deleteEntryWithBiometric({required EntryId id}) async {
+  Future<void> deleteEntryWithBiometric({required EntryId id}) async {
     await _ensureLockerInstance();
     final bioCipherFunc = await _securityProvider.authenticateBiometric();
 
-    // Delete the entry
-    final result = await _locker.delete(
+    await _locker.delete(
       id: id,
       cipherFunc: bioCipherFunc,
     );
-
-    return result;
   }
 
   @override

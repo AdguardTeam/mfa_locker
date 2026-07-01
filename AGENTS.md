@@ -111,12 +111,13 @@ mfa_locker/
 ├── pubspec.yaml
 ├── analysis_options.yaml
 ├── Makefile                         # Proxy to example/Makefile
-└── .ci-flutter-version              # Pinned Flutter version: 3.35.1
+├── .ci-flutter-version              # Pinned Flutter version: 3.35.1
+└── .fvmrc                           # FVM pin (matches .ci-flutter-version): 3.35.1
 ```
 
 ## Build And Test Commands
 
-Flutter version is pinned via `.ci-flutter-version` → **3.35.1**. Use `fvm` to match.
+Flutter version is pinned via `.ci-flutter-version` and `.fvmrc` (both → **3.35.1**). Use `fvm` to match.
 
 ### Library (root)
 
@@ -281,7 +282,7 @@ The **Repository** layer creates `CipherFunc` objects and wraps all MFALocker ex
 
 - Avoid the `!` (null assertion) operator. Always perform null checks.
 - Extract nullable values to local variables before null checks (enables Dart's null promotion).
-- Use early return/continue with logging for unexpected null cases.
+- Use early return/continue for unexpected null cases.
 
 ### Layer Patterns (example app)
 
@@ -384,7 +385,6 @@ formatter:
 | `rxdart` | 0.28.0 | BehaviorSubject for state streams |
 | `synchronized` | 3.4.0 | Reentrant lock |
 | `uuid` | 4.5.1 | UUID v4 generation |
-| `adguard_logger` | v1.0.1 (git) | Logging |
 | `biometric_cipher` | local path | Hardware-backed biometric operations |
 | `collection` | 1.19.1 | Collection utilities |
 | `meta` | 1.16.0 | Annotations (`@visibleForTesting`) |

@@ -1,7 +1,6 @@
 package com.adguard.cryptowallet.biometric_cipher.handlers
 
 import android.content.Context
-import android.util.Log
 import com.adguard.cryptowallet.biometric_cipher.enums.ArgumentName
 import com.adguard.cryptowallet.biometric_cipher.enums.MethodName
 import com.adguard.cryptowallet.biometric_cipher.objects.SecureObjects
@@ -33,7 +32,6 @@ class SecureMethodCallHandlerImpl(
 
     override fun startListening(context: Context, binaryMessenger: BinaryMessenger) {
         if (channel != null) {
-            Log.w(TAG, "Setting a method call handler before the last was disposed.")
             stopListening()
         }
 
@@ -45,7 +43,6 @@ class SecureMethodCallHandlerImpl(
     override fun stopListening() {
         coroutineScope.cancel()
         if (channel == null) {
-            Log.w(TAG, "Tried to stop listening when no MethodChannel had been initialized.")
             return
         }
         channel?.setMethodCallHandler(null)
@@ -192,7 +189,6 @@ class SecureMethodCallHandlerImpl(
             }
 
             else -> {
-                Log.e(TAG, "Unknown method call: " + call.method)
                 result.notImplemented()
             }
         }
@@ -205,7 +201,6 @@ class SecureMethodCallHandlerImpl(
     ): Boolean {
         val argumentString = argumentName.toString()
         if (!call.hasArgument(argumentString)) {
-            Log.e(TAG, "The $argumentString is required but was not provided.")
             result.error(
                 ErrorType.INVALID_ARGUMENT.toString(),
                 "The $argumentString is required but was not provided.",
@@ -216,7 +211,6 @@ class SecureMethodCallHandlerImpl(
 
         val argument: String = call.argument<String>(argumentString)!!
         if (argument.isEmpty()) {
-            Log.e(TAG, "The $argumentString is empty")
             result.error(
                 ErrorType.INVALID_ARGUMENT.toString(),
                 "The $argumentString cannot be empty",
@@ -248,13 +242,8 @@ class SecureMethodCallHandlerImpl(
                     }
                 }
                 val errorMessage = e.message ?: ErrorType.UNKNOWN_EXCEPTION.errorDescription
-                Log.e(TAG, "Error during '$operationName': $errorCode, details: $errorMessage")
                 onError(errorCode, errorMessage)
             }
         }
-    }
-
-    companion object {
-        private val TAG = SecureMethodCallHandlerImpl::class.java.simpleName
     }
 }

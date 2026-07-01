@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:adguard_logger/adguard_logger.dart';
 import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/security/biometric_cipher_provider.dart';
 import 'package:locker/security/models/cipher_func.dart';
@@ -27,16 +26,7 @@ class BioCipherFunc extends CipherFunc {
       throw ArgumentError('Data must not be erased or empty');
     }
 
-    try {
-      return await _secureProvider.encrypt(tag: keyTag, data: data.bytes);
-    } catch (error, stackTrace) {
-      logger.logError(
-        'BioCipherFunc: Failed to encrypt data with biometrics',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      rethrow;
-    }
+    return _secureProvider.encrypt(tag: keyTag, data: data.bytes);
   }
 
   @override
@@ -50,12 +40,6 @@ class BioCipherFunc extends CipherFunc {
 
       return ErasableByteArray(decrypted);
     } on BiometricException catch (error, stackTrace) {
-      logger.logError(
-        'BioCipherFunc: Failed to decrypt data with biometrics',
-        error: error,
-        stackTrace: stackTrace,
-      );
-
       // Some platforms report a generic failure instead of keyInvalidated
       // when biometric enrollment changes. Verify key validity as a fallback.
       if (error.type == BiometricExceptionType.failure) {
@@ -69,13 +53,6 @@ class BioCipherFunc extends CipherFunc {
       }
 
       rethrow;
-    } catch (error, stackTrace) {
-      logger.logError(
-        'BioCipherFunc: Failed to decrypt data with biometrics',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      rethrow;
     }
   }
 
@@ -83,12 +60,7 @@ class BioCipherFunc extends CipherFunc {
     try {
       final isValid = await _secureProvider.isKeyValid(tag: keyTag);
       return isValid ? KeyValidityStatus.valid : KeyValidityStatus.invalid;
-    } catch (error, stackTrace) {
-      logger.logError(
-        'BioCipherFunc: Failed to check key validity',
-        error: error,
-        stackTrace: stackTrace,
-      );
+    } catch (_) {
       return KeyValidityStatus.unknown;
     }
   }

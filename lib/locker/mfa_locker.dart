@@ -3,7 +3,6 @@ import 'dart:collection';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:adguard_logger/adguard_logger.dart';
 import 'package:biometric_cipher/data/biometric_status.dart';
 import 'package:biometric_cipher/data/tpm_status.dart';
 import 'package:locker/erasable/erasable.dart';
@@ -23,6 +22,7 @@ import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
+import 'package:locker/storage/models/exceptions/storage_exception.dart';
 import 'package:locker/utils/sync.dart';
 import 'package:meta/meta.dart';
 import 'package:rxdart/rxdart.dart';
@@ -51,18 +51,10 @@ class MFALocker implements Locker {
   Future<bool> get isStorageInitialized => _storage.isInitialized;
 
   @override
-  Future<Uint8List?> get salt => _storage.salt;
+  Future<Uint8List> get salt => _storage.salt;
 
   @override
-  Future<Duration> get lockTimeout async {
-    final storageLockTimeout = await _storage.lockTimeout;
-
-    if (storageLockTimeout == null) {
-      throw StateError('Lock timeout is not set in storage');
-    }
-
-    return Duration(milliseconds: storageLockTimeout);
-  }
+  Future<Duration> get lockTimeout async => Duration(milliseconds: await _storage.lockTimeout);
 
   @override
   // TODO(d.seloustev): A test needs to be added
@@ -166,7 +158,7 @@ class MFALocker implements Locker {
       );
 
   @override
-  Future<bool> delete({
+  Future<void> delete({
     required EntryId id,
     required CipherFunc cipherFunc,
   }) =>
@@ -176,15 +168,18 @@ class MFALocker implements Locker {
           callback: () async {
             await loadAllMetaIfLocked(cipherFunc);
 
-            final isDeleted = await _storage.deleteEntry(
-              id: id,
-              cipherFunc: cipherFunc,
-            );
+            try {
+              await _storage.deleteEntry(id: id, cipherFunc: cipherFunc);
+            } on StorageException catch (e) {
+              // The entry is already absent in storage - treat delete as an
+              // idempotent success and fall through to reconcile the cache.
+              if (e.type != StorageExceptionType.entryNotFound) {
+                rethrow;
+              }
+            }
 
             final removedMeta = _metaCache.remove(id);
             removedMeta?.erase();
-
-            return isDeleted;
           },
         ),
       );
@@ -253,12 +248,7 @@ class MFALocker implements Locker {
 
   @override
   Future<void> eraseStorage() => _sync(() async {
-        final isErased = await _storage.erase();
-
-        if (!isErased) {
-          throw StateError('Failed to erase storage');
-        }
-
+        await _storage.erase();
         _cleanupState();
         _stateController.add(LockerState.locked);
       });
@@ -376,9 +366,8 @@ class MFALocker implements Locker {
               // Step 3: Defensive key management - delete before generate
               try {
                 await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
-              } catch (e) {
+              } catch (_) {
                 // Ignore errors - key might not exist yet
-                logger.logInfo('Key might not exist yet: $e');
               }
 
               // Step 4: Generate new key
@@ -387,21 +376,12 @@ class MFALocker implements Locker {
               // Step 5: Enable biometry in locker
               await loadAllMetaIfLocked(passwordCipherFunc);
               await _storage.addOrReplaceWrap(newWrapFunc: bioCipherFunc, existingWrapFunc: passwordCipherFunc);
-            } catch (error, stackTrace) {
-              logger.logError(
-                'MFALocker: Failed to enable biometric, cleaning up biometric key',
-                error: error,
-                stackTrace: stackTrace,
-              );
-
+            } catch (_) {
+              // Best-effort cleanup after enableBiometric failure; original error is rethrown below
               try {
                 await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
-              } catch (cleanupError, cleanupStackTrace) {
-                logger.logError(
-                  'MFALocker: Failed to cleanup biometric key after enableBiometric failure',
-                  error: cleanupError,
-                  stackTrace: cleanupStackTrace,
-                );
+              } catch (_) {
+                // Suppress cleanup error; original failure is rethrown
               }
 
               rethrow;
@@ -425,7 +405,7 @@ class MFALocker implements Locker {
               try {
                 await _secureProvider.deleteKey(tag: biometricKeyTag);
               } catch (_) {
-                logger.logWarning('teardownBiometry: failed to delete biometric key, suppressing');
+                // Suppress: biometric key deletion is best-effort during teardown
               }
             }
           },
@@ -439,8 +419,7 @@ class MFALocker implements Locker {
   }) async {
     try {
       return await callback();
-    } catch (e, st) {
-      logger.logError('MFALocker: error occurred during operation with storage', error: e, stackTrace: st);
+    } catch (_) {
       for (final cipherFunc in erasablesOnError) {
         cipherFunc.erase();
       }

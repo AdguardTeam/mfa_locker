@@ -1,7 +1,6 @@
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:adguard_logger/adguard_logger.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/storage/models/exceptions/decrypt_failed_exception.dart';
@@ -129,8 +128,6 @@ class CryptographyUtils {
 
       return ErasableByteArray(result.toUint8List());
     } catch (e, st) {
-      logger.logError('CryptographyUtils: Failed to decrypt data', error: e, stackTrace: st);
-
       throw DecryptFailedException(message: 'Failed to decrypt data: $e', stackTrace: st);
     } finally {
       secretKey.destroy();

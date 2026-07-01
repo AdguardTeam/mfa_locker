@@ -621,14 +621,10 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     try {
       await _handleVaultOperation(
         operation: () async {
-          final result = await _lockerRepository.deleteEntryWithBiometric(id: event.id);
+          await _lockerRepository.deleteEntryWithBiometric(id: event.id);
 
           if (isClosed) {
             return;
-          }
-
-          if (!result) {
-            throw Exception('Failed to delete entry');
           }
 
           final entries = await _lockerRepository.getAllEntries();

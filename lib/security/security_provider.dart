@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:locker/locker/locker.dart';
 import 'package:locker/security/models/bio_cipher_func.dart';
 import 'package:locker/security/models/password_cipher_func.dart';
+import 'package:locker/storage/models/exceptions/storage_exception.dart';
 import 'package:locker/utils/cryptography_utils.dart';
 
 /// Handles authentication requests to obtain cipher functions.
@@ -37,8 +38,15 @@ class SecurityProviderImpl implements SecurityProvider {
     if (forceNewSalt || !isInitialized) {
       salt = CryptographyUtils.generateSalt();
     } else {
-      final existingSalt = await locker.salt;
-      salt = existingSalt ?? CryptographyUtils.generateSalt();
+      try {
+        salt = await locker.salt;
+      } on StorageException catch (e) {
+        if (e.type == StorageExceptionType.notInitialized) {
+          salt = CryptographyUtils.generateSalt();
+        } else {
+          rethrow;
+        }
+      }
     }
 
     return PasswordCipherFunc(password: password, salt: salt);

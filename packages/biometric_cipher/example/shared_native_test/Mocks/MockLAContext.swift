@@ -14,7 +14,11 @@ class MockLAContext: LAContextProtocol {
     }
 
     func canEvaluatePolicy(_ policy: LAPolicy, error: NSErrorPointer) -> Bool {
-        if let errorPointer = error, let error = evaluatePolicyError {
+        // Real `LAContext` only populates the error out-param when the policy
+        // cannot be evaluated. Mirror that so a configured `evaluatePolicyError`
+        // (intended for the `evaluatePolicy` reply) does not leak into callers
+        // that probe support, e.g. `isBiometrySupported`.
+        if !canEvaluatePolicyResult, let errorPointer = error, let error = evaluatePolicyError {
             errorPointer.pointee = error
         }
         return canEvaluatePolicyResult

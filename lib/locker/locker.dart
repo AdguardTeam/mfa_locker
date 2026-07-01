@@ -33,8 +33,10 @@ abstract interface class Locker {
   /// Returns the current state of the locker.
   ValueStream<LockerState> get stateStream;
 
-  /// Returns the storage salt or `null` if storage is not initialized yet.
-  Future<Uint8List?> get salt;
+  /// Returns the storage salt.
+  ///
+  /// Throws [StorageException] if the storage is not initialized.
+  Future<Uint8List> get salt;
 
   /// Indicates whether the underlying storage has been initialized.
   Future<bool> get isStorageInitialized;
@@ -107,11 +109,10 @@ abstract interface class Locker {
   /// If the locker is locked, attempts to unlock using [cipherFunc]. On
   /// success, deletes the entry and removes its metadata from the cache.
   ///
-  /// Completes when deletion finishes. If the entry does not exist, the
-  /// operation succeeds without effect.
+  /// If the entry does not exist, the operation completes without effect.
   ///
   /// Throws [StateError] if storage is not initialized.
-  Future<bool> delete({
+  Future<void> delete({
     required EntryId id,
     required CipherFunc cipherFunc,
   });
@@ -187,7 +188,7 @@ abstract interface class Locker {
   /// This operation is irreversible: it deletes all entries,
   /// clears cached metadata, and transitions the locker to the locked state.
   ///
-  /// Throws [StateError] if erasure fails.
+  /// Throws if the underlying storage file deletion fails.
   Future<void> eraseStorage();
 
   /// Closes the locker state stream controller and clears all cached data.

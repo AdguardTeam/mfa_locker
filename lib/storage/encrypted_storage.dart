@@ -10,7 +10,6 @@ import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
-import 'package:meta/meta.dart';
 
 /// Interface for encrypted storage that manages secure data.
 ///
@@ -23,13 +22,20 @@ abstract interface class EncryptedStorage {
   Future<bool> get isInitialized;
 
   /// Whether biometric authentication is enabled.
+  ///
+  /// Returns `false` if the storage is not yet initialized.
+  /// Throws [StorageException] for any other storage failure (e.g. a corrupted file).
   Future<bool> get isBiometricEnabled;
 
   /// The salt used for key derivation.
-  Future<Uint8List?> get salt;
+  ///
+  /// Throws [StorageException] if the storage is not initialized.
+  Future<Uint8List> get salt;
 
   /// The lock timeout in milliseconds.
-  Future<int?> get lockTimeout;
+  ///
+  /// Throws [StorageException] if the storage is not initialized.
+  Future<int> get lockTimeout;
 
   /// Initializes the storage with optional initial entries.
   ///
@@ -65,7 +71,7 @@ abstract interface class EncryptedStorage {
   ///
   /// [originToDelete] - The origin of the wrap to delete.
   /// [cipherFunc] - Cipher function to decrypt the master key.
-  Future<bool> deleteWrap({
+  Future<void> deleteWrap({
     required Origin originToDelete,
     required CipherFunc cipherFunc,
   });
@@ -74,7 +80,7 @@ abstract interface class EncryptedStorage {
   ///
   /// [id] - The id of the entry to delete.
   /// [cipherFunc] - Cipher function to decrypt the master key.
-  Future<bool> deleteEntry({
+  Future<void> deleteEntry({
     required EntryId id,
     required CipherFunc cipherFunc,
   });
@@ -135,13 +141,6 @@ abstract interface class EncryptedStorage {
 
   /// Completely erases all storage data.
   ///
-  /// Deletes the storage file.
-  Future<bool> erase();
-
-  /// Outputs diagnostic information about the storage.
-  ///
-  /// Logs information such as file existence, size, and modification time
-  /// for debugging purposes.
-  @visibleForTesting
-  Future<void> printDebugInfo();
+  /// Deletes the storage file. Throws if file deletion fails.
+  Future<void> erase();
 }

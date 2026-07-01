@@ -110,28 +110,22 @@ void main() {
         expect(result, orderedEquals(salt));
       });
 
-      test('returns null when loading fails', () async {
+      test('throws StorageException when loading fails', () async {
         // Arrange
         await storageFile.writeAsString('invalid');
 
-        // Act
-        final result = await storage.salt;
-
-        // Assert
-        expect(result, isNull);
+        // Act & Assert
+        await expectLater(storage.salt, throwsA(isA<StorageException>()));
       });
 
-      test('returns null when file missing', () async {
+      test('throws StorageException when file missing', () async {
         // Arrange
         if (await storageFile.exists()) {
           await storageFile.delete();
         }
 
-        // Act
-        final result = await storage.salt;
-
-        // Assert
-        expect(result, isNull);
+        // Act & Assert
+        await expectLater(storage.salt, throwsA(isA<StorageException>()));
       });
     });
 
@@ -149,28 +143,90 @@ void main() {
         expect(result, equals(_Helpers.lockTimeout));
       });
 
-      test('returns null when loading fails', () async {
+      test('throws StorageException when loading fails', () async {
         // Arrange
         await storageFile.writeAsString('invalid');
 
-        // Act
-        final result = await storage.lockTimeout;
-
-        // Assert
-        expect(result, isNull);
+        // Act & Assert
+        await expectLater(storage.lockTimeout, throwsA(isA<StorageException>()));
       });
 
-      test('returns null when file missing', () async {
+      test('throws StorageException when file missing', () async {
+        // Arrange
+        if (await storageFile.exists()) {
+          await storageFile.delete();
+        }
+
+        // Act & Assert
+        await expectLater(storage.lockTimeout, throwsA(isA<StorageException>()));
+      });
+    });
+
+    group('isBiometricEnabled', () {
+      test('returns false when not initialized', () async {
         // Arrange
         if (await storageFile.exists()) {
           await storageFile.delete();
         }
 
         // Act
-        final result = await storage.lockTimeout;
+        final result = await storage.isBiometricEnabled;
 
         // Assert
-        expect(result, isNull);
+        expect(result, isFalse);
+      });
+
+      test('returns false when no bio wrap exists', () async {
+        // Arrange
+        final data = await _Helpers.createStorageData();
+        await _Helpers.writeStorageData(storageFile, data);
+
+        // Act
+        final result = await storage.isBiometricEnabled;
+
+        // Assert
+        expect(result, isFalse);
+      });
+
+      test('returns true when bio wrap exists', () async {
+        // Arrange
+        final data = await _Helpers.createStorageData(
+          wraps: [
+            KeyWrap(origin: Origin.bio, encryptedKey: Uint8List.fromList([1, 2, 3])),
+          ],
+        );
+        await _Helpers.writeStorageData(storageFile, data);
+
+        // Act
+        final result = await storage.isBiometricEnabled;
+
+        // Assert
+        expect(result, isTrue);
+      });
+
+      test('throws StorageException for invalid storage content', () async {
+        // Arrange
+        await storageFile.writeAsString('invalid');
+
+        // Act + Assert
+        await expectLater(
+          storage.isBiometricEnabled,
+          throwsA(isA<StorageException>()),
+        );
+      });
+
+      test('propagates StorageException when file read fails', () async {
+        // Arrange
+        final mockFile = MockFile();
+        final storageWithMock = EncryptedStorageImpl(file: mockFile);
+        when(() => mockFile.exists()).thenAnswer((_) async => true);
+        when(() => mockFile.readAsString()).thenThrow(const FileSystemException('disk error'));
+
+        // Act + Assert
+        await expectLater(
+          storageWithMock.isBiometricEnabled,
+          throwsA(isA<StorageException>()),
+        );
       });
     });
 
@@ -484,31 +540,30 @@ void main() {
         await _Helpers.writeStorageData(storageFile, signedData);
 
         // Act
-        final result = await storage.deleteWrap(originToDelete: Origin.bio, cipherFunc: cipherFunc);
+        await storage.deleteWrap(originToDelete: Origin.bio, cipherFunc: cipherFunc);
 
         // Assert
         final updated = await _Helpers.readStorageData(storageFile);
 
-        expect(result, isTrue);
         expect(updated.masterKey.wraps, hasLength(1));
         expect(updated.masterKey.wraps.single.origin, equals(Origin.pwd));
         expect(updated.hmacSignature, isNotNull);
       });
 
-      test('returns false when storage invalid', () async {
+      test('throws StorageException when storage invalid', () async {
         // Arrange
         await storageFile.writeAsString('invalid');
 
         final cipherFunc = _Helpers.createMockPasswordCipherFunc();
 
-        // Act
-        final result = await storage.deleteWrap(originToDelete: Origin.pwd, cipherFunc: cipherFunc);
-
-        // Assert
-        expect(result, isFalse);
+        // Act & Assert
+        await expectLater(
+          storage.deleteWrap(originToDelete: Origin.pwd, cipherFunc: cipherFunc),
+          throwsA(isA<StorageException>()),
+        );
       });
 
-      test('returns false when wrap missing', () async {
+      test('throws StorageException when wrap missing', () async {
         // Arrange
         final masterKey = await CryptographyUtils.generateAESKey();
         final cipherFunc = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKey.bytes);
@@ -520,14 +575,14 @@ void main() {
 
         await _Helpers.writeStorageData(storageFile, signedData);
 
-        // Act
-        final result = await storage.deleteWrap(originToDelete: Origin.bio, cipherFunc: cipherFunc);
-
-        // Assert
-        expect(result, isFalse);
+        // Act & Assert
+        await expectLater(
+          storage.deleteWrap(originToDelete: Origin.bio, cipherFunc: cipherFunc),
+          throwsA(isA<StorageException>()),
+        );
       });
 
-      test('returns false when deleting last wrap', () async {
+      test('throws StorageException when deleting last wrap', () async {
         // Arrange
         final masterKey = await CryptographyUtils.generateAESKey();
         final cipherFunc = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKey.bytes);
@@ -536,14 +591,14 @@ void main() {
 
         await _Helpers.writeStorageData(storageFile, data);
 
-        // Act
-        final result = await _Helpers.expectFileUnchanged(
+        // Act & Assert
+        await _Helpers.expectFileUnchanged(
           storageFile,
-          () => storage.deleteWrap(originToDelete: Origin.pwd, cipherFunc: cipherFunc),
+          () => expectLater(
+            storage.deleteWrap(originToDelete: Origin.pwd, cipherFunc: cipherFunc),
+            throwsA(isA<StorageException>()),
+          ),
         );
-
-        // Assert
-        expect(result, isFalse);
       });
 
       test('throws and keeps file unchanged when cipher decrypt fails', () async {
@@ -593,13 +648,12 @@ void main() {
         await _Helpers.writeStorageData(storageFile, signedData);
 
         // Act
-        final result = await storage.deleteEntry(id: EntryId(entryToDeleteId), cipherFunc: cipherFunc);
+        await storage.deleteEntry(id: EntryId(entryToDeleteId), cipherFunc: cipherFunc);
 
         // Assert
         final data = await _Helpers.readStorageData(storageFile);
         final entryIds = data.entries.map((entry) => entry.id.value).toList();
 
-        expect(result, isTrue);
         expect(entryIds, contains(entryToKeepId));
         expect(entryIds, isNot(contains(entryToDeleteId)));
       });
@@ -637,7 +691,7 @@ void main() {
         expect(hmacAfter, isNot(orderedEquals(hmacBefore)));
       });
 
-      test('returns false when entry absent', () async {
+      test('throws StorageException when entry absent', () async {
         // Arrange
         final masterKey = await CryptographyUtils.generateAESKey();
         final cipherFunc = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKey.bytes);
@@ -654,11 +708,11 @@ void main() {
 
         await _Helpers.writeStorageData(storageFile, signedData);
 
-        // Act
-        final result = await storage.deleteEntry(id: EntryId('missing'), cipherFunc: cipherFunc);
-
-        // Assert
-        expect(result, isFalse);
+        // Act & Assert
+        await expectLater(
+          storage.deleteEntry(id: EntryId('missing'), cipherFunc: cipherFunc),
+          throwsA(isA<StorageException>()),
+        );
       });
 
       test('throws and keeps file unchanged when cipher decrypt fails', () async {
@@ -1290,27 +1344,23 @@ void main() {
           await storageFile.delete();
         }
 
-        // Act
-        final result = await storage.erase();
-
-        // Assert
-        expect(result, isTrue);
+        // Act & Assert
+        await storage.erase();
       });
 
-      test('deletes existing file and returns true', () async {
+      test('deletes existing file', () async {
         // Arrange
         final data = await _Helpers.createStorageData();
         await _Helpers.writeStorageData(storageFile, data);
 
         // Act
-        final result = await storage.erase();
+        await storage.erase();
 
         // Assert
-        expect(result, isTrue);
         expect(await storageFile.exists(), isFalse);
       });
 
-      test('returns false when deletion fails', () async {
+      test('throws when deletion fails', () async {
         // Arrange
 
         final mockFile = MockFile();
@@ -1322,11 +1372,8 @@ void main() {
           file: mockFile,
         );
 
-        // Act
-        final result = await failingStorage.erase();
-
-        // Assert
-        expect(result, isFalse);
+        // Act & Assert
+        await expectLater(failingStorage.erase(), throwsA(isA<FileSystemException>()));
       });
     });
 
@@ -1457,13 +1504,10 @@ void main() {
         expect(readCalls, 1, reason: 'delete must await');
 
         gate.complete();
-        final results = await Future.wait([addIdFuture, delFuture]);
+        final newId = (await addIdFuture).value;
+        await delFuture;
 
         // Assert
-        final newId = (results.first as EntryId).value;
-        final deleteOk = results.last as bool;
-        expect(deleteOk, isTrue);
-
         final data = await _Helpers.readStorageData(storageFile);
         final ids = data.entries.map((e) => e.id.value).toList();
         expect(ids, contains(id1));
@@ -1628,10 +1672,9 @@ void main() {
         // Unblock addEntry — then erase will run.
         gate.complete();
         await addF;
-        final erased = await eraseF;
+        await eraseF;
 
         // Assert
-        expect(erased, isTrue);
         expect(deleteCalls, greaterThanOrEqualTo(1), reason: 'there must be at least one deletion');
         expect(await storageFile.exists(), isFalse, reason: 'file must not exist after erase');
         expect(readCalls, 1, reason: 'erase does not trigger a read; the only read was from addEntry');
