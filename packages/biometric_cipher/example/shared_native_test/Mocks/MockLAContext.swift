@@ -18,7 +18,7 @@ class MockLAContext: LAContextProtocol {
         // cannot be evaluated. Mirror that so a configured `evaluatePolicyError`
         // (intended for the `evaluatePolicy` reply) does not leak into callers
         // that probe support, e.g. `isBiometrySupported`.
-        if !canEvaluatePolicyResult, let errorPointer = error, let error = evaluatePolicyError {
+        if !canEvaluatePolicyResult, !canEvaluatePolicyResult, let errorPointer = error, let error = evaluatePolicyError {
             errorPointer.pointee = error
         }
         return canEvaluatePolicyResult

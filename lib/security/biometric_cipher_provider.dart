@@ -77,7 +77,13 @@ class BiometricCipherProviderImpl implements BiometricCipherProvider {
   Future<BiometricStatus> getBiometryStatus() => _biometricCipher.getBiometryStatus();
 
   @override
-  Future<void> generateKey({required String tag}) => _biometricCipher.generateKey(tag: tag);
+  Future<void> generateKey({required String tag}) async {
+    try {
+      await _biometricCipher.generateKey(tag: tag);
+    } on BiometricCipherException catch (e, stackTrace) {
+      Error.throwWithStackTrace(_mapExceptionToBiometricException(e), stackTrace);
+    }
+  }
 
   @override
   Future<Uint8List> encrypt({required String tag, required Uint8List data}) async {

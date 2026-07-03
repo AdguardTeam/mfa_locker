@@ -9,6 +9,8 @@ class BiometricException implements Exception {
     this.originalError,
   });
 
+  bool get isCancellation => type == BiometricExceptionType.cancel;
+
   @override
   String toString() => 'BiometricException(type: $type, message: $message)';
 }

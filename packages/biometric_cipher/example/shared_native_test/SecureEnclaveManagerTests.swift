@@ -147,7 +147,10 @@ final class SecureEnclaveManagerTests: XCTestCase {
         )
 
         XCTAssertThrowsError(try manager.generateKeyPair(tag: tag)) { error in
-            guard case AuthenticationError.authenticationFailed = error else {
+            guard let authError = error as? AuthenticationError else {
+                return XCTFail("Expected AuthenticationError.authenticationFailed, got \(error)")
+            }
+            guard case .authenticationFailed = authError else {
                 return XCTFail("Expected AuthenticationError.authenticationFailed, got \(error)")
             }
         }
@@ -171,12 +174,38 @@ final class SecureEnclaveManagerTests: XCTestCase {
         )
 
         XCTAssertThrowsError(try manager.generateKeyPair(tag: tag)) { error in
-            guard case AuthenticationError.authenticationFailed = error else {
-                return XCTFail("Expected AuthenticationError.authenticationFailed, got \(error)")
+            guard let keychainError = error as? KeychainServiceError,
+                  case .authenticationUserCanceled = keychainError else {
+                return XCTFail("Expected KeychainServiceError.authenticationUserCanceled, got \(error)")
             }
         }
 
         XCTAssertFalse(mockKeychain.keyCreated, "Biometric authentication cancellation must roll back the generated key.")
+    }
+
+    func testGenerateKeyPair_BiometryPermissionDenied_DeletesKey() throws {
+        let tag = "test.sec.enclave.biometric.permission.denied"
+
+        guard let tempKey = createTemporarySecKey() else {
+            XCTFail("Failed to create a temporary SecKey")
+            return
+        }
+        mockKeychain.createRandomKeyResult = tempKey
+        mockLAContext.evaluatePolicySuccess = false
+        mockLAContext.evaluatePolicyError = NSError(
+            domain: LAError.errorDomain,
+            code: LAError.biometryNotAvailable.rawValue,
+            userInfo: nil
+        )
+
+        XCTAssertThrowsError(try manager.generateKeyPair(tag: tag)) { error in
+            guard let keychainError = error as? KeychainServiceError,
+                  case .authenticationUserCanceled = keychainError else {
+                return XCTFail("Expected KeychainServiceError.authenticationUserCanceled, got \(error)")
+            }
+        }
+
+        XCTAssertFalse(mockKeychain.keyCreated, "Biometric permission denial must roll back the generated key.")
     }
 
     func testGenerateKeyPair_FailureMock() throws {
