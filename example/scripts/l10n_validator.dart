@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-// ignore_for_file:avoid_print
+// ignore_for_file: avoid_print, deprecated_member_use
 
 void main() {
   final inUse = getStringsInUse(Directory('./lib'));

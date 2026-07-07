@@ -435,10 +435,10 @@ jobs:
 | Requirement | Version |
 |-------------|---------|
 | Dart SDK | >=3.5.0 <4.0.0 |
-| Flutter SDK | 3.35.1 (pinned; constraint >=3.35.0 <4.0.0) |
+| Flutter SDK | 3.38.3 (pinned; constraint >=3.35.0 <4.0.0) |
 | fvm | Latest |
 
-Flutter version is pinned via `.ci-flutter-version` and `.fvmrc` (both currently **3.35.1**). Use `fvm` to match.
+Flutter version is pinned via `.ci-flutter-version` (currently **3.38.3**). Use `fvm` to match.
 
 ---
 

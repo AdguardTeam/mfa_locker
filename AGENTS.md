@@ -19,7 +19,7 @@ The repo contains:
 
 | Field | Value |
 |-------|-------|
-| **Language** | Dart 3.5+ / Flutter 3.35.1 |
+| **Language** | Dart 3.5+ / Flutter 3.38.3 |
 | **State Management** | `flutter_bloc` 8.1.6 + custom `action_bloc` (local package) with `freezed` for immutable states/events |
 | **Architecture** | Library: Locker → Security → Storage → Crypto. Example app: UI → BLoC → Repository → MFALocker |
 | **Encryption** | AES-256-GCM (authenticated encryption) via `cryptography` 2.7.0 |
@@ -111,13 +111,12 @@ mfa_locker/
 ├── pubspec.yaml
 ├── analysis_options.yaml
 ├── Makefile                         # Proxy to example/Makefile
-├── .ci-flutter-version              # Pinned Flutter version: 3.35.1
-└── .fvmrc                           # FVM pin (matches .ci-flutter-version): 3.35.1
+└── .ci-flutter-version              # Pinned Flutter version: 3.38.3
 ```
 
 ## Build And Test Commands
 
-Flutter version is pinned via `.ci-flutter-version` and `.fvmrc` (both → **3.35.1**). Use `fvm` to match.
+Flutter version is pinned via `.ci-flutter-version` (→ **3.38.3**). Use `fvm` to match.
 
 ### Library (root)
 

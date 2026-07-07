@@ -17,13 +17,13 @@ dependencies:
   path_provider: 2.1.5
   rxdart: 0.28.0
   msix: 3.16.12
-  
+
   locker:
     path: ../
-  
+
   biometric_cipher:
     path: ../packages/biometric_cipher
-  
+
   adguard_logger:
     git:
       url: https://github.com/AdguardTeam/adguard-dart-logger
@@ -33,7 +33,6 @@ dependencies:
     path: ./packages/action_bloc
   package_info_plus:
     path: ./packages/package_info_plus
-
 
 dev_dependencies:
   flutter_test:
