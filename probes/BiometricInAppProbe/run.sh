@@ -1,29 +1,32 @@
 #!/bin/bash
-# Builds the probe and signs it with keychain entitlements.
+# Builds and runs the probe.
 #
-# Why: a plain `swift run` binary is not signed with a keychain access-group
-# entitlement, so macOS refuses Secure Enclave key creation with
-# errSecMissingEntitlement (-34018). Re-signing with Entitlements.plist fixes it
-# (ad-hoc identity is enough for local verification).
+# IMPORTANT (verified on-device 2026-08-14):
+#   * `swift run` (unsigned) shows the in-window LocalAuthenticationView and the
+#     Touch ID request + sensor work — this is the core answer of AW-3216.
+#   * Creating a Secure Enclave key needs the `keychain-access-groups`
+#     entitlement, which is a RESTRICTED entitlement: it is only honored under
+#     an Xcode-signed build with a provisioning profile. Manually signing via
+#     codesign makes macOS reject the app ("restricted entitlements … validation
+#     failed", RBS Code 5 / SIGKILL 137), and without it key creation fails with
+#     -34018. So the "reuse LAContext → no second prompt" step must run in a real
+#     Xcode-signed target (mfa_locker plugin / app build), not this terminal one.
+#
+# Two modes:
+#   ./run.sh          -> unsigned `swift run` (in-window biometric works; SE key
+#                        step will report -34018)
+#   ./run.sh xcode    -> hint to build this target under Xcode instead.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-swift build
-
-BIN=".build/debug/BiometricInAppProbe"
-
-# Ad-hoc signing with entitlements; falls back to any Apple Development identity.
-if ! codesign --force --sign - --entitlements Entitlements.plist "$BIN" 2>/dev/null; then
-  echo "Ad-hoc codesign failed; trying an Apple Development identity…" >&2
-  IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null |
-    awk '/Apple Development/ { print $2; exit }')
-  if [ -n "$IDENTITY" ]; then
-    codesign --force --sign "$IDENTITY" --entitlements Entitlements.plist "$BIN"
-  else
-    echo "ERROR: no signing identity available; Secure Enclave key creation will fail (-34018)." >&2
-    echo "Install/unlock a keychain with an 'Apple Development' certificate and retry." >&2
-    exit 1
-  fi
+if [ "${1:-}" = "xcode" ]; then
+  echo "The Secure Enclave key step requires an Xcode-signed build." >&2
+  echo "Suggested: open this package in Xcode, create an app target with an" >&2
+  echo "entitlements file containing keychain-access-groups, then Run." >&2
+  echo "Also see README.md → 'Why the SE-key step needs Xcode'." >&2
+  exit 0
 fi
 
-exec "$BIN"
+swift run
+
+

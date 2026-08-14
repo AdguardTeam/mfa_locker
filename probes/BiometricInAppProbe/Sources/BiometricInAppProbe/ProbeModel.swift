@@ -8,7 +8,14 @@ import Security
 /// and the subsequent key operation, so we can observe whether reusing the
 /// evaluated context prevents a second prompt.
 final class ProbeModel: ObservableObject {
-  @Published var statusText = "Preparing…"
+  @Published var statusText = "Preparing…" {
+    didSet {
+      // Mirror every status transition to stderr (unbuffered) so the probe can
+      // be driven and observed in a terminal/headless context (status also
+      // shows in the window).
+      FileHandle.standardError.write(("[AW3216] \(statusText)\n").data(using: .utf8)!)
+    }
+  }
 
   /// IMPORTANT: one shared context. After `LocalAuthenticationView` evaluates a
   /// policy (or its view state is reached), we hand THIS SAME context to

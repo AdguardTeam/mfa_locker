@@ -23,41 +23,58 @@ real hardware.
 
 ## Build & run
 
-> **Use `./run.sh` (NOT `swift run`).** A plain `swift run` binary is unsigned
-> and macOS refuses Secure Enclave key creation with
-> **`errSecMissingEntitlement` (-34018)**. `run.sh` signs the binary with
-> `Entitlements.plist` (keychain access-group) and then launches it.
-
 ```sh
 cd probes/BiometricInAppProbe
-./run.sh
+./run.sh        # == swift run
 ```
 
-If ad-hoc signing lacks permission, `run.sh` falls back to any **Apple
-Development** identity in your keychain. If neither is available, unlock a
-keychain containing an Apple Development certificate and retry.
+The window **"BiometricInAppProbe — AW-3216"** opens with a **"Continue with
+Touch ID" control inside the window**, a "Use Password…" fallback button, and
+a status area. Status lines are also echoed to stderr, so the probe can be
+observed from a terminal.
 
-You should see a standalone window titled **"BiometricInAppProbe — AW-3216"**
-with a **"Continue with Touch ID"** control **inside the window**, a
-"Use Password…" fallback button, and a status area.
+> ⚠️ The **Secure Enclave key step cannot complete in this terminal build** —
+> see "Why the SE-key step needs Xcode" below.
+
+### Why the SE-key step needs Xcode
+
+Verified on-device (2026-08-14):
+
+- `LocalAuthenticationView` renders the Touch ID request **inside the app
+  window** and the sensor works — touching it produces the in-window success
+  checkmark. This confirms the core answer of AW-3216 (no separate system
+  window; in-app biometric).
+- Creating a Secure Enclave key requires the `keychain-access-groups`
+  entitlement; without it key creation fails with `-34018` (errSecMissing
+  Entitlement).
+- `keychain-access-groups` is a **restricted** entitlement: it is only honored
+  under an Xcode build signed through a provisioning profile. Hand-signing via
+  `codesign` makes macOS reject the app ("Code has restricted entitlements, but
+  the validation of its code signature failed" — RBS Code 5 / POSIX 153 / SIG
+  KILL 137); signing without it leaves `-34018`.
+- Therefore the final step — reuse the authorized `LAContext` for the SE-key
+  operation and confirm **no second prompt** — must run in a real Xcode-signed
+  target (the mfa_locker plugin or the adguard-wallet app build), not in this
+  bare-terminal Swift package.
 
 ## What to observe (checklist)
 
 1. **In-window UI** — the Touch ID control renders inside the app window, NOT
-   as a separate system window/dialog. **This part already works** — observed:
-   touching the sensor produced the success checkmark inside the window.
+   as a separate system window/dialog. ✅ confirmed.
 2. **In-window listening** — touching the sensor (while the in-window control is
    active) authorizes and the status turns to
-   `✅ LocalAuthenticationView succeeded → reusing context for decrypt…`.
-3. **No second prompt** — after the in-window authorization, a second system
+   `✅ LocalAuthenticationView succeeded → reusing context for decrypt…`. ✅
+   confirmed (incl. headless run).
+3. **SE key created** — only in an Xcode-signed build: status shows
+   `✅ Secure Enclave key created; sample encrypted.`
+4. **No second prompt** — after the in-window authorization, a second system
    prompt must NOT appear; the flow goes straight to
    `🎉 SUCCESS — decrypted in-app with reused LAContext, no second prompt`.
-4. **Fallback** — pressing "Use Password…" exercises `deviceOwnerAuthentication`;
+   (Pending — requires the Xcode-signed build.)
+5. **Fallback** — pressing "Use Password…" exercises `deviceOwnerAuthentication`;
    authorizing decrypts with the same shared context.
-5. **Cancel** — canceling Touch ID reports a failure in the status area; the
+6. **Cancel** — canceling Touch ID reports a failure in the status area; the
    app remains usable (no crash, no stuck state).
-6. **Secure Enclave key created** (no `errSecMissingEntitlement`/-34018) —
-   status shows `✅ Secure Enclave key created; sample encrypted.`
 
 ## How the test works
 

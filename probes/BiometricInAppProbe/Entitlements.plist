@@ -2,18 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <!-- Required so Secure Enclave key creation is permitted: unsigned/plain
-       swift-run binaries hit errSecMissingEntitlement (-34018) because they
-       have no keychain access-group entitlement. -->
-  <key>com.apple.security.app-sandbox</key>
-  <false/>
+  <!-- Required so Secure Enclave key creation is permitted: a process without a
+       keychain access-group entitlement hits errSecMissingEntitlement (-34018).
+       get-task-allow is only for local dev signing (analyzer/attachments). -->
+  <key>com.apple.security.get-task-allow</key>
+  <true/>
   <key>keychain-access-groups</key>
   <array>
-    <string>com.adguard.probe</string>
-  </array>
-  <key>com.apple.security.application-groups</key>
-  <array>
-    <string>com.adguard.probe</string>
+    <string>com.adguard.probe.BiometricInAppProbe</string>
   </array>
 </dict>
 </plist>
