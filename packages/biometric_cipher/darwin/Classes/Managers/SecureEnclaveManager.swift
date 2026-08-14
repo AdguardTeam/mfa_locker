@@ -138,14 +138,38 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
     }
 
     /// Pre-authorizes biometric access to the private key on macOS, mirroring Keychain Access.
-    /// Non-macOS platforms are a no-op (AW-3216 PoC).
+    ///
+    /// On success the evaluated `LAContext` is kept and reused by `getPrivateKey`
+    /// so the subsequent `SecKeyCreateDecryptedData` does not show a second prompt.
+    ///
+    /// Fail-soft (AW-3216 PoC): if the access-control evaluation fails for any
+    /// reason other than the user pressing Cancel, the error is swallowed and the
+    /// unlock continues over the existing `decrypt` path (which will present the
+    /// regular system prompt itself). This keeps biometric unlock working even when
+    /// the in-app prompt cannot be shown yet (e.g. cold start before the window is
+    /// active). Only `authenticationUserCanceled` propagates so the app can treat
+    /// it as a user cancel.
     func evaluateBiometricPolicy() throws {
 #if os(macOS)
+        guard authTitle != nil else {
+            return
+        }
         var laContext = laContextFactory.createContext()
         let reason = authTitle ?? "Authenticate to unlock the wallet"
         laContext.localizedReason = reason
-        try AuthenticationManager.evaluateAccessControl(laContext, reason: reason)
-        evaluatedContext = laContext
+        do {
+            try AuthenticationManager.evaluateAccessControl(laContext, reason: reason)
+            evaluatedContext = laContext
+        } catch let error as KeychainServiceError {
+            if case .authenticationUserCanceled = error {
+                throw error
+            }
+            // Non-cancel failure → fall back to the standard decrypt prompt.
+        } catch {
+            // Non-cancel failure → fall back to the standard decrypt prompt.
+        }
+#else
+        // No-op on non-macOS platforms.
 #endif
     }
 
