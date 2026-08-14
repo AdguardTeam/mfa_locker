@@ -23,11 +23,19 @@ real hardware.
 
 ## Build & run
 
+> **Use `./run.sh` (NOT `swift run`).** A plain `swift run` binary is unsigned
+> and macOS refuses Secure Enclave key creation with
+> **`errSecMissingEntitlement` (-34018)**. `run.sh` signs the binary with
+> `Entitlements.plist` (keychain access-group) and then launches it.
+
 ```sh
 cd probes/BiometricInAppProbe
-swift build
-swift run
+./run.sh
 ```
+
+If ad-hoc signing lacks permission, `run.sh` falls back to any **Apple
+Development** identity in your keychain. If neither is available, unlock a
+keychain containing an Apple Development certificate and retry.
 
 You should see a standalone window titled **"BiometricInAppProbe — AW-3216"**
 with a **"Continue with Touch ID"** control **inside the window**, a
@@ -36,7 +44,8 @@ with a **"Continue with Touch ID"** control **inside the window**, a
 ## What to observe (checklist)
 
 1. **In-window UI** — the Touch ID control renders inside the app window, NOT
-   as a separate system window/dialog.
+   as a separate system window/dialog. **This part already works** — observed:
+   touching the sensor produced the success checkmark inside the window.
 2. **In-window listening** — touching the sensor (while the in-window control is
    active) authorizes and the status turns to
    `✅ LocalAuthenticationView succeeded → reusing context for decrypt…`.
@@ -47,6 +56,8 @@ with a **"Continue with Touch ID"** control **inside the window**, a
    authorizing decrypts with the same shared context.
 5. **Cancel** — canceling Touch ID reports a failure in the status area; the
    app remains usable (no crash, no stuck state).
+6. **Secure Enclave key created** (no `errSecMissingEntitlement`/-34018) —
+   status shows `✅ Secure Enclave key created; sample encrypted.`
 
 ## How the test works
 

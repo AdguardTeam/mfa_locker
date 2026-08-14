@@ -90,7 +90,9 @@ final class ProbeModel: ObservableObject {
     var error: Unmanaged<CFError>?
     guard let privateKey = SecKeyCreateRandomKey(query as CFDictionary, &error) else {
       let detail = error.map { String(describing: $0.takeRetainedValue()) } ?? "no error info"
-      statusText = "❌ Could not create Secure Enclave key: \(detail)"
+      statusText = "❌ Could not create Secure Enclave key: \(detail)\n\n" +
+        "If you see -34018 (errSecMissingEntitlement): run via `./run.sh` " +
+        "(it signs the binary with keychain entitlements) instead of `swift run`."
       return
     }
 
