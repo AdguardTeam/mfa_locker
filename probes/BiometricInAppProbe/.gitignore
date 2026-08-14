@@ -1,2 +1,5 @@
 .build/
 .swiftpm/
+
+# Build artifacts of the probe
+probes/BiometricInAppProbe/dist/
