@@ -54,6 +54,8 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
             encrypt(arguments: call.arguments, result: result)
         case "decrypt":
             decrypt(arguments: call.arguments, result: result)
+        case "evaluateBiometricPolicy":
+            evaluateBiometricPolicy(result: result)
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -304,6 +306,46 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
                     result(FlutterError(
                         code: "AUTHENTICATION_ERROR",
                         message: "Biometric or device authentication failed",
+                        details: nil
+                    ))
+                }
+            } catch let error as KeychainServiceError {
+                DispatchQueue.main.async {
+                    switch error {
+                    case .authenticationUserCanceled:
+                        let flutterError = self.getFlutterError(error)
+                        result(flutterError)
+                    default:
+                        let flutterError = self.getFlutterError(SecureEnclavePluginError.decryptionError(error: error))
+                        result(flutterError)
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    let flutterError = self.getFlutterError(SecureEnclavePluginError.decryptionError(error: error))
+                    result(flutterError)
+                }
+            }
+        }
+    }
+
+    /// Pre-authorizes the biometric policy on macOS so the subsequent decrypt
+    /// (SecKeyCreateDecryptedData) does not show a second system prompt (AW-3216 PoC).
+    /// No arguments. No-op on non-macOS platforms.
+    ///
+    /// - Parameter result: A callback that returns `nil` on success, or an error on failure.
+    private func evaluateBiometricPolicy(result: @escaping FlutterResult) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try self.secureEnclaveManager.evaluateBiometricPolicy()
+                DispatchQueue.main.async {
+                    result(nil)
+                }
+            } catch SecureEnclaveManagerError.keyPermanentlyInvalidated {
+                DispatchQueue.main.async {
+                    result(FlutterError(
+                        code: "KEY_PERMANENTLY_INVALIDATED",
+                        message: "Biometric key has been permanently invalidated",
                         details: nil
                     ))
                 }

@@ -95,6 +95,12 @@ class BiometricCipher {
     return _instance.deleteKey(tag: tag);
   }
 
+  /// Pre-authorizes the biometric policy (macOS PoC, AW-3216).
+  ///
+  /// Evaluates the key's access control so the subsequent decrypt does not show
+  /// a second system prompt. No-op on platforms that do not support it.
+  Future<void> evaluateBiometricPolicy() => _instance.evaluateBiometricPolicy();
+
   Future<bool> isKeyValid({required String tag}) {
     if (tag.isEmpty) {
       throw const BiometricCipherException(

@@ -115,6 +115,14 @@ abstract class BiometricCipherPlatform extends PlatformInterface {
     throw UnimplementedError('deleteKey() has not been implemented.');
   }
 
+  /// Pre-authorizes the biometric policy (macOS PoC, AW-3216).
+  ///
+  /// Evaluates the key's access control so the subsequent decrypt does not show
+  /// a second system prompt. No-op on platforms that do not support it.
+  Future<void> evaluateBiometricPolicy() {
+    throw UnimplementedError('evaluateBiometricPolicy() has not been implemented.');
+  }
+
   /// Checks whether the biometric key identified by [tag] exists and is still
   /// valid, without triggering a biometric prompt.
   ///

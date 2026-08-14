@@ -50,6 +50,12 @@ abstract class BiometricCipherProvider {
   /// If the key does not exist, this operation should complete without error.
   Future<void> deleteKey({required String tag});
 
+  /// Pre-authorizes the biometric policy (macOS PoC, AW-3216).
+  ///
+  /// Evaluates the key's access control so subsequent decrypt operations do not
+  /// show a second system prompt. No-op on platforms that do not support it.
+  Future<void> evaluateBiometricPolicy();
+
   /// Returns `true` if the biometric key identified by [tag] exists and is valid.
   ///
   /// Does not trigger a biometric prompt.
@@ -119,6 +125,15 @@ class BiometricCipherProviderImpl implements BiometricCipherProvider {
 
   @override
   Future<void> deleteKey({required String tag}) => _biometricCipher.deleteKey(tag: tag);
+
+  @override
+  Future<void> evaluateBiometricPolicy() async {
+    try {
+      await _biometricCipher.evaluateBiometricPolicy();
+    } on BiometricCipherException catch (e, stackTrace) {
+      Error.throwWithStackTrace(_mapExceptionToBiometricException(e), stackTrace);
+    }
+  }
 
   @override
   Future<bool> isKeyValid({required String tag}) => _biometricCipher.isKeyValid(tag: tag);

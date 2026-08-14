@@ -93,4 +93,47 @@ struct AuthenticationManager {
 
         throw AuthenticationError.authenticationFailed(policyError)
     }
+
+    /// Pre-authorizes a key operation by evaluating its access control (`.useKeyDecrypt`),
+    /// avoiding a separate system dialog for the subsequent key usage (AW-3216 PoC).
+    ///
+    /// - Parameters:
+    ///   - context: An `LAContextProtocol` instance used to evaluate the access control.
+    ///   - reason: The user-facing message shown in the authentication prompt.
+    /// - Throws: `KeychainServiceError.authenticationUserCanceled` if the user cancels,
+    ///   or `AuthenticationError.authenticationFailed` if evaluation fails.
+    static func evaluateAccessControl(
+        _ context: LAContextProtocol,
+        reason: String
+    ) throws {
+        let accessControl = try getAccessControl(context)
+
+        var policySuccess = false
+        var policyError: Error?
+        let semaphore = DispatchSemaphore(value: 0)
+
+        context.evaluateAccessControl(
+            accessControl,
+            operation: .useKeyDecrypt,
+            localizedReason: reason
+        ) { success, error in
+            policySuccess = success
+            policyError = error
+            semaphore.signal()
+        }
+
+        semaphore.wait()
+
+        if policySuccess {
+            return
+        }
+
+        if let nsError = policyError as NSError?,
+           nsError.domain == LAError.errorDomain,
+           LAError.Code(rawValue: nsError.code) == .userCancel {
+            throw KeychainServiceError.authenticationUserCanceled
+        }
+
+        throw AuthenticationError.authenticationFailed(policyError)
+    }
 }

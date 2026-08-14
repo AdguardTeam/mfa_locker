@@ -15,6 +15,9 @@ protocol SecureEnclaveManagerProtocol {
     /// Checks whether the key identified by `tag` exists and is usable.
     func isKeyValid(tag: String) -> Bool
 
+    /// Pre-authorizes biometric access to the private key (macOS PoC, AW-3216).
+    func evaluateBiometricPolicy() throws
+
     /// Encrypts a string using the public key associated with `tag`.
     func encrypt(_ encryptionString: String, tag: String) throws -> Data
 

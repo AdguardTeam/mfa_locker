@@ -14,6 +14,11 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
     private let laContextFactory: LAContextFactoryProtocol
     private let userDefaults: UserDefaults
 
+    /// The `LAContext` that successfully evaluated the key's access control on macOS.
+    /// Kept so the subsequent `SecKeyCreateDecryptedData` reuses the authorized context
+    /// instead of showing a second system prompt (AW-3216 PoC).
+    private var evaluatedContext: LAContextProtocol?
+
     init(keychainService: KeychainServiceProtocol = KeychainService(),
          laContextFactory: LAContextFactoryProtocol = LAContextFactory(),
          userDefaults: UserDefaults = .standard) {
@@ -132,6 +137,18 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         return true
     }
 
+    /// Pre-authorizes biometric access to the private key on macOS, mirroring Keychain Access.
+    /// Non-macOS platforms are a no-op (AW-3216 PoC).
+    func evaluateBiometricPolicy() throws {
+#if os(macOS)
+        var laContext = laContextFactory.createContext()
+        let reason = authTitle ?? "Authenticate to unlock the wallet"
+        laContext.localizedReason = reason
+        try AuthenticationManager.evaluateAccessControl(laContext, reason: reason)
+        evaluatedContext = laContext
+#endif
+    }
+
     func encrypt(_ encryptionString: String, tag: String) throws -> Data {
         let privateKeyTag = try getTagData(tag: tag)
         let privateKey = try requirePrivateKey(tag: privateKeyTag)
@@ -238,8 +255,16 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         ]
 
         if let authTitle = authTitle {
-            var laContext = laContextFactory.createContext()
-            laContext.localizedReason = authTitle
+            // Reuse the already-evaluated context (macOS PoC) so the private-key
+            // fetch and the subsequent SecKeyCreateDecryptedData do not show a
+            // second system prompt. Fall back to a fresh context otherwise.
+            var laContext: LAContextProtocol
+            if let evaluatedContext {
+                laContext = evaluatedContext
+            } else {
+                laContext = laContextFactory.createContext()
+                laContext.localizedReason = authTitle
+            }
             query[kSecUseAuthenticationContext as String] = laContext
         }
 

@@ -13,6 +13,16 @@ protocol LAContextProtocol {
 
     /// Evaluates the given policy asynchronously and returns the result via `reply`.
     func evaluatePolicy(_ policy: LAPolicy, localizedReason: String, reply: @escaping (Bool, Error?) -> Void)
+
+    /// Evaluates a specific access control for a key operation (e.g. `.useKeyDecrypt`)
+    /// without a separate system dialog when the operation is authorized.
+    /// Used to pre-authorize a key operation, mirroring Keychain Access (AW-3216 PoC).
+    func evaluateAccessControl(
+        _ accessControl: SecAccessControl,
+        operation: LAAccessControlOperation,
+        localizedReason: String,
+        reply: @escaping (Bool, Error?) -> Void
+    )
 }
 
 extension LAContext: LAContextProtocol {
