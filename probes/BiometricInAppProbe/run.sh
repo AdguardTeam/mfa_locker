@@ -1,32 +1,47 @@
 #!/bin/bash
-# Builds and runs the probe.
+# Builds and runs the BiometricInAppProbe (AW-3216).
 #
-# IMPORTANT (verified on-device 2026-08-14):
-#   * `swift run` (unsigned) shows the in-window LocalAuthenticationView and the
-#     Touch ID request + sensor work — this is the core answer of AW-3216.
-#   * Creating a Secure Enclave key needs the `keychain-access-groups`
-#     entitlement, which is a RESTRICTED entitlement: it is only honored under
-#     an Xcode-signed build with a provisioning profile. Manually signing via
-#     codesign makes macOS reject the app ("restricted entitlements … validation
-#     failed", RBS Code 5 / SIGKILL 137), and without it key creation fails with
-#     -34018. So the "reuse LAContext → no second prompt" step must run in a real
-#     Xcode-signed target (mfa_locker plugin / app build), not this terminal one.
+# Two run modes:
 #
-# Two modes:
-#   ./run.sh          -> unsigned `swift run` (in-window biometric works; SE key
-#                        step will report -34018)
-#   ./run.sh xcode    -> hint to build this target under Xcode instead.
+#   1) ./run.sh              -> Terminal "lite mode" (`swift run`).
+#      The in-window LocalAuthenticationView works and the Touch ID sensor
+#      responds (the core AW-3216 answer). Because the bare binary is unsigned
+#      it cannot create a Secure Enclave key, so the probe enters LITE MODE and
+#      tells you to use mode 2 for the full "no second prompt" check.
+#
+#   2) ./run.sh app          -> Build & launch via Xcode (full mode).
+#      `open` the checked-in BiometricInAppProbe.xcodeproj, pick your Team in
+#      "Signing & Capabilities" (Automatic signing), press Run. The Xcode build
+#      is provisioning-signed, which is what permits the keychain-access-groups
+#      RESTRICTED entitlement -> Secure Enclave key creation works -> the
+#      full LAContext-reuse/decrypt check can complete.
+#
+#   ./run.sh gen-project     -> (re)generate the .xcodeproj from project.yml
+#      (requires `brew install xcodegen`). Committed .xcodeproj means other
+#      devs do NOT need xcodegen — only Xcode.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-if [ "${1:-}" = "xcode" ]; then
-  echo "The Secure Enclave key step requires an Xcode-signed build." >&2
-  echo "Suggested: open this package in Xcode, create an app target with an" >&2
-  echo "entitlements file containing keychain-access-groups, then Run." >&2
-  echo "Also see README.md → 'Why the SE-key step needs Xcode'." >&2
-  exit 0
-fi
-
-swift run
+case "${1:-}" in
+  app)
+    if [ ! -d BiometricInAppProbe.xcodeproj ]; then
+      echo "Missing BiometricInAppProbe.xcodeproj — run ./run.sh gen-project first." >&2
+      exit 1
+    fi
+    echo "Opening BiometricInAppProbe.xcodeproj in Xcode…" >&2
+    echo "  → Select your Team in 'Signing & Capabilities' (Automatic signing)" >&2
+    echo "  → Press Run (⌘R)" >&2
+    open BiometricInAppProbe.xcodeproj
+    ;;
+  gen-project)
+    command -v xcodegen >/dev/null 2>&1 || { echo "xcodegen not found — brew install xcodegen" >&2; exit 1; }
+    xcodegen generate
+    ;;
+  *)
+    echo "Lite mode: swift run (in-window biometric works; SE-key step reports lite mode)." >&2
+    echo "For the full check: ./run.sh app" >&2
+    swift run
+    ;;
+esac
 
 

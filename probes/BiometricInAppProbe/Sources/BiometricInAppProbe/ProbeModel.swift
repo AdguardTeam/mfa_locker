@@ -25,6 +25,14 @@ final class ProbeModel: ObservableObject {
   private let keyTagData = "com.adguard.probe.biokey".data(using: .utf8)!
   private var encryptedSample: Data?
 
+  /// True when the Secure Enclave key could not be created (e.g. running the
+  /// bare `swift run` binary, which is unsigned and lacks the keychain-access-
+  /// groups entitlement -> errSecMissingEntitlement -34018). In that "lite
+  /// mode" the in-window LocalAuthenticationView UX still works and can be
+  /// demonstrated; only the "no second prompt on decrypt" step needs the
+  /// Xcode-signed build (see README).
+  private(set) var liteMode = false
+
   func appReady() {
     setupKeyAndSample()
   }
@@ -97,9 +105,12 @@ final class ProbeModel: ObservableObject {
     var error: Unmanaged<CFError>?
     guard let privateKey = SecKeyCreateRandomKey(query as CFDictionary, &error) else {
       let detail = error.map { String(describing: $0.takeRetainedValue()) } ?? "no error info"
-      statusText = "❌ Could not create Secure Enclave key: \(detail)\n\n" +
-        "If you see -34018 (errSecMissingEntitlement): run via `./run.sh` " +
-        "(it signs the binary with keychain entitlements) instead of `swift run`."
+      liteMode = true
+      statusText = "⚠️ LITE MODE: Secure Enclave key unavailable (\(detail)).\n\n" +
+        "The in-window biometric UX below still works — try touching the sensor.\n" +
+        "Only the 'no second prompt on decrypt' step needs a signed app.\n" +
+        "For the full check open BiometricInAppProbe.xcodeproj in Xcode, select your " +
+        "Team, and Run (see README)."
       return
     }
 
@@ -135,7 +146,12 @@ final class ProbeModel: ObservableObject {
   /// returns errSecInteractionNotAllowed / shows a system sheet — we log it.
   private func runDecryptWithContext() {
     guard let cipher = encryptedSample else {
-      statusText = "❌ No encrypted sample (setup failed earlier)."
+      // Lite mode: no SE key, so there is nothing to decrypt — report clearly
+      // instead of pretending the step ran.
+      statusText = "⚠️ LITE MODE: Secure Enclave key was not created, so the " +
+        "decrypt / no-second-prompt check can't run here.\n" +
+        "The in-window biometric control above still works — touch the sensor to try it.\n" +
+        "Full check: ./run.sh app (Xcode) → pick your Team → Run — or run in the real app."
       return
     }
 

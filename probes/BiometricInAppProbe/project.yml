@@ -1,0 +1,58 @@
+# XcodeGen spec for the AW-3216 in-app biometric probe.
+#
+# Run `xcodegen generate` (or `./run.sh gen-project`) to (re)create
+# BiometricInAppProbe.xcodeproj. The generated .xcodeproj is checked in, so
+# other developers only need Xcode — they do NOT need XcodeGen.
+#
+# Signing: CODE_SIGN_STYLE = Automatic. Each developer opens the project in
+# Xcode, selects their own Team in "Signing & Capabilities", and presses Run.
+# The entitlements use $(AppIdentifierPrefix)$(CFBundleIdentifier), which
+# resolves to that developer's own App ID prefix, so keychain access works for
+# everyone without per-dev edits.
+name: BiometricInAppProbe
+options:
+  bundleIdPrefix: com.adguard.probe
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "13.0"
+    CODE_SIGN_STYLE: Automatic
+    # Do NOT hardcode DEVELOPMENT_TEAM here: automatic signing + an empty team
+    # lets each developer pick their own team in Xcode. (Set it locally if you
+    # want a single-team default.)
+    ENABLE_HARDENED_RUNTIME: YES
+    COMBINE_HIDPI_IMAGES: YES
+
+targets:
+  BiometricInAppProbe:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/BiometricInAppProbe
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.adguard.probe.BiometricInAppProbe
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_NSPrincipalClass: NSApplication
+        INFOPLIST_KEY_NSHumanReadableCopyright: "AW-3216 verification probe"
+        INFOPLIST_KEY_NSFaceIDUsageDescription: "Touch ID is used to demo the Keychain-like in-app biometric unlock."
+        CODE_SIGN_ENTITLEMENTS: BiometricInAppProbe.entitlements
+        ENABLE_APP_SANDBOX: YES
+
+# A shared, checked-in scheme so `xcodebuild -scheme BiometricInAppProbe` (and
+# `./run.sh app`) work deterministically for everyone — no reliance on Xcode
+# auto-creating schemes.
+schemes:
+  BiometricInAppProbe:
+    build:
+      targets:
+        BiometricInAppProbe: all
+    run:
+      config: Debug
+    archive:
+      config: Release

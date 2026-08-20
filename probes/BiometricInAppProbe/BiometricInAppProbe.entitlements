@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- App Sandbox: required for a provisioning-signed macOS app. -->
+  <key>com.apple.security.app-sandbox</key>
+  <true/>
+
+  <!--
+    keychain-access-groups — the RESTRICTED entitlement this probe needs.
+
+    Why it must be (and here is) adaptive:
+    A Secure Enclave key lives in the keychain and is scoped to an "access
+    group". macOS only hands out the key to a process whose code signature
+    carries a keychain-access-groups entitlement AND that entitlement is backed
+    by a provisioning profile (i.e. a real Xcode build). The group is normally
+    "<TeamID>.<bundle-id>", so instead of hardcoding a team we use the build
+    variables: $(AppIdentifierPrefix) == <TeamID>. and $(CFBundleIdentifier) ==
+    the app's bundle id. This resolves to the correct group for EVERY developer
+    automatically, so no per-dev editing is needed.
+
+    ⚠️ This entitlement is "restricted": it can NOT be added by hand-code-signing
+    a bare binary (macOS rejects the app: RBS Code 5 / SIGKILL 137). It is only
+    honored on builds signed through Xcode + a provisioning profile — which is
+    exactly what Automatic signing + "pick your Team" produces.
+  -->
+  <key>keychain-access-groups</key>
+  <array>
+    <string>$(AppIdentifierPrefix)$(CFBundleIdentifier)</string>
+  </array>
+</dict>
+</plist>

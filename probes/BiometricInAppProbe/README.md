@@ -19,13 +19,17 @@ real hardware.
 
 - macOS 13+ (built/tested on macOS 15).
 - A Mac with an enrolled Touch ID sensor (for the biometric success path).
-- Xcode Command Line Tools (Swift toolchain).
+- Xcode (full app, for the "full mode" — see below) + Command Line Tools.
+- For the **full** mode: an Apple ID / Team configured in Xcode (a free
+  personal team is enough for local development).
 
-## Build & run
+## Build & run — two modes
+
+### Mode 1 — Terminal "lite mode" (fastest, always works)
 
 ```sh
 cd probes/BiometricInAppProbe
-./run.sh        # == swift run
+./run.sh            # == swift run
 ```
 
 The window **"BiometricInAppProbe — AW-3216"** opens with a **"Continue with
@@ -33,10 +37,36 @@ Touch ID" control inside the window**, a "Use Password…" fallback button, and
 a status area. Status lines are also echoed to stderr, so the probe can be
 observed from a terminal.
 
-> ⚠️ The **Secure Enclave key step cannot complete in this terminal build** —
-> see "Why the SE-key step needs Xcode" below.
+The in-window Touch ID control + the sensor work here (this is the core
+answer). Because the bare `swift run` binary is **unsigned**, it cannot create
+a Secure Enclave key (see below) — the probe notices and switches to **LITE
+MODE**, clearly telling you to use Mode 2 for the full decrypt check.
 
-### Why the SE-key step needs Xcode
+### Mode 2 — Xcode "full mode" (SE key + no-second-prompt check)
+
+```sh
+cd probes/BiometricInAppProbe
+./run.sh app        # opens the Xcode project
+```
+
+Then, in Xcode:
+
+1. Select the **BiometricInAppProbe** scheme + your Mac.
+2. **Signing & Capabilities → Team**: pick your team (Automatic signing). The
+   entitlements are already configured and adapt to your team automatically
+   (see below), so no other edits are needed.
+3. Press **Run (⌘R)**.
+
+The provisioning-signed build is what permits the `keychain-access-groups`
+entitlement → the Secure Enclave key is created → the full
+"reuse `LAContext` → **no second prompt**" step runs.
+
+> `BiometricInAppProbe.xcodeproj` is **generated from `project.yml`** via
+> [XcodeGen](https://github.com/yonaskolb/XcodeGen) and is checked in, so other
+> developers only need Xcode. Maintainers regenerate it with:
+> `./run.sh gen-project` (requires `brew install xcodegen`).
+
+### Why the SE-key step needs an Xcode-signed build (and what that means)
 
 Verified on-device (2026-08-14):
 
@@ -48,29 +78,36 @@ Verified on-device (2026-08-14):
   entitlement; without it key creation fails with `-34018` (errSecMissing
   Entitlement).
 - `keychain-access-groups` is a **restricted** entitlement: it is only honored
-  under an Xcode build signed through a provisioning profile. Hand-signing via
-  `codesign` makes macOS reject the app ("Code has restricted entitlements, but
-  the validation of its code signature failed" — RBS Code 5 / POSIX 153 / SIG
-  KILL 137); signing without it leaves `-34018`.
+  when the code signature is valid **and** the entitlement is backed by a
+  **provisioning profile** (i.e. a real Xcode build). Hand-signing a bare
+  binary via `codesign` makes macOS reject the app ("Code has restricted
+  entitlements, but the validation of its code signature failed" — RBS Code 5 /
+  POSIX 153 / SIGKILL 137); signing without it leaves `-34018`.
 - Therefore the final step — reuse the authorized `LAContext` for the SE-key
-  operation and confirm **no second prompt** — must run in a real Xcode-signed
-  target (the mfa_locker plugin or the adguard-wallet app build), not in this
-  bare-terminal Swift package.
+  operation and confirm **no second prompt** — must run in a real
+  Xcode-signed target (this probe in Mode 2, the mfa_locker plugin, or the
+  adguard-wallet app build), not in a bare-terminal Swift package.
+
+**Why the entitlements "just work" for every developer:** the access group is
+set to `$(AppIdentifierPrefix)$(CFBundleIdentifier)` instead of a hard-coded
+team. `$(AppIdentifierPrefix)` resolves to that developer's own Team ID at
+build time, so each person's Xcode build targets the correct keychain group for
+their account — no per-dev editing.
 
 ## What to observe (checklist)
 
 1. **In-window UI** — the Touch ID control renders inside the app window, NOT
-   as a separate system window/dialog. ✅ confirmed.
+   as a separate system window/dialog. ✅ confirmed (both modes).
 2. **In-window listening** — touching the sensor (while the in-window control is
    active) authorizes and the status turns to
    `✅ LocalAuthenticationView succeeded → reusing context for decrypt…`. ✅
-   confirmed (incl. headless run).
-3. **SE key created** — only in an Xcode-signed build: status shows
+   confirmed (incl. headless run; in lite mode it then reports LITE MODE).
+3. **SE key created** — only in an Xcode-signed build (Mode 2): status shows
    `✅ Secure Enclave key created; sample encrypted.`
 4. **No second prompt** — after the in-window authorization, a second system
    prompt must NOT appear; the flow goes straight to
    `🎉 SUCCESS — decrypted in-app with reused LAContext, no second prompt`.
-   (Pending — requires the Xcode-signed build.)
+   (Mode 2 only.)
 5. **Fallback** — pressing "Use Password…" exercises `deviceOwnerAuthentication`;
    authorizing decrypts with the same shared context.
 6. **Cancel** — canceling Touch ID reports a failure in the status area; the

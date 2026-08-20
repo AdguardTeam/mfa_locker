@@ -2,4 +2,9 @@
 .swiftpm/
 
 # Build artifacts of the probe
-probes/BiometricInAppProbe/dist/
+dist/
+
+# Xcode project user data (each dev owns their team/scheme choices)
+BiometricInAppProbe.xcodeproj/xcuserdata/
+BiometricInAppProbe.xcodeproj/project.xcworkspace/xcuserdata/
+DerivedData/
