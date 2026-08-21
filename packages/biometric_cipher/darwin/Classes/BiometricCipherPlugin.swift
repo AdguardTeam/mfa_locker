@@ -68,6 +68,8 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
             decrypt(arguments: call.arguments, result: result)
         case "evaluateBiometricPolicy":
             evaluateBiometricPolicy(result: result)
+        case "resetAuthorizedContext":
+            resetAuthorizedContext(result: result)
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -379,6 +381,16 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
                 }
             }
         }
+    }
+
+    /// Clears the authorized LAContext stored by the in-window biometric flow
+    /// (lock / after a successful unlock) so it is never reused across unlock
+    /// sessions (AW-3216). No-op on non-macOS.
+    ///
+    /// - Parameter result: A callback that returns `nil` on success.
+    private func resetAuthorizedContext(result: @escaping FlutterResult) {
+        secureEnclaveManager.resetAuthorizedContext()
+        result(nil)
     }
 
     /// Checks whether a Secure Enclave key with the given tag is valid (exists and has not been

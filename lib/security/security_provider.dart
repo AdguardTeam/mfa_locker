@@ -22,6 +22,9 @@ abstract class SecurityProvider {
   /// Evaluates the key's access control so subsequent decrypt operations do not
   /// show a second system prompt. No-op on platforms that do not support it.
   Future<void> evaluateBiometricPolicy();
+
+  /// Clears the in-window biometric authorized context (AW-3216).
+  Future<void> resetAuthorizedContext();
 }
 
 class SecurityProviderImpl implements SecurityProvider {
@@ -67,4 +70,7 @@ class SecurityProviderImpl implements SecurityProvider {
 
   @override
   Future<void> evaluateBiometricPolicy() => _biometricCipherProvider.evaluateBiometricPolicy();
+
+  @override
+  Future<void> resetAuthorizedContext() => _biometricCipherProvider.resetAuthorizedContext();
 }

@@ -56,6 +56,10 @@ abstract class BiometricCipherProvider {
   /// show a second system prompt. No-op on platforms that do not support it.
   Future<void> evaluateBiometricPolicy();
 
+  /// Clears the authorized context (in-window biometric) so it is not reused
+  /// across unlock sessions (AW-3216). No-op on platforms that do not support it.
+  Future<void> resetAuthorizedContext();
+
   /// Returns `true` if the biometric key identified by [tag] exists and is valid.
   ///
   /// Does not trigger a biometric prompt.
@@ -130,6 +134,15 @@ class BiometricCipherProviderImpl implements BiometricCipherProvider {
   Future<void> evaluateBiometricPolicy() async {
     try {
       await _biometricCipher.evaluateBiometricPolicy();
+    } on BiometricCipherException catch (e, stackTrace) {
+      Error.throwWithStackTrace(_mapExceptionToBiometricException(e), stackTrace);
+    }
+  }
+
+  @override
+  Future<void> resetAuthorizedContext() async {
+    try {
+      await _biometricCipher.resetAuthorizedContext();
     } on BiometricCipherException catch (e, stackTrace) {
       Error.throwWithStackTrace(_mapExceptionToBiometricException(e), stackTrace);
     }

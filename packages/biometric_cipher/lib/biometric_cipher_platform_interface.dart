@@ -123,6 +123,10 @@ abstract class BiometricCipherPlatform extends PlatformInterface {
     throw UnimplementedError('evaluateBiometricPolicy() has not been implemented.');
   }
 
+  Future<void> resetAuthorizedContext() {
+    throw UnimplementedError('resetAuthorizedContext() has not been implemented.');
+  }
+
   /// Checks whether the biometric key identified by [tag] exists and is still
   /// valid, without triggering a biometric prompt.
   ///

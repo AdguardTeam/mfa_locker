@@ -101,6 +101,10 @@ class BiometricCipher {
   /// a second system prompt. No-op on platforms that do not support it.
   Future<void> evaluateBiometricPolicy() => _instance.evaluateBiometricPolicy();
 
+  /// Clears the in-window biometric authorized context so it is not reused
+  /// across unlock sessions (AW-3216). No-op on platforms that do not support it.
+  Future<void> resetAuthorizedContext() => _instance.resetAuthorizedContext();
+
   Future<bool> isKeyValid({required String tag}) {
     if (tag.isEmpty) {
       throw const BiometricCipherException(

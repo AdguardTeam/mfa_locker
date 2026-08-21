@@ -105,6 +105,15 @@ class MethodChannelBiometricCipher extends BiometricCipherPlatform {
   }
 
   @override
+  Future<void> resetAuthorizedContext() async {
+    try {
+      await methodChannel.invokeMethod<void>('resetAuthorizedContext');
+    } on PlatformException catch (e) {
+      throw _mapPlatformException(e);
+    }
+  }
+
+  @override
   Future<bool> isKeyValid({required String tag}) async {
     try {
       final result = await methodChannel.invokeMethod<bool>(
