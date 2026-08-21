@@ -36,6 +36,9 @@ class BiometricInAppView extends StatefulWidget {
 
 class _BiometricInAppViewState extends State<BiometricInAppView> {
   MethodChannel? _channel;
+  // One-shot per view: fire onSuccess/onFailure only once, so a rebuild of the
+  // platform view cannot dispatch a duplicate unlock (AW-3216 real-app fix).
+  bool _resolved = false;
 
   @override
   void dispose() {
@@ -47,6 +50,10 @@ class _BiometricInAppViewState extends State<BiometricInAppView> {
     final channel = MethodChannel('biometric_cipher/in_app_view_$id');
     _channel = channel;
     channel.setMethodCallHandler((call) async {
+      if (_resolved) {
+        return;
+      }
+      _resolved = true;
       switch (call.method) {
         case 'onSuccess':
           widget.onSuccess();
