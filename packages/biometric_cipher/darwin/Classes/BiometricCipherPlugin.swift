@@ -9,7 +9,7 @@ import FlutterMacOS
 /// A Flutter plugin for managing cryptographic operations using Secure Enclave.
 public class BiometricCipherPlugin: NSObject, FlutterPlugin {
 
-    private let secureEnclaveManager: SecureEnclaveManagerProtocol
+    private(set) var secureEnclaveManager: SecureEnclaveManagerProtocol
     private let laContextFactory: LAContextFactoryProtocol
 
     public override init() {
@@ -29,6 +29,18 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
 #endif
         let instance = BiometricCipherPlugin()
         registrar.addMethodCallDelegate(instance, channel: channel)
+
+        // AW-3216: in-window biometric (LocalAuthenticationView) platform view.
+        // macOS 13+ only; the view hands its authorized LAContext to the manager so
+        // the next decrypt reuses it (no second prompt).
+#if os(macOS)
+        if #available(macOS 13.0, *) {
+            registrar.register(
+                BiometricInAppViewFactory(messenger: registrar.messenger, manager: instance.secureEnclaveManager),
+                withId: "biometric_in_app_view"
+            )
+        }
+#endif
     }
 
     /// Handles incoming Flutter method calls and routes them to the appropriate functionality.

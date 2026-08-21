@@ -173,6 +173,22 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
 #endif
     }
 
+    /// Adopts an already-authorized LAContext (in-window LocalAuthenticationView,
+    /// macOS 13+) so the next decrypt reuses it via `kSecUseAuthenticationContext`
+    /// instead of showing a second prompt (AW-3216). No-op outside macOS.
+    func setAuthorizedContext(_ context: LAContextProtocol?) {
+#if os(macOS)
+        evaluatedContext = context
+#endif
+    }
+
+    /// Clears the authorized context (lock / cancel / failure).
+    func resetAuthorizedContext() {
+#if os(macOS)
+        evaluatedContext = nil
+#endif
+    }
+
     func encrypt(_ encryptionString: String, tag: String) throws -> Data {
         let privateKeyTag = try getTagData(tag: tag)
         let privateKey = try requirePrivateKey(tag: privateKeyTag)

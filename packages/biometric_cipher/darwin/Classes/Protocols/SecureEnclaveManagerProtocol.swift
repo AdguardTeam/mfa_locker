@@ -18,6 +18,14 @@ protocol SecureEnclaveManagerProtocol {
     /// Pre-authorizes biometric access to the private key (macOS PoC, AW-3216).
     func evaluateBiometricPolicy() throws
 
+    /// Adopts an already-authorized LAContext (in-window LocalAuthenticationView,
+    /// macOS 13+) so the next decrypt reuses it via `kSecUseAuthenticationContext`
+    /// instead of showing a second prompt (AW-3216).
+    func setAuthorizedContext(_ context: LAContextProtocol?)
+
+    /// Clears the authorized context (lock / cancel / failure).
+    func resetAuthorizedContext()
+
     /// Encrypts a string using the public key associated with `tag`.
     func encrypt(_ encryptionString: String, tag: String) throws -> Data
 
