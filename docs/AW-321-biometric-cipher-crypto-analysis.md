@@ -6,6 +6,8 @@
 **Comment (k.abdurakhmanova, 2025-07-30):** *"Изучить целесообразность этого подхода"*
 **Status:** To Do · P4: Low · created 2024-12-03 · 1 pull request, **DECLINED**
 **Analysed revision:** `feature/AW-321-ios-crypto` @ `521b728` (identical to `master` — the branch contains no AW-321 work)
+**Declined PR:** [adguard-wallet #112](https://bit.int.agrd.dev/projects/FLUTTER/repos/adguard-wallet/pull-requests/112/overview)
+@ `9ebb87a` — analysed in **Appendix C**
 **Date:** 2026-08-26
 
 ---
@@ -32,8 +34,10 @@ static public key → ANSI X9.63 KDF/SHA-256 → **AES-128-GCM** over the payloa
 symmetric bulk encryption, with the private half never leaving the Secure Enclave.
 
 **Recommendation: close AW-321 as "already implemented / obsolete as written."** Do not resurrect the declined
-branch. There is, however, a narrow and genuinely valuable *residual* scope hiding inside the ticket — see
-§7.3 — which is better tracked as a new, precisely-scoped ticket.
+branch — **Appendix C** reads it commit by commit and finds a design that could not decrypt at all, could not be
+called from Dart, never covered macOS, and would have been weaker than what ships even once repaired. There is,
+however, a narrow and genuinely valuable *residual* scope hiding inside the ticket — see §7.3 — which is better
+tracked as a new, precisely-scoped ticket.
 
 ### 1.2 What the analysis did turn up
 
@@ -65,7 +69,9 @@ that is not documented anywhere in the repo.
 ## 2. Scope and method
 
 **In scope:** `packages/biometric_cipher/` (Dart API, Darwin/Swift, Android/Kotlin, Windows/C++), plus the
-consuming layer in `lib/security/` and `lib/storage/` needed to establish the threat model.
+consuming layer in `lib/security/` and `lib/storage/` needed to establish the threat model. **Appendix C**
+additionally covers the ticket's declined pull request, `adguard-wallet` #112 @ `9ebb87a` — 27 commits and 164
+changed files, read from the Bitbucket API.
 
 **Method:** static reading of all cryptographic paths, cross-checked against the Apple `Security.framework`
 headers shipped with the locally installed SDK
@@ -589,7 +595,9 @@ Worth recording, because the report is otherwise a list of problems:
    "a version with a combination of asymmetric and symmetric cryptography" would produce what already ships.
 
 2. **The premise appears to be outdated.** The ticket was filed 2024-12-03 with a P4 priority and a due date of
-   2025-05-30 that has long passed. Its PR was **declined**. The `feature/AW-321-ios-crypto` branch has
+   2025-05-30 that has long passed. Its PR was **declined** — and not for lack of time: it shipped a scheme that
+   derived its AES key through a *randomly salted* HKDF on both encrypt and decrypt, so decryption could never
+   succeed (**Appendix C**, P-1). The `feature/AW-321-ios-crypto` branch has
    **zero commits** relative to `master`. Meanwhile the Darwin implementation has been substantially reworked
    since — enrollment tracking, `isKeyValid`, macOS-specific handling, `keyInvalidated` states — all landed
    through other tickets (AW-2526, AW-2662, AW-3071). The ticket is a fossil of a design question that the
@@ -629,7 +637,8 @@ SecKeyCopyKeyExchangeResult(privateKey,
 ```
 
 This is more code and more responsibility (you now own the nonce and the KDF), and it should only be done if
-the 128-vs-256 asymmetry is judged to matter. **My assessment: it does not currently justify the risk.**
+the 128-vs-256 asymmetry is judged to matter. Note that this is **not** what the declined PR attempted, despite the
+surface resemblance — see §C.7. **My assessment: it does not currently justify the risk.**
 AES-128 is not a practical weakness, and hand-rolled crypto trades a well-audited Apple implementation for one
 that must be reviewed from scratch. Record the asymmetry in the docs and revisit only if a compliance
 requirement forces it.
@@ -746,3 +755,199 @@ benefit from confirmation on real hardware before being acted on:
 - **Android API < 30 timeout semantics** — whether `0` behaves as auth-per-use on API 28–29 in practice.
 - **F-2** — whether current Windows builds still return deterministic signatures across reboots and Hello
   re-authentication, which is the assumption the whole Windows backend rests on.
+
+---
+
+## Appendix C — What the declined pull request actually implemented
+
+**PR:** [FLUTTER/adguard-wallet #112](https://bit.int.agrd.dev/projects/FLUTTER/repos/adguard-wallet/pull-requests/112/overview) —
+*"AW-321 symmetric cryptography"*
+**Branch:** `feature/AW-321-symmetric-cryptography` → `master` · head `9ebb87a` · 27 commits, 2024-11-27 → 2024-12-15
+**Author:** o.osipov · **Reviewer:** d.seloustev · opened as a **draft** 2024-12-09 · **DECLINED** 2025-02-06, never approved
+**Scope:** 164 files changed, of which ~12 contain hand-written logic; the rest is `flutter create --template=plugin` scaffold
+
+§7.1 leans on the fact that the ticket's only pull request was declined. This appendix says *what was in it*, because
+the answer changes that argument from an appeal to process into direct technical evidence.
+
+> **Note on repositories.** PR #112 predates the extraction of this library. It targets `adguard-wallet`, where the
+> plugin lived at the time. `packages/biometric_cipher` in *this* repository is its direct descendant — as §C.6 shows,
+> some of it is byte-identical.
+
+### C.1 What was built
+
+The PR did not modify the existing plugin. It created a **new, parallel federated plugin**,
+`packages/secure_mnemonic` (`description: "AdGuard TPM plugin."`, version `0.0.1`), and wired a debug card into the
+app so the result could be poked by hand.
+
+| Layer | Files | State |
+|---|---|---|
+| Dart API | `secure_mnemonic.dart`, `_platform_interface.dart`, `_method_channel.dart` | Written. Channel `secure_enclave`. Methods: `isSecureEnclaveSupported`, `generateKey`, `encrypt`, `decrypt`, `deleteKey`, `sign` |
+| iOS / Swift | `SecureMnemonicPlugin`, `SecureEnclaveManager`, `SecureKeychainManager`, `Authentication`, `Base64Manager`, `BaseError`, `AppConstants` | Written. The only real implementation in the PR |
+| macOS / Swift | `SecureMnemonicPlugin`, `GenerateKeyPairExtension` | **Empty.** Plugin has only `default: FlutterMethodNotImplemented`; the extension file is 100% commented out |
+| Android / Kotlin | `SecureMnemonicPlugin.kt` | **Untouched template** — `getPlatformVersion` and nothing else. Package left as `com.example.secure_mnemonic` |
+| Windows / C++ | `secure_mnemonic_plugin.cpp` + C API | **Untouched template** |
+| Tests | `secure_mnemonic_test.dart`, `_method_channel_test.dart`, `SecureMnemonicPluginTest.kt`, `..._plugin_test.cpp` | **Untouched template.** Every mock method body is `throw UnimplementedError()` |
+| App | `lib/feature/exchange/view/tpm_view.dart` (new), `exchange_screen.dart` | Debug card with buttons for each plugin method |
+
+So of the four platforms the `pubspec.yaml` declares, **one has an implementation**, and the ticket explicitly asks
+for iOS *and* macOS.
+
+### C.2 The cryptographic design
+
+This is the substance of the PR, and it is a genuinely different design from what ships today. It uses CryptoKit's
+`SecureEnclave.P256.KeyAgreement` rather than `Security.framework`'s `SecKeyCreateEncryptedData`:
+
+```swift
+// packages/secure_mnemonic/ios/Classes/SecureEnclaveManager.swift
+
+// key generation
+let privateKey = try SecureEnclave.P256.KeyAgreement.PrivateKey(
+    accessControl: accessControl,           // [.privateKeyUsage, .biometryAny]
+    authenticationContext: context
+)
+try SecureKeychainManager.saveKey(privateKey.dataRepresentation, tag: tag)
+
+// key derivation — called by BOTH encrypt and decrypt
+private func deriveSymmetricKey(tag: Data) throws -> SymmetricKey {
+    let privateKey   = try getPrivateKey(tag: tag)
+    let salt         = generateRandomSalt()                      // ← 32 FRESH random bytes, every call
+    let sharedSecret = try privateKey.sharedSecretFromKeyAgreement(
+        with: privateKey.publicKey)                              // ← ECDH of the key with ITSELF
+    return sharedSecret.hkdfDerivedSymmetricKey(
+        using: SHA256.self, salt: salt, sharedInfo: tag, outputByteCount: 32)
+}
+
+// encrypt
+let sealedBox = try AES.GCM.seal(plaintextData, using: symmetricKey)
+return Base64Manager.encode(sealedBox.combined!)
+```
+
+Read as a pipeline: *Secure Enclave P-256 key → ECDH against its own public key → HKDF-SHA256 with a random salt →
+AES-256-GCM*. On paper that is asymmetric-plus-symmetric, which is what the ticket asked for. In practice it does not
+work, for the reasons below.
+
+### C.3 Why it could never have worked
+
+Three defects, any one of which is fatal on its own. Findings in this appendix are numbered **P-n** to keep them
+distinct from the **F-n** findings against the shipped code.
+
+**P-1 — Blocker. The random salt makes decryption mathematically impossible.**
+`generateRandomSalt()` returns 32 fresh `SecRandomCopyBytes` on **every** call, and the salt is never persisted,
+never returned, and never embedded in the ciphertext. `encrypt` derives K₁ = HKDF(secret, salt₁, tag);
+`decrypt` derives K₂ = HKDF(secret, salt₂, tag). K₁ ≠ K₂ with overwhelming probability, so
+`AES.GCM.open` fails tag verification every single time. Note that the *nonce* is handled correctly — CryptoKit
+generates it and `sealedBox.combined` carries it — which makes the omission specific to the salt.
+
+This is not a subtle weakness. **The round trip cannot succeed.** It is the strongest single piece of evidence that
+the branch never reached a working state on a device.
+
+**P-2 — Blocker. The method names do not match across the channel.**
+
+| Dart sends | iOS `handle` accepts | Result |
+|---|---|---|
+| `generateKey` | `generateKeyPair` | `FlutterMethodNotImplemented` |
+| `sign` | `auth` | `FlutterMethodNotImplemented` |
+| `isSecureEnclaveSupported`, `encrypt`, `decrypt`, `deleteKey` | same | reachable |
+
+So the key can never be *created* from Dart either — independently of P-1. And the channel names diverge too: Dart
+and iOS use `secure_enclave`, while the macOS plugin registers `secure_mnemonic` and Android registers
+`secure_mnemonic`. Neither non-iOS platform is addressable from the Dart side at all.
+
+**P-3 — Blocker. `generateKeyPair` never completes its `FlutterResult` on success.**
+
+```swift
+do {
+    try enclaveManager.generateAndStoreKeys(tag: tag)   // no result(nil) on the success path
+} catch let error as BaseError {
+    result(getFlutterError(error))
+} catch { … }
+```
+
+Every other handler calls `result(…)` on success. This one does not, so a successful key generation leaves the Dart
+`Future` pending forever. Combined with P-2 the call never arrives, which is presumably why it was never noticed.
+
+### C.4 Where the design was weaker than what already ships
+
+Even with P-1 through P-3 repaired, the approach would have been a **regression** against the current Darwin backend
+on the three properties §4.1 and §6 identify as its strengths.
+
+**P-5 — High. The self-ECDH is a key agreement with no second party.**
+`privateKey.sharedSecretFromKeyAgreement(with: privateKey.publicKey)` computes d·(d·G) — the key agreeing with
+itself. There is no ephemeral key and no counterparty, so this is an obfuscated way of asking the enclave for a
+single static per-key secret. It yields no forward secrecy and, crucially, **no per-message key diversity**.
+
+Contrast the shipped design: `SecKeyCreateEncryptedData` generates a *fresh ephemeral P-256 keypair per message*.
+That is exactly why its all-zero IV is safe (§4.1). The PR's design, once the salt were fixed to a constant to make
+P-1 go away, would collapse to *one static AES key for the lifetime of the enclave key* — safe only because
+CryptoKit picks a random nonce, with no diversity behind it.
+
+**P-6 — High. Encryption would require a biometric prompt.**
+Because the wrap key is derived *through* the enclave (`sharedSecretFromKeyAgreement` is a `privateKeyUsage`
+operation gated by the access control), **`encrypt` prompts for Face ID / Touch ID** — the same limitation Android
+and Windows have today. §7.2 identifies prompt-free re-wrapping as the actual payoff of the hybrid design and the
+useful reading of AW-321. The PR would have thrown that property away on the one platform that has it.
+
+**P-7 — Medium. `.biometryAny` instead of `.biometryCurrentSet`.**
+
+```swift
+var accessFlags: SecAccessControlCreateFlags = [.privateKeyUsage]
+if isBiometrySupported { accessFlags.insert(.biometryAny) }  // shipped code uses .biometryCurrentSet
+else                   { accessFlags.insert(.userPresence) }
+```
+
+With `.biometryAny` the key survives fingerprint and Face ID re-enrollment. The shipped code uses
+`.biometryCurrentSet`, where the OS destroys the key on any enrollment change — the property §4.1 calls out as
+"exactly what you want, enforced by the OS, not by application code". The PR is strictly weaker here, and it is a
+one-word difference.
+
+### C.5 Everything else
+
+| # | Sev | Finding |
+|---|---|---|
+| P-4 | High | **macOS was never implemented.** `macos/Classes/SecureMnemonicPlugin.swift` handles no methods; `GenerateKeyPairExtension.swift` is entirely commented out (in two languages, with two abandoned drafts stacked in the same file). AW-321 asks for iOS **and** macOS |
+| P-8 | Medium | **`Authentication.authenticateUser` calls its completion two to three times.** The `evaluatePolicy` callback invokes `completion` once directly *and* again inside a `DispatchQueue.main.async` block that repeats both branches. On success `completion(true, nil)` fires twice — calling a `FlutterResult` more than once is a framework error. On failure it starts **two concurrent passcode prompts** |
+| P-8b | Medium | **Authentication is decoupled from key use.** `auth` builds its own throwaway `LAContext`, while `SecureEnclaveManager` holds one created at plugin construction that is never authenticated. The PR's own `// TODO` at `SecureMnemonicPlugin.swift:8` admits this and proposes passing the context in after authorization |
+| P-9 | Medium | **The keychain item carries no access control.** `SecureKeychainManager.saveKey` stores the enclave blob under `kSecClassKey` with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` and **no `kSecAttrAccessControl`**. The blob is enclave-sealed so exfiltration is not fatal, but the policy lives only inside it and there is no second gate on retrieval. It also sets `kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom` on an item that is raw `Data`, not a `SecKey` — the attribute is decorative |
+| P-10 | Medium | **No `configure`, `getTPMStatus`, `getBiometryStatus`, `isKeyValid`, and no enrollment tracking.** The shipped plugin has all of them plus a normalised `BiometricCipherExceptionCode` → `BiometricExceptionType` mapping. Here, Dart-side validation is bare `throw Exception('Tag cannot be empty')` |
+| P-11 | Low | **The demo harness never worked either.** `TPMView._onGenerateKeyPairPressed` calls `generateKey(tag: '')`, which the Dart facade rejects outright, while `encrypt`/`decrypt`/`deleteKey` all pass `_walletId`. Even the happy path in the test UI uses mismatched tags |
+| P-12 | Low | **Five `// TODO: check empty string` markers** in `SecureMnemonicPlugin.swift`, plus `// TODO: проверить удаление ключа в Secure Enclave` in `deleteKey` and `// TODO: delete after tests` / `//TODO: method to verify data with key` in the platform interface. The commit log is 27 messages of which 19 are `chore: minor changes` or similar — this is a scratchpad branch, and it reads like one |
+
+### C.6 What survived
+
+The PR's *structure* is the ancestor of today's Darwin backend, and the resemblance is not vague:
+
+| PR #112 (`secure_mnemonic`) | Today (`biometric_cipher/darwin`) |
+|---|---|
+| `AppConstants.privateKeyTag = "com.adguard.tpm.secureEnclavePrivateKey"` | **Byte-identical** — `AppConstants.swift:8` |
+| `protocol BaseError: LocalizedError { var code: String { get } }` | `Errors/BaseError.swift`, unchanged in shape |
+| `SecureEnclaveManagerError`, `AuthenticationError`, plugin error enum with `code` + `errorDescription` mapped into `FlutterError` | `Errors/` — five enums, same pattern |
+| `SecureKeychainManager` (static save/get/delete/exists) | `Services/KeychainService.swift`, now behind `KeychainServiceProtocol` |
+| `Authentication.getAccessControl()` | `Managers/AuthenticationManager.swift` |
+| `Base64Manager` | `Services/Base64Codec.swift` |
+| Per-wallet tag namespacing `"<privateKeyTag>.<tag>"` | Same scheme |
+| Plugin → manager → keychain-service decomposition | Same, plus protocols for testability |
+
+So PR #112 is best read as **the prototype whose architecture shipped and whose cryptography did not.** The file
+skeleton was kept; `SecureEnclave.P256.KeyAgreement` + hand-rolled HKDF was replaced by
+`SecKeyCreateEncryptedData(.eciesEncryptionCofactorX963SHA256AESGCM)`, which does the same hybrid construction inside
+Apple's audited implementation, with a fresh ephemeral key per message and without prompting on encrypt.
+
+### C.7 What this means for AW-321
+
+§7.1's second reason — *"the premise has aged out"* — can now be stated more precisely, and more strongly:
+
+- The branch was not declined for lack of time. It was declined because the approach **did not work**: it could not
+  decrypt (P-1), could not be called from Dart (P-2, P-3), and never covered half its stated platform scope (P-4).
+- The approach it proposed would, once repaired, have been **worse than what already existed** on per-message key
+  diversity (P-5), prompt-free encryption (P-6) and invalidation on re-enrollment (P-7).
+- The problem it was reaching for was solved by a different route — Apple's ECIES — and that solution is what ships.
+
+**Nothing in PR #112 is worth resurrecting.** Its architectural contribution has already been merged and improved on;
+its cryptographic contribution is a design that a reviewer correctly rejected. The recommendation in §7.1 stands, and
+this appendix is the evidence for it.
+
+Note that the residual scope in §7.3(a) — AES-256 on Darwin via manual ECDH — is *superficially* what this PR
+attempted, and the difference is worth stating plainly. §7.3(a) proposes `SecKeyCopyKeyExchangeResult` against a
+**genuine ephemeral counterparty key**, with HKDF over a stored salt and AAD binding. PR #112 did self-ECDH with a
+salt it threw away. They are not the same design, and the failure of the second says nothing about the viability of
+the first. The assessment in §7.3(a) — that it is not worth the risk today — rests on its own reasoning.
