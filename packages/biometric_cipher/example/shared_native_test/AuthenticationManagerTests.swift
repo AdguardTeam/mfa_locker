@@ -54,4 +54,64 @@ final class AuthenticationManagerTests: XCTestCase {
         let accessControl = try? AuthenticationManager.getAccessControl(mockLAContext)
         XCTAssertNotNil(accessControl, "AccessControl should not be nil.")
     }
+
+    // MARK: - requestBiometricAuthentication Tests
+
+    func testRequestBiometricAuthentication_Success() {
+        XCTAssertNoThrow(
+            try AuthenticationManager.requestBiometricAuthentication(mockLAContext, reason: "Enable biometric access"),
+            "Should not throw when biometric authentication succeeds."
+        )
+    }
+
+    func testRequestBiometricAuthentication_BiometryUnavailable() {
+        mockLAContext.canEvaluatePolicyResult = false
+        mockLAContext.evaluatePolicyError = NSError(
+            domain: "MockAuthError",
+            code: -1,
+            userInfo: [NSLocalizedDescriptionKey: "Biometry unavailable."]
+        )
+
+        XCTAssertThrowsError(
+            try AuthenticationManager.requestBiometricAuthentication(mockLAContext, reason: "Enable biometric access")
+        ) { error in
+            guard case AuthenticationError.evaluatingBiometryError = error else {
+                return XCTFail("Expected AuthenticationError.evaluatingBiometryError, but got \(error).")
+            }
+        }
+    }
+
+    func testRequestBiometricAuthentication_UserCanceled() {
+        mockLAContext.evaluatePolicySuccess = false
+        mockLAContext.evaluatePolicyError = NSError(
+            domain: LAError.errorDomain,
+            code: LAError.userCancel.rawValue,
+            userInfo: nil
+        )
+
+        XCTAssertThrowsError(
+            try AuthenticationManager.requestBiometricAuthentication(mockLAContext, reason: "Enable biometric access")
+        ) { error in
+            guard case AuthenticationError.authenticationFailed = error else {
+                return XCTFail("Expected AuthenticationError.authenticationFailed, but got \(error).")
+            }
+        }
+    }
+
+    func testRequestBiometricAuthentication_AuthenticationFailed() {
+        mockLAContext.evaluatePolicySuccess = false
+        mockLAContext.evaluatePolicyError = NSError(
+            domain: LAError.errorDomain,
+            code: LAError.authenticationFailed.rawValue,
+            userInfo: nil
+        )
+
+        XCTAssertThrowsError(
+            try AuthenticationManager.requestBiometricAuthentication(mockLAContext, reason: "Enable biometric access")
+        ) { error in
+            guard case AuthenticationError.authenticationFailed = error else {
+                return XCTFail("Expected AuthenticationError.authenticationFailed, but got \(error).")
+            }
+        }
+    }
 }

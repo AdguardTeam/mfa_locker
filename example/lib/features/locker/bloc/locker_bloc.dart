@@ -162,8 +162,8 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
               error: error,
               stackTrace: stackTrace,
             );
-            // Don't block initialization on biometric failure
-            if (!isClosed) {
+            // Don't block initialization on biometric failure or cancellation.
+            if (!isClosed && !(error is BiometricException && error.isCancellation)) {
               action(
                 const LockerAction.showError(
                   message: 'Biometric setup failed. You can enable it later in Settings.',
@@ -621,14 +621,10 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     try {
       await _handleVaultOperation(
         operation: () async {
-          final result = await _lockerRepository.deleteEntryWithBiometric(id: event.id);
+          await _lockerRepository.deleteEntryWithBiometric(id: event.id);
 
           if (isClosed) {
             return;
-          }
-
-          if (!result) {
-            throw Exception('Failed to delete entry');
           }
 
           final entries = await _lockerRepository.getAllEntries();

@@ -64,8 +64,6 @@ private:
 		const std::string& tag,
 		std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
 
-	void OutputException(winrt::hresult hr, std::string& errorMessage);
-
 	biometric_cipher::ArgumentParser m_Argument_parser;
 	std::shared_ptr<biometric_cipher::ConfigStorage> m_ConfigStorage;
 	std::shared_ptr<biometric_cipher::BiometricCipherService> m_SecureService;

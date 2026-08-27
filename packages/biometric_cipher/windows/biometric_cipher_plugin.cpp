@@ -15,7 +15,6 @@
 #include <flutter/standard_method_codec.h>
 
 #include <memory>
-#include <sstream>
 #include <winrt/windows.foundation.h>
 #include <winrt/windows.system.threading.h>
 #include <winrt/windows.foundation.collections.h>
@@ -136,8 +135,6 @@ void BiometricCipherPlugin::HandleMethodCall(
 			auto hr = e.code();
 			auto message = e.message();
 			auto errorMessage = StringUtil::ConvertHStringToString(message);
-			OutputException(hr, errorMessage);
-
 			result->Error(GetErrorCodeString(hr), errorMessage);
 		}
 		break;
@@ -170,8 +167,6 @@ winrt::fire_and_forget BiometricCipherPlugin::GetTPMStatus(std::unique_ptr<flutt
 		auto hr = e.code();
 		auto message = e.message();
 		auto errorMessage = StringUtil::ConvertHStringToString(message);
-		OutputException(hr, errorMessage);
-
 		result->Error(GetErrorCodeString(hr), errorMessage);
 	}
 }
@@ -187,8 +182,6 @@ winrt::fire_and_forget BiometricCipherPlugin::GetBiometryStatus(std::unique_ptr<
 		auto hr = e.code();
 		auto message = e.message();
 		auto errorMessage = StringUtil::ConvertHStringToString(message);
-		OutputException(hr, errorMessage);
-
 		result->Error(GetErrorCodeString(hr), errorMessage);
 	}
 }
@@ -206,8 +199,6 @@ winrt::fire_and_forget BiometricCipherPlugin::GenerateKeyCoroutine(
 		auto hr = e.code();
 		auto message = e.message();
 		auto errorMessage = StringUtil::ConvertHStringToString(message);
-		OutputException(hr, errorMessage);
-
 		result->Error(GetErrorCodeString(hr), errorMessage);
 	}
 }
@@ -225,8 +216,6 @@ winrt::fire_and_forget BiometricCipherPlugin::DeleteKeyCoroutine(
 		auto hr = e.code();
 		auto message = e.message();
 		auto errorMessage = StringUtil::ConvertHStringToString(message);
-		OutputException(hr, errorMessage);
-
 		result->Error(GetErrorCodeString(hr), errorMessage);
 	}
 }
@@ -246,8 +235,6 @@ winrt::fire_and_forget BiometricCipherPlugin::EncryptCoroutine(
 		auto hr = e.code();
 		auto message = e.message();
 		auto errorMessage = StringUtil::ConvertHStringToString(message);
-		OutputException(hr, errorMessage);
-
 		result->Error(GetErrorCodeString(hr), errorMessage);
 	}
 }
@@ -267,8 +254,6 @@ winrt::fire_and_forget BiometricCipherPlugin::DecryptCoroutine(
 		auto hr = e.code();
 		auto message = e.message();
 		auto errorMessage = StringUtil::ConvertHStringToString(message);
-		OutputException(hr, errorMessage);
-
 		result->Error(GetErrorCodeString(hr), errorMessage);
 	}
 }
@@ -286,21 +271,8 @@ winrt::fire_and_forget BiometricCipherPlugin::IsKeyValidCoroutine(
 		auto hr = e.code();
 		auto message = e.message();
 		auto errorMessage = StringUtil::ConvertHStringToString(message);
-		OutputException(hr, errorMessage);
-
 		result->Error(GetErrorCodeString(hr), errorMessage);
 	}
-}
-
-void BiometricCipherPlugin::OutputException(hresult hr, std::string& errorMessage)
-{
-	std::ostringstream ss;
-	ss << "Error code: 0x" << std::hex << std::uppercase << hr.value;
-	ss << " Message: " << errorMessage;
-#ifdef DEBUG
-	OutputDebugStringA(ss.str().c_str());
-	OutputDebugStringA("\n");
-#endif // DEBUG
 }
 
 }  // namespace biometric_cipher

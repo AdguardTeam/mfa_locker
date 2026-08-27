@@ -5,12 +5,6 @@
 #include <windows.h>
 #include <winrt/windows.security.credentials.ui.h>
 
-#ifdef DEBUG
-#define DEBUG_OUTPUT(msg) OutputDebugString(msg)
-#else
-#define DEBUG_OUTPUT(msg) // No operation
-#endif
-
 using namespace winrt;
 using namespace winrt::impl;
 using namespace Windows::Foundation;
@@ -150,37 +144,27 @@ namespace biometric_cipher
 	{
 		switch (status) {
 		case KeyCredentialStatus::Success:
-			DEBUG_OUTPUT(L"Key credential create/open successfully.\n");
-
 			break;
 
 		case KeyCredentialStatus::NotFound:
-			DEBUG_OUTPUT(L"Key credential not found.\n");
 			throw hresult_error(error_key_not_found, L"Key credential not found.");
 
-
 		case KeyCredentialStatus::UserCanceled:
-			DEBUG_OUTPUT(L"User canceled the operation.\n");
 			throw hresult_error(error_authentication_canceled, L"User canceled the operation.");
 
 		case KeyCredentialStatus::UnknownError:
-			DEBUG_OUTPUT(L"An unknown error occurred.\n");
 			throw hresult_error(error_fail, L"An unknown error occurred.");
 
 		case KeyCredentialStatus::UserPrefersPassword:
-			DEBUG_OUTPUT(L"User prefers password.\n");
 			throw hresult_error(error_user_prefers_password, L"User prefers password.");
 
 		case KeyCredentialStatus::CredentialAlreadyExists:
-			DEBUG_OUTPUT(L"Key credential already exists.\n");
 			throw hresult_error(error_key_already_exists, L"Key credential already exists.");
 
 		case KeyCredentialStatus::SecurityDeviceLocked:
-			DEBUG_OUTPUT(L"Security device is locked.\n");
 			throw hresult_error(error_secure_device_locked, L"Security device is locked.");
 
 		default:
-			DEBUG_OUTPUT(L"Unknown key credential status.\n");
 			throw hresult_error(error_fail, L"Unknown key credential status.");
 		}
 	}

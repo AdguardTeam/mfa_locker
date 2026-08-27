@@ -85,6 +85,22 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
         // Generating a key pair
         _ = try keychainService.createRandomKey(attributes as CFDictionary)
         saveEnrollmentState(tag: privateKeyTag)
+
+        // On macOS, the biometric confirmation prompt during enrollment is redundant.
+        // Skip the authentication call and return without showing an extra Touch ID window.
+#if !os(macOS)
+        do {
+            let reason = authTitle ?? "Authenticate to enable biometric access"
+            try AuthenticationManager.requestBiometricAuthentication(laContext, reason: reason)
+        } catch {
+            try? deleteKey(tag: tag)
+            if let authError = error as? AuthenticationError,
+               isBiometricSetupDismissal(authError) {
+                throw KeychainServiceError.authenticationUserCanceled
+            }
+            throw error
+        }
+#endif
     }
 
     func deleteKey(tag: String) throws {
@@ -291,5 +307,27 @@ final class SecureEnclaveManager : SecureEnclaveManagerProtocol {
     private func enrollmentStateExists(tag: Data) -> Bool {
         let key = AppConstants.enrollmentStateKeyPrefix + tag.base64EncodedString()
         return userDefaults.data(forKey: key) != nil
+    }
+
+    /// Returns `true` when the user explicitly declined biometric setup during key generation.
+    private func isBiometricSetupDismissal(_ error: AuthenticationError) -> Bool {
+        let underlyingError: Error? = switch error {
+        case .authenticationFailed(let error), .evaluatingBiometryError(let error):
+            error
+        case .secAccessCreateControl:
+            nil
+        }
+
+        guard let nsError = underlyingError as NSError?,
+              nsError.domain == LAError.errorDomain else {
+            return false
+        }
+
+        switch LAError.Code(rawValue: nsError.code) {
+        case .userCancel, .biometryNotAvailable:
+            return true
+        default:
+            return false
+        }
     }
 }

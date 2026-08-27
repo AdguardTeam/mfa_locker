@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:biometric_cipher/data/biometric_status.dart';
@@ -14,6 +15,7 @@ import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
+import 'package:locker/storage/models/exceptions/storage_exception.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -97,17 +99,6 @@ void main() {
         verify(() => storage.salt).called(1);
       });
 
-      test('salt returns null from storage', () async {
-        // Arrange
-        when(() => storage.salt).thenAnswer((_) async => null);
-
-        // Act
-        final result = await locker.salt;
-
-        // Assert
-        expect(result, isNull);
-      });
-
       test('lockTimeout returns value from storage', () async {
         // Arrange
 
@@ -122,14 +113,14 @@ void main() {
         verify(() => storage.lockTimeout).called(1);
       });
 
-      test('lockTimeout throws when not set in storage', () async {
+      test('lockTimeout propagates StorageException from storage', () async {
         // Arrange
-        when(() => storage.lockTimeout).thenAnswer((_) async => null);
+        when(() => storage.lockTimeout).thenThrow(StorageException.notInitialized());
 
         // Act & Assert
         await expectLater(
           locker.lockTimeout,
-          throwsA(isA<StateError>()),
+          throwsA(isA<StorageException>()),
         );
       });
 
@@ -689,7 +680,7 @@ void main() {
         _Helpers.verifyErased(cipher);
       });
 
-      test('removes entry from cache when delete = false from storage', () async {
+      test('removes entry from cache when entry not found in storage', () async {
         // Arrange
         final cipher = _Helpers.createMockPasswordCipherFunc();
         final id = EntryId('x');
@@ -698,13 +689,12 @@ void main() {
         await locker.loadAllMeta(cipher);
         final deletedMetaRef = locker.allMeta[id]!;
 
-        when(() => storage.deleteEntry(id: id, cipherFunc: cipher)).thenAnswer((_) async => false);
+        when(() => storage.deleteEntry(id: id, cipherFunc: cipher)).thenThrow(StorageException.entryNotFound());
 
         // Act
-        final result = await locker.delete(id: id, cipherFunc: cipher);
+        await locker.delete(id: id, cipherFunc: cipher);
 
         // Assert
-        expect(result, isFalse);
         expect(locker.allMeta.containsKey(id), isFalse);
 
         verify(() => storage.deleteEntry(id: id, cipherFunc: cipher)).called(1);
@@ -1245,18 +1235,18 @@ void main() {
         _Helpers.verifyErased(cipher);
       });
 
-      test('throws when storage erase returns false', () async {
+      test('propagates exception when storage erase throws', () async {
         // Arrange
         final cipher = _Helpers.createMockPasswordCipherFunc();
         final meta = _Helpers.stubReadAllMeta(storage, cipher);
 
         await locker.loadAllMeta(cipher);
-        when(() => storage.erase()).thenAnswer((_) async => false);
+        when(() => storage.erase()).thenThrow(const FileSystemException('delete failed'));
 
         // Act & Assert
         await expectLater(
           () => locker.eraseStorage(),
-          throwsA(isA<StateError>()),
+          throwsA(isA<FileSystemException>()),
         );
         verify(() => storage.erase()).called(1);
         expect(locker.stateStream.value, LockerState.unlocked);

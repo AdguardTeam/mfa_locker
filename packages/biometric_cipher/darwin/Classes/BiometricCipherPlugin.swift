@@ -154,6 +154,17 @@ public class BiometricCipherPlugin: NSObject, FlutterPlugin {
                     let flutterError = self.getFlutterError(error as BaseError)
                     result(flutterError)
                 }
+            } catch let error as KeychainServiceError {
+                DispatchQueue.main.async {
+                    switch error {
+                    case .authenticationUserCanceled:
+                        let flutterError = self.getFlutterError(error)
+                        result(flutterError)
+                    default:
+                        let flutterError = self.getFlutterError(SecureEnclavePluginError.keyGenerationError(error: error))
+                        result(flutterError)
+                    }
+                }
             } catch {
                 DispatchQueue.main.async {
                     let flutterError = self.getFlutterError(SecureEnclavePluginError.keyGenerationError(error: error))

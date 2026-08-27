@@ -21,7 +21,7 @@ The repo contains:
 | Field | Value |
 |-------|-------|
 | **Language** | Dart ^3.11.0 / Flutter ^3.41.4 |
-| **Package** | `locker` 1.0.2, `publish_to: none` |
+| **Package** | `locker` 1.0.6, `publish_to: none` |
 | **State Management** | `flutter_bloc` 8.1.6 + custom `action_bloc` (local package) with `freezed` for immutable states/events |
 | **Architecture** | Library: Locker → Security → Storage → Crypto. Example app: UI → BLoC → Repository → MFALocker |
 | **Encryption** | AES-256-GCM (authenticated encryption) via `cryptography` 2.9.0 |
@@ -316,7 +316,7 @@ The example app uses `msix` for Windows installer packaging, `macos_window_utils
 
 - Avoid the `!` (null assertion) operator. Always perform null checks.
 - Extract nullable values to local variables before null checks (enables Dart's null promotion).
-- Use early return/continue with logging for unexpected null cases.
+- Use early return/continue for unexpected null cases.
 
 ### Layer Patterns (example app)
 
@@ -424,7 +424,6 @@ page width and trailing comma settings.
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `adguard_logger` | v1.0.1 (git) | Logging |
 | `biometric_cipher` | local path | Hardware-backed biometric operations |
 | `collection` | 1.19.1 | Collection utilities |
 | `cryptography` | 2.9.0 | AES-GCM, Argon2id, HMAC-SHA256 |

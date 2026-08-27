@@ -13,6 +13,7 @@ A secure storage library for Dart/Flutter applications that provides encrypted k
 - **Secure Memory Management** — Erasable byte arrays that securely wipe sensitive data from memory
 - **Atomic Writes** — Safe file operations to prevent data corruption
 - **Reactive State** — RxDart streams for monitoring lock/unlock state
+- **No Logging or Telemetry** — The library never logs, prints, or transmits secrets, keys, or errors; it carries no logging dependency and surfaces failures by throwing exceptions to the caller
 
 ## Installation
 
@@ -23,7 +24,7 @@ dependencies:
   locker:
     git:
       url: https://github.com/AdguardTeam/mfa_locker.git
-      ref: v1.0.1  # Use the latest tag
+      ref: v1.0.4  # Use the latest tag
 ```
 
 Or for local development:
@@ -266,9 +267,10 @@ The library throws three main exception types:
   - `failure` — authentication failed (wrong fingerprint, lockout)
   - `keyInvalidated` — hardware key permanently invalidated after biometric enrollment change
   - `keyNotFound` — biometric key does not exist in secure hardware
+  - `keyAlreadyExists` — a biometric key with the given tag already exists in secure hardware
   - `notAvailable` — biometrics not available on device
   - `notConfigured` — biometric cipher not configured
-- **`StorageException`** — storage lifecycle errors (`notInitialized`, `alreadyInitialized`, `invalidStorage`, `entryNotFound`)
+- **`StorageException`** — storage lifecycle errors (`notInitialized`, `alreadyInitialized`, `invalidStorage`, `entryNotFound`, `duplicateEntry`, `other`)
 
 ```dart
 import 'package:locker/security/models/exceptions/biometric_exception.dart';
@@ -432,11 +434,11 @@ jobs:
 
 | Requirement | Version |
 |-------------|---------|
-| Dart SDK | ^3.11.0 |
-| Flutter SDK | ^3.41.4 |
+| Dart SDK | >=3.5.0 <4.0.0 |
+| Flutter SDK | 3.38.3 (pinned; constraint >=3.35.0 <4.0.0) |
 | fvm | Latest |
 
-Flutter version is pinned via `.ci-flutter-version` (currently **3.41.4**). Use `fvm` to match.
+Flutter version is pinned via `.ci-flutter-version` (currently **3.38.3**). Use `fvm` to match.
 
 ---
 
@@ -463,6 +465,7 @@ The library implements the following security measures:
 - **Biometric key management**: TPM/Secure Enclave hardware-backed keys via the `biometric_cipher` plugin
 - **Biometric key invalidation**: Proactive detection via silent `isKeyValid` probe when biometric enrollment changes (no biometric prompt); `BioCipherFunc` also performs fallback key validity checks during decrypt failures
 - **Memory safety**: `ErasableByteArray` zeroes sensitive data on `erase()`; all operations auto-erase arguments in `finally` blocks
+- **No logging**: secrets, keys, and errors are never written to logs or stdout, and the library carries no external logging/telemetry dependency — failures are propagated to the caller as exceptions
 
 ## License
 

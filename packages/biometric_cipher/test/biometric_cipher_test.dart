@@ -252,6 +252,17 @@ void main() {
         // Assert
         expect(result, BiometricCipherExceptionCode.keyPermanentlyInvalidated);
       });
+
+      test('AUTHENTICATION_USER_CANCELED returns authenticationUserCanceled', () {
+        // Arrange
+        const code = 'AUTHENTICATION_USER_CANCELED';
+
+        // Act
+        final result = BiometricCipherExceptionCode.fromString(code);
+
+        // Assert
+        expect(result, BiometricCipherExceptionCode.authenticationUserCanceled);
+      });
     });
   });
 }

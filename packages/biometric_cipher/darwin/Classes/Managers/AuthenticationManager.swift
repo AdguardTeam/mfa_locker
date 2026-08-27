@@ -53,4 +53,44 @@ struct AuthenticationManager {
         
         return accessControl
     }
+
+    /// Prompts the user for biometric authentication using Face ID or Touch ID.
+    ///
+    /// On first use, the system may also show the Face ID permission dialog
+    /// (requires `NSFaceIDUsageDescription` in the host app).
+    /// - Parameters:
+    ///   - context: An `LAContextProtocol` instance used to evaluate the policy.
+    ///   - reason: The user-facing message shown in the authentication prompt.
+    /// - Throws: `AuthenticationError` if biometry is unavailable, authentication fails,
+    ///   or the user cancels the prompt.
+    static func requestBiometricAuthentication(
+        _ context: LAContextProtocol,
+        reason: String
+    ) throws {
+        var error: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
+            throw AuthenticationError.evaluatingBiometryError(error)
+        }
+
+        var policySuccess = false
+        var policyError: Error?
+        let semaphore = DispatchSemaphore(value: 0)
+
+        context.evaluatePolicy(
+            .deviceOwnerAuthenticationWithBiometrics,
+            localizedReason: reason
+        ) { success, error in
+            policySuccess = success
+            policyError = error
+            semaphore.signal()
+        }
+
+        semaphore.wait()
+
+        if policySuccess {
+            return
+        }
+
+        throw AuthenticationError.authenticationFailed(policyError)
+    }
 }

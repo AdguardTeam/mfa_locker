@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'dart:typed_data';
 
-import 'package:adguard_logger/adguard_logger.dart';
 import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/storage/models/data/storage_data.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
@@ -59,10 +58,6 @@ mixin HmacStorageMixin {
       );
 
       return updatedData.copyWith(hmacSignature: hmacSignature);
-    } catch (e, st) {
-      logger.logError('HmacStorageMixin: Failed to sign data with hmac', error: e, stackTrace: st);
-
-      rethrow;
     } finally {
       hmacKey.erase();
     }

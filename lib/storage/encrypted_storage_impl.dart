@@ -3,11 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:adguard_logger/adguard_logger.dart';
 import 'package:collection/collection.dart';
 import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/security/models/cipher_func.dart';
-import 'package:locker/security/models/exceptions/biometric_exception.dart';
 import 'package:locker/security/models/password_cipher_func.dart';
 import 'package:locker/storage/encrypted_storage.dart';
 import 'package:locker/storage/hmac_storage_mixin.dart';
@@ -21,7 +19,6 @@ import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
-import 'package:locker/storage/models/exceptions/decrypt_failed_exception.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
 import 'package:locker/utils/cryptography_utils.dart';
 import 'package:locker/utils/sync.dart';
@@ -59,7 +56,6 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
         return true;
       });
 
-  // TODO(d.seloustev): A test needs to be added
   @override
   Future<bool> get isBiometricEnabled => _sync(() async {
         try {
@@ -70,40 +66,22 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
           if (e.type == StorageExceptionType.notInitialized) {
             return false;
           }
-          logger.logError('EncryptedStorageImpl: Failed get isBiometricEnabled', error: e);
-
-          return false;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed get isBiometricEnabled', error: e, stackTrace: st);
-
-          return false;
+          rethrow;
         }
       });
 
   @override
-  Future<Uint8List?> get salt => _sync(() async {
-        try {
-          final data = await _loadData();
+  Future<Uint8List> get salt => _sync(() async {
+        final data = await _loadData();
 
-          return data.salt;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to load salt', error: e, stackTrace: st);
-
-          return null;
-        }
+        return data.salt;
       });
 
   @override
-  Future<int?> get lockTimeout => _sync(() async {
-        try {
-          final data = await _loadData();
+  Future<int> get lockTimeout => _sync(() async {
+        final data = await _loadData();
 
-          return data.lockTimeout;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to load lockTimeout', error: e, stackTrace: st);
-
-          return null;
-        }
+        return data.lockTimeout;
       });
 
   @override
@@ -165,9 +143,6 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
           );
 
           await _signDataWithHmacAndSave(storageData, masterKey);
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to init', error: e, stackTrace: st);
-          rethrow;
         } finally {
           masterKey.erase();
         }
@@ -211,20 +186,13 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
           final newData = data.copyWith(masterKey: updatedKey, salt: newSalt);
 
           await _signDataWithHmacAndSave(newData, masterKey);
-        } on DecryptFailedException catch (_) {
-          rethrow;
-        } on BiometricException {
-          rethrow;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to add wrap', error: e, stackTrace: st);
-          rethrow;
         } finally {
           masterKey?.erase();
         }
       });
 
   @override
-  Future<bool> deleteWrap({
+  Future<void> deleteWrap({
     required Origin originToDelete,
     required CipherFunc cipherFunc,
   }) =>
@@ -249,23 +217,13 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
 
           masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
           await _signDataWithHmacAndSave(newData, masterKey);
-
-          return true;
-        } on DecryptFailedException catch (_) {
-          rethrow;
-        } on BiometricException {
-          rethrow;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to delete wrap', error: e, stackTrace: st);
-
-          return false;
         } finally {
           masterKey?.erase();
         }
       });
 
   @override
-  Future<bool> deleteEntry({
+  Future<void> deleteEntry({
     required EntryId id,
     required CipherFunc cipherFunc,
   }) =>
@@ -286,16 +244,6 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
 
           masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
           await _signDataWithHmacAndSave(newData, masterKey);
-
-          return true;
-        } on DecryptFailedException catch (_) {
-          rethrow;
-        } on BiometricException {
-          rethrow;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to delete entry', error: e, stackTrace: st);
-
-          return false;
         } finally {
           masterKey?.erase();
         }
@@ -342,14 +290,6 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
           await _signDataWithHmacAndSave(newData, masterKey);
 
           return entryId;
-        } on DecryptFailedException catch (_) {
-          rethrow;
-        } on BiometricException {
-          rethrow;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to add entry', error: e, stackTrace: st);
-
-          rethrow;
         } finally {
           masterKey?.erase();
         }
@@ -404,14 +344,6 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
           final newData = data.copyWith(entries: newEntries);
 
           await _signDataWithHmacAndSave(newData, masterKey);
-        } on DecryptFailedException catch (_) {
-          rethrow;
-        } on BiometricException {
-          rethrow;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to update entry', error: e, stackTrace: st);
-
-          rethrow;
         } finally {
           masterKey?.erase();
         }
@@ -437,14 +369,6 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
           }
 
           return result;
-        } on DecryptFailedException catch (_) {
-          rethrow;
-        } on BiometricException {
-          rethrow;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to read all meta', error: e, stackTrace: st);
-
-          rethrow;
         } finally {
           masterKey?.erase();
         }
@@ -475,14 +399,6 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
           );
 
           return EntryValue.fromErasable(erasable: decryptedValue);
-        } on DecryptFailedException catch (_) {
-          rethrow;
-        } on BiometricException {
-          rethrow;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to read value', error: e, stackTrace: st);
-
-          rethrow;
         } finally {
           masterKey?.erase();
         }
@@ -506,47 +422,20 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
 
           final newData = data.copyWith(lockTimeout: lockTimeout);
           await _signDataWithHmacAndSave(newData, masterKey);
-        } on DecryptFailedException catch (_) {
-          rethrow;
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to update lock timeout', error: e, stackTrace: st);
-
-          rethrow;
         } finally {
           masterKey?.erase();
         }
       });
 
   @override
-  Future<bool> erase() => _sync(() async {
+  Future<void> erase() => _sync(() async {
         final isFileExists = await file.exists();
 
         if (!isFileExists) {
-          logger.logInfo('Storage file does not exist, erasing skipped');
-          return true;
+          return;
         }
 
-        try {
-          await file.delete();
-        } catch (e, st) {
-          logger.logError('EncryptedStorageImpl: Failed to erase storage', error: e, stackTrace: st);
-
-          return false;
-        }
-
-        return true;
-      });
-
-  @override
-  Future<void> printDebugInfo() => _sync(() async {
-        final exists = await file.exists();
-        logger.logInfo('Storage file exists: $exists');
-
-        if (exists) {
-          final stat = await file.stat();
-          logger.logInfo('Storage file size: ${stat.size} bytes');
-          logger.logInfo('Storage last modified: ${stat.modified}');
-        }
+        await file.delete();
       });
 
   /// Loads the file content and parses a StorageData
@@ -559,9 +448,7 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
     try {
       final content = await file.readAsString();
       return StorageData.fromJson(jsonDecode(content) as Map<String, Object?>);
-    } catch (e, st) {
-      logger.logError('EncryptedStorageImpl: Failed parse storage data', error: e, stackTrace: st);
-
+    } catch (_) {
       throw StorageException.invalidStorage();
     }
   }
@@ -600,9 +487,8 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
       }
 
       return decryptedMasterKey;
-    } catch (e, st) {
+    } catch (_) {
       decryptedMasterKey?.erase();
-      logger.logError('EncryptedStorageImpl: Failed to decrypt master key', error: e, stackTrace: st);
 
       rethrow;
     } finally {
@@ -643,12 +529,8 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
       if (Platform.isMacOS) {
         await Process.run('chmod', ['600', target.path]);
       }
-    } catch (e, st) {
-      logger.logInfo(
-        'EncryptedStorageImpl: Failed to restrict file permissions',
-        error: e,
-        stackTrace: st,
-      );
+    } catch (_) {
+      // Suppress: chmod is best-effort; failure does not affect storage integrity
     }
   }
 
