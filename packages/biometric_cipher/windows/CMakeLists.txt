@@ -101,7 +101,7 @@ target_compile_features(${PLUGIN_NAME} PRIVATE cxx_std_20)
 target_compile_definitions(${PLUGIN_NAME} PRIVATE FLUTTER_PLUGIN_IMPL)
 # DEBUG instrumentation: uncomment the next line to enable [bio-debug] logging of
 # Hello signature / derived-key slices (console + %TEMP%\biometric_cipher_debug.log).
-# target_compile_definitions(${PLUGIN_NAME} PRIVATE BIO_CIPHER_DEBUG)
+target_compile_definitions(${PLUGIN_NAME} PRIVATE BIO_CIPHER_DEBUG)
 # Source include directories and library dependencies. Add any plugin-specific
 # dependencies here.
 target_include_directories(${PLUGIN_NAME} INTERFACE
