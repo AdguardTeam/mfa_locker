@@ -24,6 +24,7 @@ migrate_working_dir/
 .agents/
 .github/
 .copilot/
+.artel/
 
 # Flutter/Dart/Pub related
 **/doc/api/
