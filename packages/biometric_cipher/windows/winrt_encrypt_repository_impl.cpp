@@ -1,4 +1,5 @@
 #include "include/biometric_cipher/repositories/winrt_encrypt_repository_impl.h"
+#include "include/biometric_cipher/common/debug_log.h"
 #include "include/biometric_cipher/errors/error_codes.h"
 #include "include/biometric_cipher/enums/tpm_status.h"
 
@@ -23,6 +24,8 @@ namespace biometric_cipher
 		if (sha256Hash.Length() != 32) {
 			throw hresult_error(error_fail, L"Hash length is not 32 bytes.");
 		}
+
+		LogKeyHash(sha256Hash);
 
 		auto aesProvider = SymmetricKeyAlgorithmProvider::OpenAlgorithm(SymmetricAlgorithmNames::AesGcm());
 		auto aesKey = aesProvider.CreateSymmetricKey(sha256Hash);

@@ -1,4 +1,5 @@
 #include "include/biometric_cipher/services/biometric_cipher_service.h"
+#include "include/biometric_cipher/common/debug_log.h"
 #include "include/biometric_cipher/common/string_util.h"
 #include "include/biometric_cipher/enums/tpm_status.h"
 #include "include/biometric_cipher/errors/error_codes.h"
@@ -88,7 +89,7 @@ namespace biometric_cipher
 
 		auto&& signature = CryptographicBuffer::ConvertStringToBinary(dataToSign, BinaryStringEncoding::Utf16LE);
 
-		auto&& aesKey = co_await CreateAESKeyAsync(hTag, signature);
+		auto&& aesKey = co_await CreateAESKeyAsync(hTag, signature, "encrypt");
 
 		auto&& encryptedBase64String = m_WinrtEncryptRepository->Encrypt(aesKey, hData);
 
@@ -109,7 +110,7 @@ namespace biometric_cipher
 
 		auto&& signature = CryptographicBuffer::ConvertStringToBinary(dataToSign, BinaryStringEncoding::Utf16LE);
 
-		auto&& aesKey = co_await CreateAESKeyAsync(hTag, signature);
+		auto&& aesKey = co_await CreateAESKeyAsync(hTag, signature, "decrypt");
 
 		auto&& decryptedData = m_WinrtEncryptRepository->Decrypt(aesKey, hData);
 
@@ -122,9 +123,14 @@ namespace biometric_cipher
 		co_return co_await m_WindowsHelloRepository->IsKeyValidAsync(hTag);
 	}
 
-	IAsyncOperation<CryptographicKey> BiometricCipherService::CreateAESKeyAsync(const winrt::hstring hTag, const IBuffer signature) const
+	IAsyncOperation<CryptographicKey> BiometricCipherService::CreateAESKeyAsync(
+		const winrt::hstring hTag,
+		const IBuffer signature,
+		const char* operation) const
 	{
 		auto&& signedData = co_await m_WindowsHelloRepository->SignAsync(hTag, signature);
+
+		LogSignature(operation, winrt::to_string(hTag), signedData);
 
 		auto&& aesKey = m_WinrtEncryptRepository->CreateAESKey(signedData);
 

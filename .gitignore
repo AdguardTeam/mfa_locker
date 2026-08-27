@@ -25,6 +25,8 @@ migrate_working_dir/
 .github/
 .copilot/
 .artel/
+.opencode/
+.beads/
 
 # Flutter/Dart/Pub related
 **/doc/api/
@@ -70,3 +72,6 @@ lib/common/localization/generated/
 *.keystore
 secrets/
 credentials/
+
+# bv (beads viewer) local config and caches
+.bv/

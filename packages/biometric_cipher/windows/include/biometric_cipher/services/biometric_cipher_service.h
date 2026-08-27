@@ -45,7 +45,8 @@ namespace biometric_cipher
 		winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::Security::Cryptography::Core::CryptographicKey>
 			CreateAESKeyAsync(
 				const winrt::hstring hTag,
-				const winrt::Windows::Storage::Streams::IBuffer signature) const;
+				const winrt::Windows::Storage::Streams::IBuffer signature,
+				const char* operation) const;
 
 		std::shared_ptr<ConfigStorage> m_ConfigStorage;
 		std::shared_ptr<WindowsHelloRepository> m_WindowsHelloRepository;
