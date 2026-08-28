@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ECIES Viewing List</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+  :root {
+    --ground: #F1F3F8; --surface: #FFFFFF; --surface-2: #E8EBF3; --surface-3: #DDE2ED;
+    --border: #D4D9E6; --border-firm: #B4BCD0;
+    --ink: #12151E; --ink-2: #414A5E; --ink-3: #6D7689;
+    --asym: #4B3FCC; --asym-soft: #E5E2FB;
+    --sym: #0D7566; --sym-soft: #D6EDE8;
+    --warn: #8A5A08; --warn-bg: #F6EAD2;
+    --shadow: 0 1px 2px rgba(18,21,30,.05), 0 10px 28px -14px rgba(18,21,30,.16);
+    --measure: 66ch;
+    --f-display: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --f-body: "Spectral", ui-serif, Georgia, serif;
+    --f-ui: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0A0C13; --surface: #12151F; --surface-2: #1A1E2B; --surface-3: #222739;
+      --border: #262C3D; --border-firm: #3A4258;
+      --ink: #E7EAF2; --ink-2: #A9B2C6; --ink-3: #7A8399;
+      --asym: #9E93FF; --asym-soft: #1E1A44;
+      --sym: #47C8AF; --sym-soft: #0C2B27;
+      --warn: #DCAC44; --warn-bg: #2B2213;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 28px -14px rgba(0,0,0,.7);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: var(--f-body); font-size: 17px; line-height: 1.62; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 28px 96px; }
+  header.hero { padding-top: 64px; }
+  .eyebrow { font-family: var(--f-ui); font-size: 11.5px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+  .eyebrow a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--border-firm); }
+  h1 { font-family: var(--f-display); font-weight: 600; font-size: 40px; line-height: 1.1; letter-spacing: -.02em; margin: 14px 0 0; text-wrap: balance; }
+  .lede { max-width: var(--measure); margin: 22px 0 0; font-size: 19px; line-height: 1.55; color: var(--ink-2); }
+  .constant {
+    margin: 28px 0 0; padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 7px;
+    font-family: var(--f-mono); font-size: 15px; overflow-x: auto; white-space: nowrap; box-shadow: var(--shadow);
+  }
+  .constant span { padding: 2px 4px; border-radius: 3px; }
+  .constant .a { color: var(--asym); background: var(--asym-soft); }
+  .constant .s { color: var(--sym); background: var(--sym-soft); }
+  .constant .n { color: var(--ink-3); }
+  section { margin-top: 56px; }
+  .kicker { font-family: var(--f-ui); font-size: 11.5px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+  .kicker .a { color: var(--asym); }
+  .kicker .s { color: var(--sym); }
+  h2 { font-family: var(--f-display); font-weight: 600; font-size: 24px; line-height: 1.25; letter-spacing: -.015em; margin: 8px 0 0; text-wrap: balance; }
+  p { max-width: var(--measure); margin: 16px 0 0; }
+  code { font-family: var(--f-mono); font-size: .86em; background: var(--surface-2); padding: 1px 5px; border-radius: 3px; color: var(--ink); }
+  a { color: var(--asym); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:focus-visible { outline: 2px solid var(--asym); outline-offset: 2px; border-radius: 2px; }
+
+  .videos { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 12px; }
+  .video {
+    display: grid; grid-template-columns: 1fr; gap: 6px 18px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; box-shadow: var(--shadow);
+  }
+  @media (min-width: 720px) { .video { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); } }
+  .video .title { font-family: var(--f-ui); font-size: 15px; font-weight: 600; line-height: 1.4; }
+  .video .title a { color: var(--ink); }
+  .video .by { font-family: var(--f-ui); font-size: 12.5px; color: var(--ink-3); margin-top: 4px; }
+  .video .why { font-family: var(--f-ui); font-size: 14px; line-height: 1.55; color: var(--ink-2); }
+  .video .why b { color: var(--ink); font-weight: 600; }
+  .tag { display: inline-block; font-family: var(--f-ui); font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 20px; margin-left: 6px; vertical-align: 2px; }
+  .tag.first { background: var(--sym-soft); color: var(--sym); }
+  .tag.deep { background: var(--asym-soft); color: var(--asym); }
+  .tag.demo { background: var(--warn-bg); color: var(--warn); }
+
+  .note, .warnbox {
+    max-width: var(--measure); margin: 22px 0 0; padding: 14px 18px; border-radius: 7px;
+    font-family: var(--f-ui); font-size: 14.5px; line-height: 1.58; border: 1px solid var(--border); background: var(--surface);
+  }
+  .note { border-left: 3px solid var(--asym); }
+  .warnbox { border-left: 3px solid var(--warn); background: var(--warn-bg); }
+  .note p, .warnbox p { max-width: none; margin: 8px 0 0; }
+  .note p:first-child, .warnbox p:first-child { margin-top: 0; }
+
+  .sequence { margin: 22px 0 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 8px; max-width: var(--measure); }
+  .sequence li { counter-increment: step; display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: baseline; font-family: var(--f-ui); font-size: 14.5px; color: var(--ink-2); }
+  .sequence li::before { content: counter(step); font-family: var(--f-mono); font-size: 12px; font-weight: 600; color: var(--ink-3); text-align: right; }
+  .sequence li a { color: var(--ink); font-weight: 500; }
+  .sequence li small { color: var(--ink-3); }
+
+  footer { margin-top: 64px; padding-top: 26px; border-top: 1px solid var(--border); font-family: var(--f-ui); font-size: 12.5px; color: var(--ink-3); max-width: var(--measure); }
+  footer p { max-width: none; margin: 8px 0 0; }
+  footer a { color: var(--ink-2); }
+  @media (max-width: 700px) { body { font-size: 16px; } .wrap { padding: 0 18px 80px; } header.hero { padding-top: 48px; } h1 { font-size: 32px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">Companion note / <a href="https://claude.ai/code/artifact/0955400e-04fd-42ca-be44-c9d92a4a1f51">ECIES, Byte by Byte</a> / AW-321</div>
+  <h1>ECIES Viewing List</h1>
+  <p class="lede">
+    One or two videos per word in the constant, chosen to match the depth of the teardown. Titles and channels were
+    verified against YouTube's metadata; durations and minute-by-minute content were not, so the "why" notes describe
+    the presenter and the series, not a viewing.
+  </p>
+  <div class="constant">
+    <span class="a">ECIES</span><span class="n">Encryption</span><span class="a">Cofactor</span><span class="a">X963</span><span class="n">SHA256</span><span class="s">AES</span><span class="s">GCM</span>
+  </div>
+</header>
+
+<section id="ecies">
+  <div class="kicker"><span class="a">ECIES</span> · the umbrella construction</div>
+  <h2>Key agreement feeding a symmetric cipher</h2>
+  <p>Maps to Fig 1–2 of the teardown: a P-256 key can sign and agree but not encrypt, so ECIES manufactures a
+  one-time symmetric key out of key agreement.</p>
+  <ul class="videos">
+    <li class="video">
+      <div>
+        <div class="title"><a href="https://www.youtube.com/watch?v=saZj0ZKRNl0">Elliptic Curve Integrated Encryption Scheme (ECIES)</a><span class="tag first">start here</span></div>
+        <div class="by">Bill Buchanan OBE · 2018</div>
+      </div>
+      <div class="why">A dedicated ECIES explainer from the author of asecuritysite.com. Same KEM → KDF → AES shape the teardown draws, without the Apple-specific parameter choices.</div>
+    </li>
+    <li class="video">
+      <div>
+        <div class="title"><a href="https://www.youtube.com/watch?v=W7rXBBA23AQ">Elliptic Curve Cryptography: Key Exchange (ECDH), Digital Sig (ECDSA/EdDSA) and Encryption (ECIES)</a></div>
+        <div class="by">Bill Buchanan OBE · ≈ 48 min</div>
+      </div>
+      <div class="why">Places ECIES next to ECDH and ECDSA — exactly the <b>"sign, agree, but no encrypt verb"</b> framing the teardown opens with. The long-form version if the short one leaves gaps.</div>
+    </li>
+    <li class="video">
+      <div>
+        <div class="title"><a href="https://www.youtube.com/watch?v=0hTFoVOeJi0">Elliptic Curve Integrated Encryption Scheme (ECIES) in Python From Scratch</a><span class="tag deep">hands-on</span></div>
+        <div class="by">Sefik Ilkin Serengil · 2023</div>
+      </div>
+      <div class="why">Builds the ephemeral key, the ECDH step and the symmetric step by hand. The natural companion to the teardown's <b>"rebuilt by hand, from the outside"</b> section.</div>
+    </li>
+    <li class="video">
+      <div>
+        <div class="title"><a href="https://www.youtube.com/watch?v=_878lc8xGqM">V8d: Elliptic Curve Diffie-Hellman (ECDH) (Applied Cryptography 101)</a></div>
+        <div class="by">Cryptography 101 · Alfred Menezes</div>
+      </div>
+      <div class="why">The key-agreement half on its own, from a co-author of the <i>Handbook of Applied Cryptography</i>. Watch first if <code>d<sub>e</sub>·Q<sub>s</sub> = d<sub>s</sub>·Q<sub>e</sub></code> still feels like magic.</div>
+    </li>
+  </ul>
+</section>
+
+<section id="cofactor">
+  <div class="kicker"><span class="a">Cofactor</span> · which flavour of ECDH</div>
+  <h2>A two-line parameter that needs the whole group first</h2>
+  <p>No standalone "cofactor" explainer exists on YouTube. The idea only lands once you have group order,
+  generator and subgroup — so build it from two pieces: the definitions, then the attack it prevents.</p>
+  <ul class="videos">
+    <li class="video">
+      <div>
+        <div class="title"><a href="https://www.youtube.com/watch?v=zTt4gvuQ6sY">Lecture 17: Elliptic Curve Cryptography (ECC)</a><span class="tag first">start here</span></div>
+        <div class="by">Christof Paar · Ruhr University Bochum</div>
+      </div>
+      <div class="why">Defines the curve group, its order, the generator and the cyclic subgroup — the vocabulary in which <code>h = #E / n</code> is stated. High-school maths only. <a href="https://www.youtube.com/watch?v=vnpZXJL6QCQ">Lecture 16</a> is the prerequisite.</div>
+    </li>
+    <li class="video">
+      <div>
+        <div class="title"><a href="https://www.youtube.com/watch?v=W8pyMEe036E">V8c: Elliptic curve cryptography (Applied Cryptography 101)</a></div>
+        <div class="by">Cryptography 101 · Alfred Menezes</div>
+      </div>
+      <div class="why">Same ground, more compact. Introduces the domain-parameter set <code>(p, a, b, G, n, h)</code> in which <b>h is the cofactor</b>.</div>
+    </li>
+    <li class="video">
+      <div>
+        <div class="title"><a href="https://www.youtube.com/watch?v=jRCJLZl91zU">Diffie-Hellman (DH) Subgroup Confinement Attack</a><span class="tag demo">demo</span></div>
+        <div class="by">"DG" · 2020</div>
+      </div>
+      <div class="why">The attack that cofactor multiplication prevents, shown on classic DH where it is easier to see. Small channel — take it as a demonstration, not a reference.</div>
+    </li>
+  </ul>
+  <div class="note">
+    <p><strong>Written fallback that beats any video on this point.</strong> NCC Group,
+    <a href="https://www.nccgroup.com/research/an-illustrated-guide-to-elliptic-curve-cryptography-validation/">An Illustrated Guide to Elliptic Curve Cryptography Validation</a>.
+    And the teardown's own conclusion stands: on P-256, <code>h = 1</code>, so the word in the constant name does no work.</p>
+  </div>
+</section>
+
+<section id="x963">
+  <div class="kicker"><span class="a">X963</span> · the key-derivation function</div>
+  <h2>Watch HKDF, then delete two things</h2>
+  <p>Also no dedicated video — X9.63 is too small to earn one. It is <code>SHA-256(Z ‖ counter ‖ sharedInfo)</code>,
+  the simplest respectable KDF. Every modern explainer teaches HKDF, which is the same idea with an extra
+  "extract" step and a salt. Watch HKDF and mentally remove those two.</p>
+  <ul class="videos">
+    <li class="video">
+      <div>
+        <div class="title"><a href="https://www.youtube.com/watch?v=0cnUX-bWWAE">RFC 5869: HKDF (HMAC-based Key Derivation Function) — A Beginner's Guide</a><span class="tag first">start here</span></div>
+        <div class="by">Network Technician</div>
+      </div>
+      <div class="why">Why a shared secret is not yet a key and needs a KDF; the <b>counter-and-info expand loop</b> is the part X9.63 shares.</div>
+    </li>
+    <li class="video">
+      <div>
+        <div class="title"><a href="https://www.youtube.com/watch?v=styelpwIOog">HKDF Deep Dive: Understanding the Mathematics and Implementation of HMAC-Based Key Derivation</a><span class="tag deep">deeper</span></div>
+        <div class="by">Network Technician</div>
+      </div>
+      <div class="why">Same author, more maths. Fig 3 in the teardown is the X9.63 special case of what this shows.</div>
+    </li>
+  </ul>
+  <div class="warnbox">
+    <p><strong>Skip for this purpose:</strong> <a href="https://www.youtube.com/watch?v=ZWYpSzCxj-o">KDF Explained: Turn Weak Passwords into Strong Keys</a> (Fearless in Rust).
+    It is about <em>password</em> KDFs — Argon2, the other path in this project — not secret-to-key derivation.</p>
+  </div>
+</section>
+
+<section id="gcm">
+  <div class="kicker"><span class="s">GCM</span> · the authenticated mode</div>
+  <h2>CTR mode plus a polynomial tag</h2>
+  <p>Background for the teardown's central claim: the all-zero IV is safe only because the derived key is never
+  reused, and GCM with a repeated (key, IV) pair loses both confidentiality and authentication.</p>
+  <ul class="videos">
+    <li class="video">
+      <div>
+        <div class="title"><a href="https://www.youtube.com/watch?v=g_eY7JXOc8U">What is GCM? Galois Counter Mode (of operation) (usually seen as AES-GCM)</a><span class="tag first">start here</span></div>
+        <div class="by">David Wong · author of <i>Real-World Cryptography</i></div>
+      </div>
+      <div class="why">Shorter and more visual. Good first watch.</div>
+    </li>
+    <li class="video">
+      <div>
+        <div class="title"><a href="https://www.youtube.com/watch?v=C_cQIYPWTXs">V5b: Authenticated encryption: AES-GCM Galois Counter Mode (Applied Cryptography 101)</a><span class="tag deep">deeper</span></div>
+        <div class="by">Cryptography 101 · Alfred Menezes</div>
+      </div>
+      <div class="why">CTR mode, GHASH, the tag, and the <b>nonce-uniqueness requirement</b> — the theory behind "safe as written, fragile as a design".</div>
+    </li>
+  </ul>
+</section>
+
+<section id="sequence">
+  <div class="kicker">One sequence</div>
+  <h2>Every word in the constant, in the order the teardown decomposes it</h2>
+  <ol class="sequence">
+    <li><span><a href="https://www.youtube.com/watch?v=vnpZXJL6QCQ">Paar, Lecture 16</a> <small>— what an elliptic curve is</small></span></li>
+    <li><span><a href="https://www.youtube.com/watch?v=zTt4gvuQ6sY">Paar, Lecture 17</a> <small>— the group, its order, the cofactor's vocabulary</small></span></li>
+    <li><span><a href="https://www.youtube.com/watch?v=_878lc8xGqM">Menezes, V8d ECDH</a> <small>— why two scalars land on the same point</small></span></li>
+    <li><span><a href="https://www.youtube.com/watch?v=saZj0ZKRNl0">Buchanan, ECIES</a> <small>— the hybrid construction</small></span></li>
+    <li><span><a href="https://www.youtube.com/watch?v=0cnUX-bWWAE">Network Technician, HKDF</a> <small>— X9.63 is this minus extract and salt</small></span></li>
+    <li><span><a href="https://www.youtube.com/watch?v=C_cQIYPWTXs">Menezes, V5b AES-GCM</a> <small>— the mode, the tag, the nonce rule</small></span></li>
+  </ol>
+</section>
+
+<footer>
+  <p>Companion to <a href="https://claude.ai/code/artifact/0955400e-04fd-42ca-be44-c9d92a4a1f51">ECIES, Byte by Byte</a>
+  and <a href="https://claude.ai/code/artifact/1aa49852-638a-4245-b3b8-683d9834b424">The Missing Scalar</a>.
+  Channel and title metadata checked via YouTube oEmbed on 2026-08-28.</p>
+</footer>
+
+</div>
+</body>
+</html>
