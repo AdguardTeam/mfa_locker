@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AW-2956 — Validation & Critique: "Two-Part Key + Windows Hello" Approach</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --ink:#e7ebf0; --muted:#9aa4b2;
+    --line:#2a2f3a; --accent:#5b9dff; --accent2:#8b7bff;
+    --ok:#2fbf71; --warn:#e0a53b; --bad:#e5544b; --info:#3d9bd6;
+    --okbg:#12241a; --warnbg:#2a2210; --badbg:#2a1513; --infobg:#0f2130;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.62;font-size:16px}
+  .wrap{max-width:1000px;margin:0 auto;padding:48px 28px 96px}
+  header.doc{border-bottom:1px solid var(--line);padding-bottom:26px;margin-bottom:34px}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+  h1{font-size:30px;line-height:1.2;margin:0 0 14px;font-weight:700;letter-spacing:-.01em}
+  h2{font-size:23px;margin:52px 0 14px;padding-top:14px;border-top:1px solid var(--line);letter-spacing:-.01em}
+  h3{font-size:18px;margin:30px 0 8px;color:#f2f5f9}
+  h4{font-size:15px;margin:20px 0 6px;color:#cdd5df;font-family:var(--mono);letter-spacing:.02em}
+  p{margin:12px 0}
+  a{color:var(--accent);text-decoration:none;border-bottom:1px solid transparent}
+  a:hover{border-bottom-color:var(--accent)}
+  code{font-family:var(--mono);font-size:.87em;background:#232833;padding:1.5px 6px;border-radius:5px;color:#e9d8a6;white-space:nowrap}
+  pre{background:#0b0d11;border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow:auto;font-family:var(--mono);font-size:13px;line-height:1.55;color:#d5dbe4}
+  pre code{background:none;padding:0;color:inherit;white-space:pre}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:13.5px;color:var(--muted);margin-top:8px}
+  .meta b{color:#c6cede;font-weight:600}
+  ul,ol{margin:12px 0;padding-left:24px}
+  li{margin:7px 0}
+  strong{color:#fff}
+  em{color:#d7cbb0;font-style:italic}
+  .lead{font-size:17.5px;color:#cfd6df}
+
+  .badge{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;padding:3px 9px;border-radius:999px;text-transform:uppercase;vertical-align:middle}
+  .b-bad{background:var(--badbg);color:#ff8f88;border:1px solid #5a2a27}
+  .b-warn{background:var(--warnbg);color:#f0c675;border:1px solid #5a4a20}
+  .b-ok{background:var(--okbg);color:#63d69b;border:1px solid #235a3c}
+  .b-info{background:var(--infobg);color:#7ec5ef;border:1px solid #24506e}
+
+  .callout{border:1px solid var(--line);border-left-width:4px;border-radius:10px;padding:16px 20px;margin:22px 0;background:var(--panel)}
+  .callout .t{font-weight:700;font-size:14px;letter-spacing:.02em;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+  .c-verdict{border-left-color:var(--bad);background:linear-gradient(180deg,#1c1113,#171a21)}
+  .c-warn{border-left-color:var(--warn)}
+  .c-ok{border-left-color:var(--ok)}
+  .c-info{border-left-color:var(--info)}
+  .c-key{border-left-color:var(--accent2);background:linear-gradient(180deg,#161327,#171a21)}
+
+  table{width:100%;border-collapse:collapse;margin:20px 0;font-size:14px;background:var(--panel);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:11px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--panel2);color:#dbe2ec;font-weight:600;font-size:12.5px;letter-spacing:.03em;text-transform:uppercase}
+  tr:last-child td{border-bottom:none}
+  td code{white-space:normal}
+
+  .toc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 22px;margin:30px 0}
+  .toc .t{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  .toc ol{margin:0;padding-left:20px;columns:2;column-gap:34px}
+  .toc li{margin:5px 0}
+
+  .finding{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px 22px 18px;margin:22px 0}
+  .finding .fh{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-top:16px}
+  .finding .fn{font-family:var(--mono);color:var(--accent2);font-weight:700;font-size:14px}
+
+  .step{counter-reset:none;margin:14px 0;padding-left:0}
+  .flow{background:#0b0d11;border:1px solid var(--line);border-radius:10px;padding:14px 18px;font-family:var(--mono);font-size:13px;color:#cbd3dd;line-height:1.9}
+  .flow .arrow{color:var(--accent)}
+  .flow .danger{color:#ff8f88}
+
+  hr{border:none;border-top:1px solid var(--line);margin:38px 0}
+  .foot{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+  .pill-row{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+  .tag{font-family:var(--mono);font-size:12px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:4px 9px;color:#b9c2cf}
+  .small{font-size:13px;color:var(--muted)}
+  .refnum{font-family:var(--mono);color:var(--accent);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <p class="kicker">AW-2956 · Investigation follow-up · Windows only</p>
+  <h1>Validation &amp; Critique — the "Two-Part Key + Windows Hello" approach</h1>
+  <p class="lead">An assessment of <code>approach_of_windows_hello_usage.md</code> (attached to AW-2956, 2026-07-02): a scheme that splits the master key into a password-derived part and a DPAPI <code>device_secret</code>, gating recovery of the second part behind <code>UserConsentVerifier</code> (Windows Hello).</p>
+  <div class="meta">
+    <span><b>Ticket:</b> AW-2956 (P2, Code Review)</span>
+    <span><b>Proposal author:</b> R. Prudchenko</span>
+    <span><b>Threat model:</b> same-user malware, no elevation</span>
+    <span><b>Reviewed against:</b> <code>conclusion/</code> 00–05 + AW-2957</span>
+    <span><b>Date:</b> 2026-07-02</span>
+  </div>
+</header>
+
+<div class="callout c-verdict">
+  <div class="t"><span class="badge b-bad">Bottom line</span> The scheme does not fix AW-2956 — and one of its two variants re-creates it.</div>
+  <p style="margin-bottom:6px">Against the ticket's actual threat (same-user malware), the proposal provides <strong>no cryptographic protection beyond the password itself</strong>. Its two "Windows-Hello" ingredients are both non-barriers to that adversary:</p>
+  <ul style="margin-top:4px">
+    <li><code>UserConsentVerifier</code> is a <strong>bypassable client-side presence check</strong>, not a cryptographic factor — malware simply skips it.</li>
+    <li>DPAPI <code>device_secret</code> is <strong>scoped to the user account, not the app</strong> — any same-user process can <code>CryptUnprotectData</code> it (this is the exact root cause already documented in <a href="../conclusion/03-gaps-and-omissions.md">gaps §G8</a>, and the mechanism behind Bitwarden's CVE-2023-27706).</li>
+  </ul>
+  <p style="margin-bottom:0">So the security of the whole envelope collapses to the <strong>password</strong>. That makes the scheme, at best, <strong>equal to the already-shipped password-only posture (AW-2957) but more complex</strong> — and, in the variant where the password/derived key is cached for "indefinite" reuse, <strong>strictly worse: it rebuilds the AW-2956 vulnerability</strong> with an extra DPAPI layer that malware peels off trivially. It is defensible only if re-labelled honestly as UX convenience over a password root of trust (the "Quick Unlock" pattern already in <a href="../conclusion/04-action-plan.md">action plan §4</a>) — never as a way to make Windows Hello a safe standalone factor.</p>
+</div>
+
+<div class="toc">
+  <div class="t">Contents</div>
+  <ol>
+    <li><a href="#proposal">What the proposal actually says</a></li>
+    <li><a href="#validation">Validation against the threat model</a></li>
+    <li><a href="#findings">Five load-bearing flaws</a></li>
+    <li><a href="#reduction">Where the security actually rests</a></li>
+    <li><a href="#valuable">What is genuinely useful in it</a></li>
+    <li><a href="#verdict">Claim-by-claim verdict table</a></li>
+    <li><a href="#additions">Corrections &amp; additions</a></li>
+    <li><a href="#options">Other / better options</a></li>
+    <li><a href="#recommendation">Recommendation</a></li>
+    <li><a href="#sources">Sources</a></li>
+  </ol>
+</div>
+
+<h2 id="proposal">1. What the proposal actually says</h2>
+<p>The document surveys how 1Password, Bitwarden and several wallets use Windows Hello, then lands on a single recommendation: split the master key into two parts and combine them only after a Windows Hello check. It describes <strong>two variants</strong> of the same idea, and it is important to separate them because they fail differently.</p>
+
+<h3>Variant A — in-memory password caching with a Hello-gated second part</h3>
+<p>(<em>§ "Ресерч с использованием Windows Hello", 2nd paragraph.</em>) On entry the user always types the password; the first part of the master key is derived from it and held <strong>in memory for ~5 minutes</strong>. During that window Windows Hello can retrieve the second part. After the window the first part is wiped and the password is required again. The document itself states the flaw: <em>"part of the key is held in memory — if it can be accessed, obtaining the second part is trivial, because you can raise the same verification window the app uses."</em></p>
+
+<h3>Variant B — DPAPI <code>device_secret</code> combined into a KEK, gated by <code>UserConsentVerifier</code></h3>
+<p>(<em>§ "Подход с разделением ключа на 2 части".</em>) The concrete, named scheme:</p>
+<div class="flow">
+1. User enters password <span class="danger">(the doc: "can be saved and used later for an indefinite time")</span><br>
+2. Derive <code>password_key</code> (Argon2/PBKDF2)<br>
+3. Call <code>UserConsentVerifier</code> <span class="arrow">→</span> get Verified/NotVerified<br>
+4. <span class="arrow">if Verified →</span> call <code>CryptUnprotectData</code> (DPAPI)<br>
+5. Recover <code>device_secret</code> (DPAPI-bound to device+user)<br>
+6. Mix <code>password_key</code> + <code>device_secret</code> <span class="arrow">→</span> <code>KEK</code><br>
+7. <code>KEK</code> decrypts <code>DEK</code><br>
+8. <code>DEK</code> decrypts the seed phrase for the duration of the operation
+</div>
+<p>The document's own conclusion: <em>"the only working method at present is the two-part split; other options are derivatives of it."</em> The rest of this review evaluates whether that claim holds.</p>
+
+<h2 id="validation">2. Validation against the threat model</h2>
+<p>AW-2956 has a precise, documented adversary (<a href="../conclusion/01-problem.md">problem §4</a>, <a href="../conclusion/03-gaps-and-omissions.md">gaps §G3</a>): <strong>malware running as the same Windows user, without elevation</strong>. That adversary can read <code>%APPDATA%</code>, read the encrypted vault file, scrape process memory of a running process, call any user-scoped Windows API, and raise the genuine Windows Hello prompt. A proposal "fixes" AW-2956 only if it prevents that adversary from recovering the seed phrases after — at most — one careless user gesture.</p>
+<p>Test each ingredient of the proposal against exactly that adversary. Both fail, for the same structural reason the whole investigation already established: <strong>on unpackaged Win32, no OS primitive binds a local secret to the application; the boundary is the user.</strong></p>
+
+<h2 id="findings">3. Five load-bearing flaws</h2>
+
+<div class="finding">
+  <div class="fh"><span class="fn">Flaw 1</span><span class="badge b-bad">Fatal</span><h3 style="margin:0"><code>UserConsentVerifier</code> is not a cryptographic factor</h3></div>
+  <p><code>UserConsentVerifier.RequestVerificationAsync()</code> returns an <strong>enum</strong> (<code>Verified</code>, <code>Canceled</code>, <code>DeviceNotPresent</code>…). It releases <strong>no key material</strong>, signs nothing, and produces <strong>no output that feeds the KEK</strong>. In the proposed flow, step 3→4 is literally an <code>if (result == Verified) { CryptUnprotectData(...) }</code> branch <em>inside the app's own process</em>. Nothing at the OS level ties a successful verification to the subsequent decryption.</p>
+  <p>Malware does not need to pass this check — it <strong>omits it entirely</strong> and calls <code>CryptUnprotectData</code> directly. This is the textbook "client-side authorization" anti-pattern; Clément Notin's public research on Windows Hello makes exactly this point (<span class="refnum">[7]</span>). Contrast with the <em>current</em> (pre-AW-2957) design, which at least required a real <code>KeyCredentialManager.RequestSignAsync</code> signature — the proposal is <strong>weaker</strong> on this axis, not stronger.</p>
+</div>
+
+<div class="finding">
+  <div class="fh"><span class="fn">Flaw 2</span><span class="badge b-bad">Fatal</span><h3 style="margin:0">DPAPI <code>device_secret</code> is user-scoped, not app-scoped</h3></div>
+  <p><code>CryptProtectData</code>/<code>CryptUnprotectData</code> bind data to the <strong>user account + machine</strong>, never to the calling application, for unpackaged Win32. This is already recorded verbatim in <a href="../conclusion/03-gaps-and-omissions.md">gaps §G8</a>: <em>"DPAPI, DPAPI-NG/CNG, Credential Locker — all authorise by user/SID, none by application identity for unpackaged Win32."</em> Therefore <code>device_secret</code> is recoverable by <strong>any same-user process</strong>.</p>
+  <p>The proposal's premise — <em>"device_secret is accessible only after passing UserConsentVerifier"</em> — is <strong>false as a security property</strong>. The app <em>chooses</em> to call the verifier first; the OS does not enforce it. This is precisely the mechanism of <strong>Bitwarden's CVE-2023-27706 ("Bitwarden Heist")</strong> <span class="refnum">[6]</span>: a DPAPI-protected secret that any same-user process could retrieve. The proposal re-introduces the vulnerable pattern Bitwarden was forced to remove.</p>
+</div>
+
+<div class="finding">
+  <div class="fh"><span class="fn">Flaw 3</span><span class="badge b-warn">Design</span><h3 style="margin:0">Splitting a key gives nothing when both parts share one adversary</h3></div>
+  <p>Secret-splitting only buys security when the parts sit behind <strong>different trust boundaries</strong>. Here, against same-user malware, both parts are reachable: <code>device_secret</code> via DPAPI (Flaw 2), and <code>password_key</code> via the password (keyloggable, or scrapable from memory while cached). Two ingredients, one adversary, zero added boundary. The split is <strong>security theatre</strong> against AW-2956 — it only <em>looks</em> like defense-in-depth.</p>
+  <p>The one place the split does something real is a <em>different</em> threat: <strong>offline theft of the vault file</strong> for cracking on another machine. DPAPI device-binding genuinely prevents that (you also need the machine). But the Argon2id password KDF already provides strong offline resistance, and offline theft is not AW-2956. So the benefit is marginal and mis-aimed.</p>
+</div>
+
+<div class="finding">
+  <div class="fh"><span class="fn">Flaw 4</span><span class="badge b-bad">Fatal (Variant B)</span><h3 style="margin:0">"Save the password for an indefinite time" rebuilds AW-2956</h3></div>
+  <p>Variant B's step 1 says the password <em>"can be saved and used later for an indefinite time."</em> If the password (or <code>password_key</code>) is persisted so that Hello alone re-unlocks the wallet, then whatever storage holds it becomes the new target — and that storage is, once again, only <strong>user-scoped</strong> (secure storage, DPAPI, or a Hello-gated blob). Same-user malware reads it. The result is <strong>the original vulnerability with an extra DPAPI wrapper it removes in one call</strong>: read the persisted key material, raise one Hello prompt (or none), recover the seed phrases. This configuration is <strong>strictly worse than AW-2957</strong> and must not ship.</p>
+</div>
+
+<div class="finding">
+  <div class="fh"><span class="fn">Flaw 5</span><span class="badge b-warn">Framing</span><h3 style="margin:0">It cites the vulnerable pattern, not the fixed one</h3></div>
+  <p>The proposal opens by noting 1Password/Bitwarden use <code>UserConsentVerifier</code> and unlock "only at session start." Two corrections. (a) Bitwarden's <strong>fix</strong> for CVE-2023-27706 moved <em>to</em> a live <code>KeyCredentialManager</code> Hello interaction and <em>away from</em> the store-a-DPAPI-secret pattern — the proposal points at the pre-fix behaviour <span class="refnum">[6]</span>. (b) 1Password is explicit (<span class="refnum">[8]</span>) that the vault stays <em>"encrypted with your account password and Secret Key… even with Windows Hello turned on"</em> — Hello re-requests the password periodically. In both products the <strong>password/secret is the root of trust and Hello is convenience</strong>. The proposal borrows their surface (UserConsentVerifier) without their actual security model.</p>
+</div>
+
+<h2 id="reduction">4. Where the security actually rests</h2>
+<p>Strip away the non-barriers (Flaws 1–2) and the envelope reduces to one factor — the password — with a biometric gesture bolted on for UX. The scheme then lands in one of three configurations, all determined by <em>where the password lives</em>:</p>
+
+<table>
+<thead><tr><th>Configuration</th><th>Convenience vs AW-2957</th><th>Security vs AW-2956 (same-user malware)</th><th>Net</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>Password typed every unlock</b> (no caching)</td>
+  <td>None — you type the password anyway; Hello is decoration</td>
+  <td>≈ AW-2957 (password is the barrier; Hello adds nothing)</td>
+  <td><span class="badge b-warn">Pointless</span> equal security, more code, no UX gain</td>
+</tr>
+<tr>
+  <td><b>Password / key persisted for reuse</b> (Variant B "indefinite")</td>
+  <td>High (biometric re-unlock)</td>
+  <td><b>Worse</b> — persisted key is user-scoped; malware reads it + one/zero Hello taps → seeds</td>
+  <td><span class="badge b-bad">Rebuilds AW-2956</span> must not ship</td>
+</tr>
+<tr>
+  <td><b>Derived key cached in memory, short TTL</b> (Variant A)</td>
+  <td>Moderate (skip re-typing within the window)</td>
+  <td>= AW-2957 at cold start; window is memory-scrapable (nothing on Windows stops this)</td>
+  <td><span class="badge b-ok">Acceptable as convenience</span> = the "Quick Unlock" pattern, if framed honestly</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout c-key">
+  <div class="t"><span class="badge b-info">Key insight</span></div>
+  <p style="margin-bottom:0">The only configuration that is both more convenient than password-only <em>and</em> not a rebuild of AW-2956 is <strong>Variant A (short-lived in-memory session cache)</strong>. And that one is <strong>convenience, not a security boundary</strong> — it matches how KeePassXC "Quick Unlock" and post-fix Bitwarden operate. So the proposal's real, defensible core is already captured by <a href="../conclusion/04-action-plan.md">action plan §4 (Hybrid "Quick Unlock")</a> — but arrived at through an unsound argument (it credits Hello/DPAPI with protection they don't provide).</p>
+</div>
+
+<h2 id="valuable">5. What is genuinely useful in it</h2>
+<ul>
+  <li><strong>Password becomes mandatory.</strong> Unlike the original design (biometric = a standalone <code>bio</code> KeyWrap of the <em>same</em> master key — see <a href="../conclusion/01-problem.md">problem §2</a>), this scheme makes the password structurally required. That is the correct direction and matches industry.</li>
+  <li><strong>DPAPI device-binding as defense-in-depth</strong> against <em>offline</em>/cross-machine attacks on a stolen vault file — cheap, real, but aimed at a threat the password KDF already largely covers, and irrelevant to AW-2956.</li>
+  <li><strong>A time-boxed session cache</strong> (Variant A's 5-minute window) is the right <em>shape</em> for a convenience layer.</li>
+  <li><strong>Honest self-assessment.</strong> The document does admit the in-memory weakness — it simply understates how completely that (plus Flaws 1–2) defeats the stated goal.</li>
+</ul>
+
+<h2 id="verdict">6. Claim-by-claim verdict</h2>
+<table>
+<thead><tr><th>Claim in <code>approach_of_windows_hello_usage.md</code></th><th>Verdict</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Splitting the key + combining after verification is "the only working method"</td><td><span class="badge b-bad">Refuted</span></td><td>Doesn't address the same-user threat; password-only (AW-2957) already works and is simpler</td></tr>
+<tr><td><code>device_secret</code> is "accessible only after passing UserConsentVerifier"</td><td><span class="badge b-bad">False</span></td><td>DPAPI is user-scoped; verifier is a bypassable in-app branch (Flaws 1–2)</td></tr>
+<tr><td>Password "can be saved and used later for an indefinite time"</td><td><span class="badge b-bad">Dangerous</span></td><td>Persisting the root secret rebuilds AW-2956 (Flaw 4)</td></tr>
+<tr><td>1Password/Bitwarden validate this UserConsentVerifier approach</td><td><span class="badge b-warn">Misread</span></td><td>Their root of trust is the password; Bitwarden <em>removed</em> the DPAPI pattern this resembles (Flaw 5)</td></tr>
+<tr><td>The scheme lets Windows Hello be used safely</td><td><span class="badge b-warn">Only as convenience</span></td><td>True only for the in-memory-TTL variant, and only if labelled convenience, not a boundary</td></tr>
+<tr><td>Key held in memory is the (sole) weakness</td><td><span class="badge b-warn">Understated</span></td><td>Memory exposure is real, but Flaws 1–2 mean the scheme adds no boundary even before that</td></tr>
+</tbody>
+</table>
+
+<h2 id="additions">7. Corrections &amp; additions</h2>
+<ol>
+  <li><strong>Name the adversary in the doc.</strong> The proposal never states its threat model. Add it explicitly (same-user, non-elevated malware) — every claim's truth value depends on it, and being explicit would have surfaced Flaws 1–2 immediately.</li>
+  <li><strong>Drop <code>UserConsentVerifier</code> as a security element.</strong> If Hello is used at all, it must be a live <code>KeyCredentialManager</code> operation whose <em>output</em> is cryptographically consumed (a signature over a fresh challenge), not a boolean the app trusts. Even then it is convenience, not a boundary (see <a href="../conclusion/03-gaps-and-omissions.md">gaps §G5</a>).</li>
+  <li><strong>Never persist the password or a full password-equivalent key.</strong> If convenience is wanted, cache a <em>derived, revocable session key</em> in memory only, with a short TTL, and require the full password on cold start / after reboot.</li>
+  <li><strong>If Hello returns, sign a fresh random challenge — not a constant.</strong> The current constant <code>locker_authentication_request</code> yields an offline-reproducible KEK (<a href="../conclusion/03-gaps-and-omissions.md">gaps §G5/G6</a>). A per-session nonce, TPM-backed, result in memory only, removes the "sign once, derive forever" property.</li>
+  <li><strong>Apply the cheap defense-in-depth only alongside the above:</strong> per-install random tag (S2) and per-install random data-to-sign (S3). They do not change the boundary but raise cost for <em>untargeted, scaled</em> malware. They are worthless on their own.</li>
+  <li><strong>Account for the build cost.</strong> Re-introducing <code>biometric_cipher</code> / <code>KeyCredentialManager</code> on Windows resurfaces the known <code>/await</code> + <code>&lt;experimental/coroutine&gt;</code> MSVC build break on newer toolchains — a real implementation cost that must be budgeted, not discovered late.</li>
+</ol>
+
+<h2 id="options">8. Other / better options</h2>
+
+<h3>Option A — Keep password-only permanent (AW-2957) <span class="badge b-ok">Lowest risk</span></h3>
+<p>Already shipped, closes AW-2956 deterministically, matches 1Password/Bitwarden/KeePassXC. Cost: no biometric convenience on Windows. If the two-part scheme's real security is "equal to password-only" (Flaws 1–3), then this is the same security for far less code. This is the honest baseline the proposal must beat — and against the stated threat, it cannot.</p>
+
+<h3>Option B — "Quick Unlock" done correctly <span class="badge b-info">Recommended if convenience is required</span></h3>
+<p>This is the <em>salvageable</em> form of the proposal, and it is already in <a href="../conclusion/04-action-plan.md">action plan §4</a>:</p>
+<ul>
+  <li>Password is the root of trust; <strong>required on every cold start / after reboot</strong>.</li>
+  <li>Hello only short-circuits <strong>re-unlock within an already-authenticated session</strong> — never a standalone equal-to-password unlock.</li>
+  <li>The Hello-derived value is <strong>TPM-backed, signs a fresh per-session challenge</strong>, and is held in memory only.</li>
+</ul>
+<p>Explicitly convenience, not a boundary: it still can't stop same-user malware racing the user (nothing on Windows does), but it removes the offline-reproducible-KEK property that made AW-2956 severe. Frame it as such and it is acceptable; frame it as "safe Hello" and it misleads.</p>
+
+<h3>Option C — AppContainer / Win32 App Isolation <span class="badge b-warn">Gated on an experiment</span></h3>
+<p>The only path that could restore <em>real</em> app-binding on Windows — but it is preview-only (Win11 24H2+), has no Flutter packaging path, risks every native plugin, and its benefit against an <em>unpackaged</em> attacker is <strong>unproven</strong>. It must be gated on the empirical experiment in <a href="../conclusion/04-action-plan.md">action plan §2</a> and the feasibility analysis in <a href="../appcontainer-feasibility-and-plan.md">appcontainer-feasibility-and-plan.md</a>. Not a near-term fix, and the team has already deprioritised it (Jira, 2026-06-19).</p>
+
+<h3>Option D — Hardware root of trust <span class="badge b-info">Long-horizon</span></h3>
+<p>The only way to make a local high-value secret genuinely resistant to same-user malware on Windows is to keep the signing key off the general-purpose OS surface — a hardware device (Ledger-style) or an external authenticator. Large scope; noted for completeness, not proposed here.</p>
+
+<h2 id="recommendation">9. Recommendation</h2>
+<div class="callout c-ok">
+  <div class="t"><span class="badge b-ok">Do</span></div>
+  <ul style="margin:6px 0 0">
+    <li><strong>Do not adopt the two-part scheme as a fix.</strong> Against AW-2956's threat it is equal to password-only at best (Flaws 1–3), and dangerous in its persisted-password variant (Flaw 4).</li>
+    <li><strong>Keep AW-2957</strong> (password-only) as the current, correct posture; add the launch-time stale-key cleanup from <a href="../conclusion/04-action-plan.md">action plan §1.3</a>.</li>
+    <li><strong>If — and only if — biometric convenience on Windows is a product requirement</strong>, implement <em>Option B (Quick Unlock)</em>, taking the salvageable ideas from the proposal (mandatory password, session cache) but discarding its security claims about <code>UserConsentVerifier</code> and DPAPI. Re-label it "convenience," not "secure Hello."</li>
+  </ul>
+</div>
+<div class="callout c-warn">
+  <div class="t"><span class="badge b-warn">Don't</span></div>
+  <ul style="margin:6px 0 0">
+    <li>Persist the password / master-equivalent key so Hello alone re-unlocks (rebuilds AW-2956).</li>
+    <li>Treat <code>UserConsentVerifier</code> success as authorization for decryption.</li>
+    <li>Present any in-process, unpackaged Win32 scheme as making Windows Hello a <em>safe standalone</em> unlock — the OS boundary is the user, not the app.</li>
+  </ul>
+</div>
+<p class="small">This assessment does not change the investigation's governing principle (<a href="../conclusion/04-action-plan.md">action plan §0</a>): on unpackaged Win32, no OS primitive binds a local secret to the application, so Windows Hello cannot be a safe standalone unlock for a high-value secret. The proposal is a new attempt at the "algorithmic approach" requested on 2026-06-29, but it does not escape that principle — it re-encounters it.</p>
+
+<h2 id="sources">10. Sources</h2>
+<p class="small">Primary review inputs are the ticket's own conclusion set and Jira thread; external sources are those already verified in <a href="../conclusion/05-sources-and-verification.md">conclusion §05</a>.</p>
+<ol class="small">
+  <li><a href="../jira-assets/approach_of_windows_hello_usage.md">approach_of_windows_hello_usage.md</a> — the proposal under review (2026-07-02).</li>
+  <li><a href="../conclusion/01-problem.md">conclusion/01-problem.md</a> — vulnerability mechanics, threat model, envelope design, AW-2957 state.</li>
+  <li><a href="../conclusion/03-gaps-and-omissions.md">conclusion/03-gaps-and-omissions.md</a> — §G3 (threat model), §G5 (deterministic KEK), §G6 (global tag), §G8 (DPAPI/Credential-Locker are user-scoped).</li>
+  <li><a href="../conclusion/04-action-plan.md">conclusion/04-action-plan.md</a> — §0 principle, §4 Hybrid "Quick Unlock", options A/B.</li>
+  <li><a href="../conclusion/05-sources-and-verification.md">conclusion/05-sources-and-verification.md</a> — adversarial verification of the load-bearing claims; annotated external sources.</li>
+  <li>Bitwarden "Bitwarden Heist" / CVE-2023-27706 — <a href="https://blog.redteam-pentesting.de/2024/bitwarden-heist/">redteam-pentesting.de</a>; fixed by moving to a live <code>KeyCredentialManager</code> interaction.</li>
+  <li>Clément Notin, <em>When Windows Hello fails…</em> (2019) — the Hello gesture proves presence, not app identity; <code>UserConsentVerifier</code> is a bypassable client-side check.</li>
+  <li>1Password — <a href="https://support.1password.com/windows-hello-security/">About Windows Hello security</a> — Hello is convenience over the account password + Secret Key.</li>
+  <li>KeePassXC — <a href="https://github.com/keepassxreboot/keepassxc/issues/12376">"Quick Unlock"</a>: <em>"the Windows Hello dialog is NOT protecting your database."</em></li>
+  <li>Microsoft Learn — <a href="https://learn.microsoft.com/en-us/uwp/api/windows.security.credentials.ui.userconsentverifier">UserConsentVerifier</a> (returns a verification-result enum; no key material) and <a href="https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata">CryptProtectData</a> (user/machine-scoped).</li>
+</ol>
+
+<div class="foot">
+  Complementary to the AW-2956 <code>conclusion/</code> set (00–05) and <code>appcontainer-feasibility-and-plan.md</code>. Scope: Windows only — iOS, macOS, Android are not affected. Prepared for the "present findings &amp; decide" acceptance criterion.
+</div>
+
+</div>
+</body>
+</html>

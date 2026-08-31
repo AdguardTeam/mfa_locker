@@ -1,0 +1,150 @@
+diff --git a/lib/data/repository/locker/locker_wallet_repository.dart b/lib/data/repository/locker/locker_wallet_repository.dart
+index 6375341b9..9aa172934 100644
+--- a/lib/data/repository/locker/locker_wallet_repository.dart
++++ b/lib/data/repository/locker/locker_wallet_repository.dart
+@@ -4,7 +4,6 @@ import 'dart:convert';
+ import 'package:adguard_logger/adguard_logger.dart';
+ import 'package:adguard_wallet/common/extensions/stream_extensions.dart';
+ import 'package:adguard_wallet/common/utils/blockchain_utils.dart';
+-import 'package:adguard_wallet/common/utils/platform_utils.dart';
+ import 'package:adguard_wallet/data/db/app_database.dart';
+ import 'package:adguard_wallet/data/db/db_encryption_utils.dart';
+ import 'package:adguard_wallet/data/db/db_lifecycle_service.dart';
+@@ -567,7 +566,6 @@ class LockerWalletRepositoryImpl implements LockerWalletRepository {
+     await _ensureDbKeyExists(password: password);
+     await _openDb();
+     await _loadWalletsAfterUnlock();
+-    await _cleanupWindowsBiometricIfNeeded(password: password);
+   }
+ 
+   @override
+@@ -748,19 +746,4 @@ class LockerWalletRepositoryImpl implements LockerWalletRepository {
+     return null;
+   }
+ 
+-  // TODO(d.seloustev): AW-2956 тАФ proactively remove Windows Hello biometric keys until the vulnerability is resolved
+-  Future<void> _cleanupWindowsBiometricIfNeeded({required String password}) async {
+-    if (!PlatformUtils.isWindows) {
+-      return;
+-    }
+-    if (!await _lockerStorage.isBiometricEnabled) {
+-      return;
+-    }
+-    try {
+-      logger.logWarning('Removing stale Windows Hello biometric key (temporary security measure, see AW-2956)');
+-      await _lockerStorage.disableBiometric(password: password);
+-    } catch (error, stackTrace) {
+-      logger.logError('Failed to remove stale Windows Hello biometric key', error: error, stackTrace: stackTrace);
+-    }
+-  }
+ }
+diff --git a/lib/data/storage/locker/locker_storage.dart b/lib/data/storage/locker/locker_storage.dart
+index 9c8e52b19..33025a77a 100644
+--- a/lib/data/storage/locker/locker_storage.dart
++++ b/lib/data/storage/locker/locker_storage.dart
+@@ -23,10 +23,6 @@ abstract interface class LockerStorage {
+   Future<bool> get isInitialized;
+ 
+   /// Whether biometric authentication is currently enabled in storage.
+-  /// Reads the stored flag directly, bypassing the Windows platform guard in
+-  /// [determineBiometricState] (which always returns hardware-unavailable on Windows).
+-  /// Temporary: needed to detect and clean up stale Windows Hello keys on first
+-  /// password unlock. Permanent fix tracked in AW-2956.
+   Future<bool> get isBiometricEnabled;
+ 
+   /// Initializes the locker with the given biometric configuration.
+diff --git a/lib/data/storage/locker/mixin/locker_biometric_mixin.dart b/lib/data/storage/locker/mixin/locker_biometric_mixin.dart
+index 11427dac4..bc0ccf489 100644
+--- a/lib/data/storage/locker/mixin/locker_biometric_mixin.dart
++++ b/lib/data/storage/locker/mixin/locker_biometric_mixin.dart
+@@ -1,6 +1,3 @@
+-import 'dart:io' show Platform;
+-
+-import 'package:adguard_logger/adguard_logger.dart';
+ import 'package:adguard_wallet/data/storage/locker/locker_storage_base.dart';
+ import 'package:adguard_wallet/data/storage/locker/models/locker_constants.dart';
+ import 'package:locker/locker/models/biometric_state.dart';
+@@ -15,27 +12,10 @@ import 'package:locker/storage/models/domain/entry_update_input.dart';
+ mixin LockerBiometricMixin on LockerStorageBase {
+   Future<bool> get isBiometricEnabled => locker.isBiometricEnabled;
+ 
+-  Future<BiometricState> determineBiometricState() async {
+-    // TODO(d.seloustev): AW-2956 тАФ biometrics disabled on Windows as a temporary
+-    // security measure until the Windows Hello vulnerability is resolved
+-    if (Platform.isWindows) {
+-      logger.logWarning('Biometric authentication disabled on Windows');
+-
+-      return BiometricState.hardwareUnavailable;
+-    }
+-
+-    return locker.determineBiometricState(biometricKeyTag: LockerConstants.biometricKeyTag);
+-  }
++  Future<BiometricState> determineBiometricState() =>
++      locker.determineBiometricState(biometricKeyTag: LockerConstants.biometricKeyTag);
+ 
+   Future<void> enableBiometric({required String password}) async {
+-    // TODO(d.seloustev): AW-2956 тАФ biometric enable blocked on Windows as a temporary security measure until the
+-    // Windows Hello vulnerability is resolved
+-    if (Platform.isWindows) {
+-      logger.logWarning('Biometric enable blocked on Windows');
+-
+-      return;
+-    }
+-
+     final passwordCipherFunc = await securityProvider.authenticatePassword(password: password);
+     final bioCipherFunc = await securityProvider.authenticateBiometric();
+ 
+diff --git a/lib/domain/model/authentication_method_option.dart b/lib/domain/model/authentication_method_option.dart
+index 0179246ed..2527b610d 100644
+--- a/lib/domain/model/authentication_method_option.dart
++++ b/lib/domain/model/authentication_method_option.dart
+@@ -1,5 +1,4 @@
+ import 'package:adguard_wallet/common/localization/localization.dart';
+-import 'package:adguard_wallet/common/utils/platform_utils.dart';
+ import 'package:flutter/material.dart';
+ 
+ enum AuthenticationMethodOption {
+@@ -13,10 +12,7 @@ enum AuthenticationMethodOption {
+     required bool isEnabled,
+   }) => isEnabled ? passwordAndBiometrics : passwordOnly;
+ 
+-  // TODO(d.seloustev): AW-2956 тАФ biometrics hidden on Windows as a temporary
+-  // security measure until the Windows Hello vulnerability is resolved
+-  static List<AuthenticationMethodOption> get availableOptions =>
+-      PlatformUtils.isWindows ? const [passwordOnly] : values;
++  static List<AuthenticationMethodOption> get availableOptions => values;
+ 
+   String toText(BuildContext context) => switch (this) {
+     AuthenticationMethodOption.passwordAndBiometrics => context.ln.securityAuthMethodPasswordAndBiometrics,
+diff --git a/pubspec.lock b/pubspec.lock
+index a25412bb2..08bf51f29 100644
+--- a/pubspec.lock
++++ b/pubspec.lock
+@@ -106,15 +106,6 @@ packages:
+       url: "https://pub.dev"
+     source: hosted
+     version: "2.13.0"
+-  biometric_cipher:
+-    dependency: transitive
+-    description:
+-      path: "packages/biometric_cipher"
+-      ref: "02d4b2b28750704433a922b5610c99af9b570371"
+-      resolved-ref: "02d4b2b28750704433a922b5610c99af9b570371"
+-      url: "https://github.com/AdguardTeam/mfa_locker"
+-    source: git
+-    version: "0.0.1"
+   bloc:
+     dependency: transitive
+     description:
+diff --git a/pubspec.yaml b/pubspec.yaml
+index 445786832..6695cb29b 100644
+--- a/pubspec.yaml
++++ b/pubspec.yaml
+@@ -10,6 +10,7 @@ environment:
+ workspace:
+   - packages/action_bloc
+   - packages/adguard_wallet_api_client
++  - packages/biometric_cipher
+   - packages/google_api_availability
+   - packages/icloud_storage
+   - packages/package_info_plus
