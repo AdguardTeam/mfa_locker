@@ -3,6 +3,7 @@ import 'package:biometric_cipher/data/biometric_status.dart';
 import 'package:biometric_cipher/data/model/config_data.dart';
 import 'package:biometric_cipher/data/biometric_cipher_exception.dart';
 import 'package:biometric_cipher/data/biometric_cipher_exception_code.dart';
+import 'package:biometric_cipher/data/tpm_key_info.dart';
 import 'package:biometric_cipher/data/tpm_status.dart';
 import 'package:biometric_cipher/biometric_cipher_platform_interface.dart';
 
@@ -30,11 +31,32 @@ class MockBiometricCipherPlatform with MockPlatformInterfaceMixin implements Bio
     isConfigured = true;
   }
 
-  /// Retrieves the current TPM status.
+  /// The TPM status returned by [getTPMStatus].
   ///
-  /// Always returns [TPMStatus.supported] in this mock.
+  /// Defaults to [TPMStatus.supported]; tests may override it to simulate
+  /// unsupported TPM states.
+  TPMStatus tpmStatus = TPMStatus.supported;
+
+  /// The TPM version returned by [getTPMVersion].
+  int tpmVersion = 2;
+
+  /// The keys returned by [listKeys].
+  final List<TpmKeyInfo> tpmKeys = const [
+    TpmKeyInfo(name: 'mock_key_one', algorithm: 'RSA'),
+    TpmKeyInfo(name: 'mock_key_two', algorithm: 'ECC'),
+  ];
+
+  /// Retrieves the current TPM status from [tpmStatus].
   @override
-  Future<TPMStatus> getTPMStatus() async => TPMStatus.supported;
+  Future<TPMStatus> getTPMStatus() async => tpmStatus;
+
+  /// Retrieves the TPM version from [tpmVersion].
+  @override
+  Future<int> getTPMVersion() async => tpmVersion;
+
+  /// Retrieves the TPM keys from [tpmKeys].
+  @override
+  Future<List<TpmKeyInfo>> listKeys() async => tpmKeys;
 
   /// Retrieves the biometry status.
   ///

@@ -1,6 +1,7 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:biometric_cipher/data/biometric_status.dart';
 import 'package:biometric_cipher/data/model/config_data.dart';
+import 'package:biometric_cipher/data/tpm_key_info.dart';
 import 'package:biometric_cipher/data/tpm_status.dart';
 
 import 'biometric_cipher_method_channel.dart';
@@ -46,6 +47,28 @@ abstract class BiometricCipherPlatform extends PlatformInterface {
   /// unsupported, or has an incompatible version.
   Future<TPMStatus> getTPMStatus() {
     throw UnimplementedError('getTPMStatus() has not been implemented.');
+  }
+
+  /// Retrieves the Trusted Platform Module (TPM) version of the device.
+  ///
+  /// Returns the major TPM version as an integer, e.g. `2` for TPM 2.0.
+  ///
+  /// Throws [BiometricCipherException] with
+  /// [BiometricCipherExceptionCode.tpmUnsupported] if the TPM is not present.
+  Future<int> getTPMVersion() {
+    throw UnimplementedError('getTPMVersion() has not been implemented.');
+  }
+
+  /// Retrieves all TPM-resident keys stored by the platform crypto provider
+  /// for the current user.
+  ///
+  /// The list is diagnostic: it includes keys created by other applications
+  /// and the OS itself, and entries cannot be mapped to this plugin's tags.
+  ///
+  /// Throws [BiometricCipherException] with
+  /// [BiometricCipherExceptionCode.tpmUnsupported] if the TPM is not present.
+  Future<List<TpmKeyInfo>> listKeys() {
+    throw UnimplementedError('listKeys() has not been implemented.');
   }
 
   /// Retrieves the biometric authentication status of the device.

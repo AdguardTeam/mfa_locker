@@ -4,6 +4,7 @@ import 'package:biometric_cipher/data/biometric_status.dart';
 import 'package:biometric_cipher/data/model/config_data.dart';
 import 'package:biometric_cipher/data/biometric_cipher_exception.dart';
 import 'package:biometric_cipher/data/biometric_cipher_exception_code.dart';
+import 'package:biometric_cipher/data/tpm_key_info.dart';
 import 'package:biometric_cipher/data/tpm_status.dart';
 import 'package:biometric_cipher/biometric_cipher_platform_interface.dart';
 
@@ -25,6 +26,36 @@ class MethodChannelBiometricCipher extends BiometricCipherPlatform {
     }
 
     return TPMStatus.fromValue(statusValue);
+  }
+
+  @override
+  Future<int> getTPMVersion() async {
+    try {
+      final version = await methodChannel.invokeMethod<int>('getTPMVersion');
+
+      if (version == null) {
+        throw Exception('Failed to get TPM version');
+      }
+
+      return version;
+    } on PlatformException catch (e) {
+      throw _mapPlatformException(e);
+    }
+  }
+
+  @override
+  Future<List<TpmKeyInfo>> listKeys() async {
+    try {
+      final keys = await methodChannel.invokeMethod<List<Object?>>('listKeys');
+
+      if (keys == null) {
+        throw Exception('Failed to list TPM keys');
+      }
+
+      return keys.whereType<Map<Object?, Object?>>().map(TpmKeyInfo.fromMap).toList();
+    } on PlatformException catch (e) {
+      throw _mapPlatformException(e);
+    }
   }
 
   @override

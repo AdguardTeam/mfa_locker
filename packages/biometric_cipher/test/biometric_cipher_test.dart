@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:biometric_cipher/data/model/config_data.dart';
+import 'package:biometric_cipher/data/tpm_status.dart';
 import 'package:biometric_cipher/biometric_cipher.dart';
 import 'package:biometric_cipher/biometric_cipher_platform_interface.dart';
 
@@ -235,6 +236,159 @@ void main() {
               (e) => e is BiometricCipherException && e.code == BiometricCipherExceptionCode.invalidArgument,
             ),
           ),
+        );
+      });
+    });
+
+    group('getTpmVersion', () {
+      test('returns version from platform', () async {
+        // Act
+        final version = await biometricCipher.getTpmVersion();
+
+        // Assert
+        expect(version, equals(2));
+      });
+    });
+
+    group('listKeys', () {
+      test('returns keys from platform', () async {
+        // Act
+        final keys = await biometricCipher.listKeys();
+
+        // Assert
+        expect(keys, hasLength(2));
+        expect(keys.first.name, equals('mock_key_one'));
+        expect(keys.first.algorithm, equals('RSA'));
+      });
+    });
+
+    group('encryptString', () {
+      test('creates missing key and returns encrypted data', () async {
+        // Arrange
+        const tag = 'universal_tag';
+        await biometricCipher.configure(
+          config: const ConfigData(
+            biometricPromptTitle: 'Title',
+            biometricPromptSubtitle: 'Subtitle',
+            windowsDataToSign: 'DataToSign',
+          ),
+        );
+        expect(mockPlatform.keys.containsKey(tag), isFalse);
+
+        // Act
+        final encrypted = await biometricCipher.encryptString(tag: tag, data: 'secret');
+
+        // Assert
+        expect(encrypted, equals('encrypted_secret'));
+        expect(mockPlatform.keys.containsKey(tag), isTrue);
+      });
+
+      test('uses existing key without regenerating it', () async {
+        // Arrange
+        const tag = 'existing_tag';
+        await biometricCipher.configure(
+          config: const ConfigData(
+            biometricPromptTitle: 'Title',
+            biometricPromptSubtitle: 'Subtitle',
+            windowsDataToSign: 'DataToSign',
+          ),
+        );
+        await biometricCipher.generateKey(tag: tag);
+
+        // Act
+        // If encryptString tried to regenerate the existing key, the mock
+        // would throw keyAlreadyExists here.
+        final encrypted = await biometricCipher.encryptString(tag: tag, data: 'secret');
+
+        // Assert
+        expect(encrypted, equals('encrypted_secret'));
+      });
+
+      test('throws tpmUnsupported when TPM is not supported', () async {
+        // Arrange
+        mockPlatform.tpmStatus = TPMStatus.unsupported;
+
+        // Act & Assert
+        expect(
+          () => biometricCipher.encryptString(tag: 'tag', data: 'secret'),
+          throwsA(
+            predicate(
+              (e) => e is BiometricCipherException && e.code == BiometricCipherExceptionCode.tpmUnsupported,
+            ),
+          ),
+        );
+      });
+
+      test('throws if tag is empty', () {
+        // Act & Assert
+        expect(
+          () => biometricCipher.encryptString(tag: '', data: 'secret'),
+          throwsA(isA<Exception>()),
+        );
+      });
+    });
+
+    group('decryptString', () {
+      test('decrypts previously encrypted data', () async {
+        // Arrange
+        const tag = 'decrypt_universal_tag';
+        await biometricCipher.configure(
+          config: const ConfigData(
+            biometricPromptTitle: 'Title',
+            biometricPromptSubtitle: 'Subtitle',
+            windowsDataToSign: 'DataToSign',
+          ),
+        );
+        final encrypted = await biometricCipher.encryptString(tag: tag, data: 'secret');
+
+        // Act
+        final decrypted = await biometricCipher.decryptString(tag: tag, data: encrypted);
+
+        // Assert
+        expect(decrypted, equals('secret'));
+      });
+
+      test('throws keyNotFound when key is missing', () async {
+        // Arrange
+        await biometricCipher.configure(
+          config: const ConfigData(
+            biometricPromptTitle: 'Title',
+            biometricPromptSubtitle: 'Subtitle',
+            windowsDataToSign: 'DataToSign',
+          ),
+        );
+
+        // Act & Assert
+        expect(
+          () => biometricCipher.decryptString(tag: 'missing_tag', data: 'encrypted_secret'),
+          throwsA(
+            predicate(
+              (e) => e is BiometricCipherException && e.code == BiometricCipherExceptionCode.keyNotFound,
+            ),
+          ),
+        );
+      });
+
+      test('throws tpmUnsupported when TPM version is incompatible', () async {
+        // Arrange
+        mockPlatform.tpmStatus = TPMStatus.tpmVersionUnsupported;
+
+        // Act & Assert
+        expect(
+          () => biometricCipher.decryptString(tag: 'tag', data: 'encrypted_secret'),
+          throwsA(
+            predicate(
+              (e) => e is BiometricCipherException && e.code == BiometricCipherExceptionCode.tpmUnsupported,
+            ),
+          ),
+        );
+      });
+
+      test('throws if data is empty', () {
+        // Act & Assert
+        expect(
+          () => biometricCipher.decryptString(tag: 'tag', data: ''),
+          throwsA(isA<Exception>()),
         );
       });
     });
