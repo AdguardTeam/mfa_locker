@@ -77,6 +77,18 @@ void BiometricCipherPlugin::HandleMethodCall(
 		break;
 	}
 
+	case MethodName::kGetTPMVersion:
+	{
+		GetTPMVersion(std::move(result));
+		break;
+	}
+
+	case MethodName::kListKeys:
+	{
+		ListKeys(std::move(result));
+		break;
+	}
+
 	case MethodName::kGetBiometryStatus:
 	{
 		GetBiometryStatus(std::move(result));
@@ -162,6 +174,47 @@ winrt::fire_and_forget BiometricCipherPlugin::GetTPMStatus(std::unique_ptr<flutt
 		auto tpmStatus = co_await m_SecureService->GetTPMStatusAsync();
 
 		result->Success(tpmStatus);
+	}
+	catch (const hresult_error& e) {
+		auto hr = e.code();
+		auto message = e.message();
+		auto errorMessage = StringUtil::ConvertHStringToString(message);
+		result->Error(GetErrorCodeString(hr), errorMessage);
+	}
+}
+
+winrt::fire_and_forget BiometricCipherPlugin::GetTPMVersion(
+	std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result)
+{
+	try {
+		auto tpmVersion = co_await m_SecureService->GetTPMVersionAsync();
+
+		result->Success(tpmVersion);
+	}
+	catch (const hresult_error& e) {
+		auto hr = e.code();
+		auto message = e.message();
+		auto errorMessage = StringUtil::ConvertHStringToString(message);
+		result->Error(GetErrorCodeString(hr), errorMessage);
+	}
+}
+
+void BiometricCipherPlugin::ListKeys(
+	std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result)
+{
+	try {
+		auto keys = m_SecureService->ListKeys();
+
+		flutter::EncodableList encodedKeys;
+		for (const auto& key : keys)
+		{
+			encodedKeys.emplace_back(flutter::EncodableValue(flutter::EncodableMap{
+				{"name", flutter::EncodableValue(key.name)},
+				{"algorithm", flutter::EncodableValue(key.algorithm)},
+			}));
+		}
+
+		result->Success(flutter::EncodableValue(encodedKeys));
 	}
 	catch (const hresult_error& e) {
 		auto hr = e.code();

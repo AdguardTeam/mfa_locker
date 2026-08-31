@@ -8,6 +8,8 @@ using biometric_cipher::MethodName;
 namespace biometric_cipher {
 	const std::unordered_map<std::string, MethodName> METHOD_NAME_MAP = {
 		{"getTPMStatus", MethodName::kGetTPMStatus},
+		{"getTPMVersion", MethodName::kGetTPMVersion},
+		{"listKeys", MethodName::kListKeys},
 		{"getBiometryStatus", MethodName::kGetBiometryStatus},
 		{"generateKey", MethodName::kGenerateKey},
 		{"encrypt", MethodName::kEncrypt},

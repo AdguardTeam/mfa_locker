@@ -39,6 +39,12 @@ private:
 	winrt::fire_and_forget GetTPMStatus(
 		std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
 
+	winrt::fire_and_forget GetTPMVersion(
+		std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+
+	void ListKeys(
+		std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+
 	winrt::fire_and_forget GetBiometryStatus(
 		std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
 

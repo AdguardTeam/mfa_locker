@@ -6,6 +6,8 @@ namespace biometric_cipher {
 
 	enum class MethodName {
 		kGetTPMStatus,
+		kGetTPMVersion,
+		kListKeys,
 		kGetBiometryStatus,
 		kGenerateKey,
 		kEncrypt,
