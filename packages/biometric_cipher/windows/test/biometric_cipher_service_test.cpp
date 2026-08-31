@@ -354,5 +354,62 @@ namespace biometric_cipher {
 			// Assert
 			EXPECT_FALSE(result);
 		}
+
+		TEST_F(BiometricCipherServiceTest, GetTPMVersionAsync_ReturnsTpmVersionFromRepository)
+		{
+			EXPECT_CALL(*m_WindowsTpmRepository, GetWindowsTpmVersion())
+				.Times(1)
+				.WillOnce([]() -> int
+					{
+						return 2;
+					}
+				);
+
+			// Act
+			auto asyncOp = m_Service->GetTPMVersionAsync();
+			int result = asyncOp.get();
+
+			// Assert
+			EXPECT_EQ(result, 2);
+		}
+
+		TEST_F(BiometricCipherServiceTest, GetTPMVersionAsync_PropagatesRepositoryError)
+		{
+			EXPECT_CALL(*m_WindowsTpmRepository, GetWindowsTpmVersion())
+				.Times(1)
+				.WillOnce(testing::Throw(hresult_error(error_tpm_unsupported, L"Test exception")));
+
+			// Act
+			auto asyncOp = m_Service->GetTPMVersionAsync();
+
+			// Assert
+			EXPECT_THROW(asyncOp.get(), hresult_error);
+		}
+
+		TEST_F(BiometricCipherServiceTest, ListKeys_ReturnsRepositoryKeys)
+		{
+			std::vector<TpmKeyInfo> expectedKeys = {
+				{"key_one", "RSA"},
+				{"key_two", "ECC"}
+			};
+
+			EXPECT_CALL(*m_WindowsTpmRepository, ListTpmKeys())
+				.Times(1)
+				.WillOnce([expectedKeys]() -> std::vector<TpmKeyInfo>
+					{
+						return expectedKeys;
+					}
+				);
+
+			// Act
+			auto keys = m_Service->ListKeys();
+
+			// Assert
+			ASSERT_EQ(keys.size(), static_cast<size_t>(2));
+			EXPECT_EQ(keys[0].name, "key_one");
+			EXPECT_EQ(keys[0].algorithm, "RSA");
+			EXPECT_EQ(keys[1].name, "key_two");
+			EXPECT_EQ(keys[1].algorithm, "ECC");
+		}
 	}  // namespace test
 }  // namespace biometric_cipher

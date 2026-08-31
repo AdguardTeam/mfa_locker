@@ -44,6 +44,16 @@ namespace biometric_cipher
 		co_return TpmStatusToInteger(TpmStatus::kSupported);
 	}
 
+	IAsyncOperation<int> BiometricCipherService::GetTPMVersionAsync() const
+	{
+		co_return m_WindowsTpmRepository->GetWindowsTpmVersion();
+	}
+
+	std::vector<TpmKeyInfo> BiometricCipherService::ListKeys() const
+	{
+		return m_WindowsTpmRepository->ListTpmKeys();
+	}
+
 	winrt::Windows::Foundation::IAsyncOperation<int> BiometricCipherService::GetBiometryStatusAsync() const
 	{
 		return m_WindowsHelloRepository->GetWindowsHelloStatusAsync();

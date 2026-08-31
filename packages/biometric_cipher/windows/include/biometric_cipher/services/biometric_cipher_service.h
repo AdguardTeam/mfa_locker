@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 #include <winrt/windows.foundation.h>
 
 namespace biometric_cipher
@@ -28,6 +29,10 @@ namespace biometric_cipher
 		{}
 
 		winrt::Windows::Foundation::IAsyncOperation<int> GetTPMStatusAsync() const;
+
+		winrt::Windows::Foundation::IAsyncOperation<int> GetTPMVersionAsync() const;
+
+		std::vector<TpmKeyInfo> ListKeys() const;
 
 		winrt::Windows::Foundation::IAsyncOperation<int> GetBiometryStatusAsync() const;
 
