@@ -1,0 +1,1517 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style>
+<title>ECIES, Byte by Byte</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+  :root {
+    --ground:      #F1F3F8;
+    --surface:     #FFFFFF;
+    --surface-2:   #E8EBF3;
+    --surface-3:   #DDE2ED;
+    --border:      #D4D9E6;
+    --border-firm: #B4BCD0;
+    --ink:         #12151E;
+    --ink-2:       #414A5E;
+    --ink-3:       #6D7689;
+
+    --asym:        #4B3FCC;
+    --asym-soft:   #E5E2FB;
+    --asym-line:   #A9A2EC;
+
+    --sym:         #0D7566;
+    --sym-soft:    #D6EDE8;
+    --sym-line:    #7FC3B7;
+
+    --warn:        #8A5A08;
+    --warn-bg:     #F6EAD2;
+    --bad:         #99271F;
+    --bad-bg:      #F6DFDC;
+    --ok:          #17654A;
+    --ok-bg:       #DDEEE5;
+
+    --code-bg:     #EDF0F6;
+    --code-head:   #E1E6F0;
+
+    --shadow: 0 1px 2px rgba(18,21,30,.05), 0 10px 28px -14px rgba(18,21,30,.16);
+
+    --measure: 66ch;
+    --f-display: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --f-body: "Spectral", ui-serif, Georgia, serif;
+    --f-ui: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0A0C13;
+      --surface:     #12151F;
+      --surface-2:   #1A1E2B;
+      --surface-3:   #222739;
+      --border:      #262C3D;
+      --border-firm: #3A4258;
+      --ink:         #E7EAF2;
+      --ink-2:       #A9B2C6;
+      --ink-3:       #7A8399;
+
+      --asym:        #9E93FF;
+      --asym-soft:   #1E1A44;
+      --asym-line:   #4B4394;
+      --sym:         #47C8AF;
+      --sym-soft:    #0C2B27;
+      --sym-line:    #226F63;
+
+      --warn:        #DCAC44;
+      --warn-bg:     #2B2213;
+      --bad:         #F08D7C;
+      --bad-bg:      #2E1815;
+      --ok:          #5FC492;
+      --ok-bg:       #12291F;
+
+      --code-bg:     #0D111A;
+      --code-head:   #171C29;
+
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 28px -14px rgba(0,0,0,.7);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #0A0C13;
+    --surface:     #12151F;
+    --surface-2:   #1A1E2B;
+    --surface-3:   #222739;
+    --border:      #262C3D;
+    --border-firm: #3A4258;
+    --ink:         #E7EAF2;
+    --ink-2:       #A9B2C6;
+    --ink-3:       #7A8399;
+
+    --asym:        #9E93FF;
+    --asym-soft:   #1E1A44;
+    --asym-line:   #4B4394;
+    --sym:         #47C8AF;
+    --sym-soft:    #0C2B27;
+    --sym-line:    #226F63;
+
+    --warn:        #DCAC44;
+    --warn-bg:     #2B2213;
+    --bad:         #F08D7C;
+    --bad-bg:      #2E1815;
+    --ok:          #5FC492;
+    --ok-bg:       #12291F;
+
+    --code-bg:     #0D111A;
+    --code-head:   #171C29;
+
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 28px -14px rgba(0,0,0,.7);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 28px 120px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  /* ─────────── HERO ─────────── */
+
+  header.hero {
+    padding: 76px 0 44px;
+    border-bottom: 1px solid var(--border);
+  }
+  .kicker {
+    font-family: var(--f-ui);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+  .kicker a { color: var(--asym); text-decoration: none; border-bottom: 1px solid var(--asym-line); }
+  .kicker a:hover { border-bottom-color: var(--asym); }
+  .kicker .dot { color: var(--border-firm); }
+
+  h1 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: clamp(30px, 5.2vw, 52px);
+    line-height: 1.06;
+    letter-spacing: -.02em;
+    margin: 20px 0 0;
+    text-wrap: balance;
+  }
+  .dek {
+    max-width: var(--measure);
+    margin: 20px 0 0;
+    font-size: 19px;
+    color: var(--ink-2);
+  }
+  .dek em { color: var(--ink); font-style: italic; }
+
+  /* ─────────── MORPHEME STRIP ─────────── */
+
+  .strip {
+    margin: 40px 0 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .strip-head {
+    padding: 12px 18px;
+    background: var(--code-head);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--f-ui);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .morphs {
+    display: flex;
+    flex-wrap: wrap;
+    font-family: var(--f-mono);
+    font-size: clamp(13px, 2.1vw, 20px);
+    font-weight: 600;
+    padding: 22px 18px 6px;
+    gap: 2px 0;
+    line-height: 1.3;
+  }
+  .m {
+    padding: 4px 7px 6px;
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+  }
+  .m-a { color: var(--asym); border-bottom-color: var(--asym); background: var(--asym-soft); }
+  .m-s { color: var(--sym);  border-bottom-color: var(--sym);  background: var(--sym-soft); }
+  .m-n { color: var(--ink-2); border-bottom-color: var(--border-firm); }
+
+  .mtable { width: 100%; border-collapse: collapse; font-family: var(--f-ui); }
+  .mtable td { padding: 13px 18px; border-top: 1px solid var(--border); vertical-align: top; font-size: 14.5px; color: var(--ink-2); line-height: 1.5; }
+  .mtable td:first-child {
+    width: 190px;
+    font-family: var(--f-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .mtable tr.a td:first-child { color: var(--asym); }
+  .mtable tr.s td:first-child { color: var(--sym); }
+  .mtable strong { color: var(--ink); font-weight: 600; }
+
+  .legend {
+    display: flex;
+    gap: 22px;
+    flex-wrap: wrap;
+    padding: 14px 18px 18px;
+    font-family: var(--f-ui);
+    font-size: 12.5px;
+    color: var(--ink-3);
+  }
+  .legend span::before {
+    content: "";
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 2px;
+    margin-right: 8px;
+    vertical-align: -1px;
+  }
+  .legend .la::before { background: var(--asym); }
+  .legend .ls::before { background: var(--sym); }
+
+  /* ─────────── SECTIONS ─────────── */
+
+  main { display: block; }
+
+  section { padding: 60px 0 4px; border-top: 1px solid var(--border); }
+  section:first-of-type { border-top: none; }
+
+  .eyebrow {
+    font-family: var(--f-ui);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  h2 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: clamp(23px, 3.4vw, 31px);
+    letter-spacing: -.015em;
+    line-height: 1.16;
+    margin: 10px 0 0;
+    max-width: 22ch;
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--f-ui);
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: -.005em;
+    margin: 38px 0 0;
+    max-width: var(--measure);
+  }
+  h4 {
+    font-family: var(--f-ui);
+    font-weight: 600;
+    font-size: 15px;
+    margin: 30px 0 0;
+    color: var(--ink);
+    max-width: var(--measure);
+  }
+  p { max-width: var(--measure); margin: 15px 0 0; }
+  .lead { font-size: 18.5px; color: var(--ink-2); margin-top: 18px; }
+  ul, ol { max-width: var(--measure); padding-left: 22px; margin: 15px 0 0; }
+  li { margin: 8px 0; }
+  li::marker { color: var(--ink-3); }
+
+  a { color: var(--asym); }
+
+  code {
+    font-family: var(--f-mono);
+    font-size: .84em;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    word-break: break-word;
+  }
+  b.tok-a { color: var(--asym); font-weight: 600; }
+  b.tok-s { color: var(--sym); font-weight: 600; }
+
+  /* ─────────── FIGURES ─────────── */
+
+  figure {
+    margin: 34px 0 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .fig-body { padding: 22px 20px 6px; overflow-x: auto; }
+  .fig-body svg { display: block; width: 100%; min-width: 640px; height: auto; color: var(--ink-2); }
+  figcaption {
+    padding: 14px 20px 16px;
+    border-top: 1px solid var(--border);
+    font-family: var(--f-ui);
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ink-3);
+  }
+  figcaption b { color: var(--ink-2); font-weight: 600; letter-spacing: .05em; text-transform: uppercase; font-size: 11px; margin-right: 8px; }
+
+  .s-asym { color: var(--asym); }
+  .s-sym  { color: var(--sym); }
+  .s-warn { color: var(--warn); }
+  .s-bad  { color: var(--bad); }
+  .fill-asym { fill: var(--asym-soft); stroke: var(--asym); }
+  .fill-sym  { fill: var(--sym-soft);  stroke: var(--sym); }
+  .fill-neutral { fill: var(--surface-2); stroke: var(--border-firm); }
+  .fill-warn { fill: var(--warn-bg); stroke: var(--warn); }
+  .mk-a { fill: var(--asym); }
+  .mk-s { fill: var(--sym); }
+
+  /* ─────────── CODE / HEX ─────────── */
+
+  .src {
+    margin: 26px 0 0;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    overflow: hidden;
+  }
+  .src-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 9px 14px;
+    background: var(--code-head);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--f-ui);
+    font-size: 11.5px;
+    color: var(--ink-3);
+  }
+  .src-head b { color: var(--ink-2); font-weight: 600; }
+  .src pre {
+    margin: 0;
+    padding: 15px 16px;
+    overflow-x: auto;
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    line-height: 1.66;
+    color: var(--ink-2);
+  }
+  .src pre .k  { color: var(--asym); }
+  .src pre .c  { color: var(--ink-3); font-style: italic; }
+  .src pre .hl { color: var(--sym); font-weight: 600; }
+  .src pre .o  { color: var(--ink); }
+
+  .hexdump {
+    margin: 26px 0 0;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    overflow: hidden;
+  }
+  .hexdump pre {
+    margin: 0;
+    padding: 16px;
+    overflow-x: auto;
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    line-height: 1.85;
+    color: var(--ink-2);
+  }
+  .hexdump .off { color: var(--ink-3); }
+  .hexdump .ha { color: var(--asym); }
+  .hexdump .hs { color: var(--sym); }
+  .hexdump .ht { color: var(--sym); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+  .hexdump .hm { color: var(--ink); font-weight: 600; background: var(--surface-3); border-radius: 2px; padding: 0 2px; }
+
+  /* ─────────── CALLOUTS ─────────── */
+
+  .note, .warnbox, .okbox {
+    max-width: var(--measure);
+    margin: 26px 0 0;
+    padding: 16px 18px;
+    border-radius: 7px;
+    font-family: var(--f-ui);
+    font-size: 14.5px;
+    line-height: 1.58;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .note { border-left: 3px solid var(--asym); }
+  .warnbox { border-left: 3px solid var(--warn); background: var(--warn-bg); color: var(--ink); }
+  .okbox { border-left: 3px solid var(--ok); background: var(--ok-bg); color: var(--ink); }
+  .note strong, .warnbox strong, .okbox strong { font-weight: 600; }
+  .note p, .warnbox p, .okbox p { max-width: none; margin: 10px 0 0; }
+  .note p:first-child, .warnbox p:first-child, .okbox p:first-child { margin-top: 0; }
+
+  blockquote.spec {
+    max-width: var(--measure);
+    margin: 26px 0 0;
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border-firm);
+    border-radius: 7px;
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    line-height: 1.72;
+    color: var(--ink-2);
+  }
+  blockquote.spec b { color: var(--ink); font-weight: 600; }
+  blockquote.spec cite {
+    display: block;
+    margin-top: 12px;
+    font-family: var(--f-ui);
+    font-style: normal;
+    font-size: 11.5px;
+    color: var(--ink-3);
+  }
+
+  /* ─────────── TABLES ─────────── */
+
+  .tablewrap { margin: 28px 0 0; overflow-x: auto; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
+  table.data {
+    width: 100%;
+    min-width: 560px;
+    border-collapse: collapse;
+    font-family: var(--f-ui);
+    font-size: 13.5px;
+  }
+  table.data th {
+    text-align: left;
+    padding: 11px 14px;
+    background: var(--code-head);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    white-space: nowrap;
+  }
+  table.data td {
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--ink-2);
+    vertical-align: top;
+    line-height: 1.5;
+  }
+  table.data tr:last-child td { border-bottom: none; }
+  table.data td.mono { font-family: var(--f-mono); font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .pill {
+    display: inline-block;
+    font-family: var(--f-ui);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .05em;
+    padding: 2px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .pill.ok { background: var(--ok-bg); color: var(--ok); }
+  .pill.no { background: var(--bad-bg); color: var(--bad); }
+  .pill.wn { background: var(--warn-bg); color: var(--warn); }
+
+  /* ─────────── FACTS ─────────── */
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    margin: 32px 0 0;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .fact { background: var(--surface); padding: 18px 16px; }
+  .fact-n {
+    font-family: var(--f-mono);
+    font-size: 25px;
+    font-weight: 600;
+    letter-spacing: -.02em;
+    line-height: 1;
+  }
+  .fact-n.a { color: var(--asym); }
+  .fact-n.s { color: var(--sym); }
+  .fact-l {
+    font-family: var(--f-ui);
+    font-size: 12.5px;
+    line-height: 1.42;
+    color: var(--ink-3);
+    margin-top: 9px;
+  }
+
+  footer {
+    margin-top: 64px;
+    padding-top: 26px;
+    border-top: 1px solid var(--border);
+    font-family: var(--f-ui);
+    font-size: 12.5px;
+    color: var(--ink-3);
+    max-width: var(--measure);
+  }
+  footer p { max-width: none; }
+
+  @media (max-width: 700px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 18px 80px; }
+    header.hero { padding-top: 48px; }
+    .mtable td:first-child { width: auto; }
+    .mtable td { display: block; border-top: none; padding: 4px 18px; }
+    .mtable tr { display: block; border-top: 1px solid var(--border); padding: 10px 0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">
+    <span>Companion note</span>
+    <span class="dot">/</span>
+    <a href="01-biometric-cipher-teardown.html">Biometric Cipher Teardown</a>
+    <span class="dot">/</span>
+    <span>AW-321 &middot; Darwin backend</span>
+  </div>
+
+  <h1>ECIES, Byte&nbsp;by&nbsp;Byte</h1>
+
+  <p class="dek">
+    <code>eciesEncryptionCofactorX963SHA256AESGCM</code> is not a cipher. It is a <em>recipe</em> — five
+    primitives in a fixed order, with every parameter already chosen for you. The name spells out the whole
+    thing, if you know where to put the spaces.
+  </p>
+
+  <div class="strip">
+    <div class="strip-head">The constant, decomposed</div>
+    <div class="morphs">
+      <span class="m m-a">ECIES</span><span class="m m-n">Encryption</span><span class="m m-a">Cofactor</span><span class="m m-a">X963</span><span class="m m-a">SHA256</span><span class="m m-s">AES</span><span class="m m-s">GCM</span>
+    </div>
+    <table class="mtable">
+      <tr class="a">
+        <td>ECIES</td>
+        <td><strong>Elliptic Curve Integrated Encryption Scheme.</strong> The umbrella construction: agree on a secret with a curve, then encrypt with a symmetric cipher. Everything that follows names one of its slots.</td>
+      </tr>
+      <tr>
+        <td>Encryption</td>
+        <td>This constant is for <code>SecKeyCreateEncryptedData</code> / <code>SecKeyCreateDecryptedData</code>, not for signing or bare key exchange.</td>
+      </tr>
+      <tr class="a">
+        <td>Cofactor</td>
+        <td><strong>Which flavour of ECDH.</strong> Multiply by the curve's cofactor <em>h</em> before the shared point is taken. On P-256, <em>h</em> = 1 — so this word changes nothing. <a href="#gotchas">Measured below.</a></td>
+      </tr>
+      <tr class="a">
+        <td>X963</td>
+        <td><strong>The key-derivation function.</strong> ANSI X9.63: hash the shared secret together with a counter and a context string, repeatedly, until you have enough bytes.</td>
+      </tr>
+      <tr class="a">
+        <td>SHA256</td>
+        <td>The hash inside that KDF. (The family also offers SHA-1, 224, 384 and 512.)</td>
+      </tr>
+      <tr class="s">
+        <td>AES</td>
+        <td><strong>The bulk cipher.</strong> Key length is <em>not</em> in the name — it is inferred from the curve. P-256 gives you AES-128, always.</td>
+      </tr>
+      <tr class="s">
+        <td>GCM</td>
+        <td><strong>The mode.</strong> Authenticated: a 16-byte tag rides along, and the IV is sixteen zero bytes — which is the one design choice here worth arguing about.</td>
+      </tr>
+    </table>
+    <div class="legend">
+      <span class="la">asymmetric half &mdash; curve arithmetic and key agreement</span>
+      <span class="ls">symmetric half &mdash; the cipher that moves the bytes</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<!-- ══════════════ WHY HYBRID ══════════════ -->
+<section id="why">
+  <div class="eyebrow">The problem it solves</div>
+  <h2>A P-256 key cannot encrypt anything</h2>
+
+  <p class="lead">
+    This is the fact everything else follows from. RSA keys encrypt; elliptic-curve keys do not. An EC
+    private key can sign, and it can <em>agree</em> on a secret with another EC key — that is the entire
+    repertoire.
+  </p>
+
+  <p>
+    The Secure Enclave makes this concrete. It generates and holds exactly one kind of key —
+    <code>kSecAttrKeyTypeECSECPrimeRandom</code> at 256 bits, i.e. NIST P-256 — and it will perform exactly
+    two operations with it: ECDSA signing and ECDH key agreement. There is no RSA in there, and no
+    <em>encrypt</em> verb at all.
+  </p>
+
+  <p>
+    So a wallet that wants to seal 32 bytes of master key behind Face&nbsp;ID has a gap to bridge: it holds a
+    key that cannot encrypt, and it needs encryption. ECIES <em>is</em> that bridge, and it has a standard
+    shape — a <b class="tok-a">KEM</b> that produces a fresh symmetric key out of curve arithmetic, feeding a
+    <b class="tok-s">DEM</b> that does the actual encrypting.
+  </p>
+
+  <figure>
+    <div class="fig-body">
+      <svg viewBox="0 0 820 220" role="img" aria-label="A P-256 key supports only signing and key agreement, not encryption. ECIES bridges the gap by using key agreement to produce a one-time symmetric key, which AES-GCM then uses to encrypt the payload.">
+        <defs>
+          <marker id="w-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="w-ara" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path class="mk-a" d="M 0 0 L 10 5 L 0 10 z"/>
+          </marker>
+        </defs>
+        <g font-family="IBM Plex Sans, sans-serif" fill="currentColor">
+
+          <text x="20" y="26" font-size="11" font-weight="600" letter-spacing="1.3" opacity=".62">WHAT A P-256 KEY OFFERS</text>
+
+          <rect x="20" y="42" width="230" height="38" rx="4" class="fill-neutral" stroke-width="1.2"/>
+          <text x="135" y="66" text-anchor="middle" font-size="12.5">sign &mdash; ECDSA</text>
+
+          <rect x="20" y="90" width="230" height="38" rx="4" class="fill-asym" stroke-width="1.4"/>
+          <text class="s-asym" x="135" y="114" text-anchor="middle" font-size="12.5" font-weight="600">agree &mdash; ECDH</text>
+
+          <rect x="20" y="138" width="230" height="38" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 4" opacity=".45"/>
+          <text x="135" y="162" text-anchor="middle" font-size="12.5" opacity=".55">encrypt &mdash; does not exist</text>
+
+          <path class="s-asym" d="M 254 109 L 322 109" stroke-width="1.4" marker-end="url(#w-ara)"/>
+          <text class="s-asym" x="288" y="100" text-anchor="middle" font-size="10">shared secret</text>
+
+          <rect x="326" y="82" width="182" height="54" rx="4" class="fill-asym" stroke-width="1.4"/>
+          <text class="s-asym" x="417" y="104" text-anchor="middle" font-size="12" font-weight="600">KEM</text>
+          <text class="s-asym" x="417" y="122" text-anchor="middle" font-size="10.5" opacity=".85">makes a one-time key</text>
+
+          <path d="M 512 109 L 580 109" stroke="currentColor" stroke-width="1.4" marker-end="url(#w-ar)"/>
+          <text x="546" y="100" text-anchor="middle" font-size="10">16 bytes</text>
+
+          <rect x="584" y="82" width="216" height="54" rx="4" class="fill-sym" stroke-width="1.4"/>
+          <text class="s-sym" x="692" y="104" text-anchor="middle" font-size="12" font-weight="600">DEM</text>
+          <text class="s-sym" x="692" y="122" text-anchor="middle" font-size="10.5" opacity=".85">AES-GCM over the payload</text>
+
+          <line x1="326" y1="164" x2="800" y2="164" stroke="currentColor" stroke-width="1" opacity=".22"/>
+          <text x="563" y="184" text-anchor="middle" font-size="11" opacity=".7">the two halves together are what &ldquo;ECIES&rdquo; names</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>
+      <b>Fig 1</b> The bridge. Key agreement is the only asymmetric operation available, so ECIES uses it to
+      manufacture a symmetric key rather than to encrypt directly. The dashed row is the operation that does
+      not exist on the curve — and the reason the other two rows have to be wired together.
+    </figcaption>
+  </figure>
+
+  <div class="note">
+    <p>
+      <strong>The property that makes this the right shape for a wallet.</strong> Key agreement against a
+      <em>public</em> key needs no private key and therefore no authentication. Sealing the master key costs
+      no biometric prompt; only opening it does. That asymmetry is unique to the hybrid design — the
+      symmetric Keystore design on Android prompts in both directions.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════ THE PIPELINE ══════════════ -->
+<section id="pipeline">
+  <div class="eyebrow">Encryption</div>
+  <h2>Four stages, no parameters</h2>
+
+  <p class="lead">
+    Apple's header states the whole construction in six lines. Everything below is that paragraph, drawn out
+    and then checked.
+  </p>
+
+  <blockquote class="spec">
+    <b>kSecKeyAlgorithmECIESEncryptionCofactorX963SHA256AESGCM</b><br>
+    Legacy ECIES encryption or decryption, use
+    kSecKeyAlgorithmECIESEncryptionCofactorVariableIVX963SHA256AESGCM in new code.
+    Encryption is done using AES-GCM with key negotiated by
+    kSecKeyAlgorithmECDHKeyExchangeCofactorX963SHA256. AES Key size is 128bit for EC keys &lt;=256bit
+    and 256bit for bigger EC keys. Ephemeral public key data is used as sharedInfo for KDF.
+    AES-GCM uses 16 bytes long TAG and all-zero 16 byte long IV (initialization vector).
+    <cite>MacOSX.sdk 26.5 &middot; Security.framework &middot; SecKey.h, lines 1152&ndash;1156</cite>
+  </blockquote>
+
+  <figure>
+    <div class="fig-body">
+      <svg viewBox="0 0 880 300" role="img" aria-label="The encryption pipeline: stage one generates an ephemeral P-256 keypair, stage two performs cofactor ECDH between the ephemeral private key and the Secure Enclave public key producing a 32-byte shared secret, stage three runs the ANSI X9.63 SHA-256 KDF over that secret with the ephemeral public key as shared info to produce a 16-byte AES key, stage four encrypts the payload with AES-128-GCM using an all-zero IV.">
+        <defs>
+          <marker id="p-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="p-ara" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path class="mk-a" d="M 0 0 L 10 5 L 0 10 z"/>
+          </marker>
+        </defs>
+        <g font-family="IBM Plex Sans, sans-serif" fill="currentColor">
+
+          <!-- enclave source -->
+          <rect x="235" y="14" width="360" height="58" rx="6" fill="none" stroke="var(--asym)" stroke-width="1.5" stroke-dasharray="6 4"/>
+          <text class="s-asym" x="415" y="37" text-anchor="middle" font-size="11.5" font-weight="600">Secure Enclave &mdash; static P-256 keypair</text>
+          <text class="s-asym" x="415" y="56" text-anchor="middle" font-size="10.5" opacity=".85">the public half Q&#8339; is readable with no authentication</text>
+          <path class="s-asym" d="M 322 72 L 322 108" stroke-width="1.4" marker-end="url(#p-ara)"/>
+          <text class="s-asym" x="336" y="94" font-size="10">Q&#8339;</text>
+
+          <!-- stage badges -->
+          <circle cx="32" cy="102" r="10" class="fill-asym" stroke-width="1.3"/>
+          <text class="s-asym" x="32" y="106" text-anchor="middle" font-size="11" font-weight="600">1</text>
+          <circle cx="247" cy="102" r="10" class="fill-asym" stroke-width="1.3"/>
+          <text class="s-asym" x="247" y="106" text-anchor="middle" font-size="11" font-weight="600">2</text>
+          <circle cx="462" cy="102" r="10" class="fill-asym" stroke-width="1.3"/>
+          <text class="s-asym" x="462" y="106" text-anchor="middle" font-size="11" font-weight="600">3</text>
+          <circle cx="687" cy="102" r="10" class="fill-sym" stroke-width="1.3"/>
+          <text class="s-sym" x="687" y="106" text-anchor="middle" font-size="11" font-weight="600">4</text>
+
+          <!-- boxes -->
+          <rect x="20" y="112" width="175" height="72" rx="4" class="fill-asym" stroke-width="1.4"/>
+          <text class="s-asym" x="107" y="140" text-anchor="middle" font-size="12" font-weight="600">ephemeral keypair</text>
+          <text class="s-asym" x="107" y="158" text-anchor="middle" font-size="10.5" opacity=".85">d&#8337;, Q&#8337; on P-256</text>
+          <text class="s-asym" x="107" y="174" text-anchor="middle" font-size="10.5" opacity=".85">new on every call</text>
+
+          <rect x="235" y="112" width="175" height="72" rx="4" class="fill-asym" stroke-width="1.4"/>
+          <text class="s-asym" x="322" y="140" text-anchor="middle" font-size="12" font-weight="600">cofactor ECDH</text>
+          <text class="s-asym" x="322" y="158" text-anchor="middle" font-size="10.5" opacity=".85">h &middot; d&#8337; &middot; Q&#8339; &rarr; point</text>
+          <text class="s-asym" x="322" y="174" text-anchor="middle" font-size="10.5" opacity=".85">take the x coordinate</text>
+
+          <rect x="450" y="112" width="185" height="72" rx="4" class="fill-asym" stroke-width="1.4"/>
+          <text class="s-asym" x="542" y="140" text-anchor="middle" font-size="12" font-weight="600">X9.63 KDF &middot; SHA-256</text>
+          <text class="s-asym" x="542" y="158" text-anchor="middle" font-size="10.5" opacity=".85">Z &#8214; counter &#8214; sharedInfo</text>
+          <text class="s-asym" x="542" y="174" text-anchor="middle" font-size="10.5" opacity=".85">request 16 bytes</text>
+
+          <rect x="675" y="112" width="185" height="72" rx="4" class="fill-sym" stroke-width="1.4"/>
+          <text class="s-sym" x="767" y="140" text-anchor="middle" font-size="12" font-weight="600">AES-128-GCM</text>
+          <text class="s-sym" x="767" y="158" text-anchor="middle" font-size="10.5" opacity=".85">IV = sixteen 0x00 bytes</text>
+          <text class="s-sym" x="767" y="174" text-anchor="middle" font-size="10.5" opacity=".85">seal the payload</text>
+
+          <!-- arrows between stages -->
+          <path d="M 197 148 L 231 148" stroke="currentColor" stroke-width="1.4" marker-end="url(#p-ar)"/>
+          <text x="214" y="140" text-anchor="middle" font-size="9.5">d&#8337;</text>
+
+          <path d="M 412 148 L 446 148" stroke="currentColor" stroke-width="1.4" marker-end="url(#p-ar)"/>
+          <text x="429" y="140" text-anchor="middle" font-size="9.5">Z &middot; 32 B</text>
+
+          <path d="M 637 148 L 671 148" stroke="currentColor" stroke-width="1.4" marker-end="url(#p-ar)"/>
+          <text x="654" y="140" text-anchor="middle" font-size="9.5">K &middot; 16 B</text>
+
+          <!-- output -->
+          <path d="M 767 186 L 767 224" stroke="currentColor" stroke-width="1.4" marker-end="url(#p-ar)"/>
+          <text class="s-sym" x="767" y="243" text-anchor="middle" font-size="11" font-weight="600">ciphertext + 16-byte tag</text>
+
+          <!-- feedback: ephemeral public key as sharedInfo -->
+          <path class="s-asym" d="M 107 186 L 107 264 L 542 264 L 542 188" stroke-width="1.4" fill="none" stroke-dasharray="5 4" marker-end="url(#p-ara)"/>
+          <text class="s-asym" x="300" y="282" text-anchor="middle" font-size="10.5">sharedInfo = Q&#8337;, the same 65 bytes that get prepended to the blob</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>
+      <b>Fig 2</b> The whole of encryption. Note the dashed edge: the ephemeral public key is not only shipped
+      with the ciphertext, it is also stirred into the KDF, which binds the derived key to the exact sender
+      half it travelled with.
+    </figcaption>
+  </figure>
+
+  <h3>Stage 1 &mdash; a keypair that lives for one message</h3>
+  <p>
+    Every call to <code>SecKeyCreateEncryptedData</code> mints a fresh P-256 keypair
+    <span class="s-asym">(d<sub>e</sub>, Q<sub>e</sub>)</span> inside the Security framework. The private half
+    is used once, for the next stage, and then destroyed; the public half is published in the clear at the
+    front of the output.
+  </p>
+  <p>
+    This is what makes the scheme non-deterministic: encrypting the same plaintext twice under the same
+    recipient key produces two entirely different blobs. It is also, as we will see, the single fact that
+    rescues the all-zero IV.
+  </p>
+
+  <h3>Stage 2 &mdash; cofactor ECDH</h3>
+  <p>
+    Multiply the ephemeral private scalar by the enclave's public point (times the curve cofactor
+    <em>h</em>), and take the x-coordinate of the result. That is <span class="s-asym">Z</span>, 32 bytes for
+    P-256. The recipient can reproduce the same value from the opposite pair — <em>d<sub>s</sub></em> against
+    <em>Q<sub>e</sub></em> — which is the entire trick of Diffie–Hellman.
+  </p>
+  <p>
+    Z is a shared secret but a poor key: it is a curve point coordinate, not uniformly random bytes, and it
+    is identical for every message between the same two keys. Hence stage 3.
+  </p>
+
+  <h3>Stage 3 &mdash; ANSI X9.63, in full</h3>
+  <p>
+    X9.63 is the simplest respectable KDF there is: hash the secret with a big-endian counter and a context
+    string, concatenate digests until you have enough bytes, truncate.
+  </p>
+
+  <figure>
+    <div class="fig-body">
+      <svg viewBox="0 0 820 290" role="img" aria-label="The X9.63 key derivation function concatenates the 32-byte shared secret, a four-byte big-endian counter starting at one, and the 65-byte ephemeral public key as shared info, hashes that with SHA-256, and takes the first 16 bytes of the 32-byte digest as the AES-128 key. The counter loop is never taken because one digest already supplies enough bytes.">
+        <defs>
+          <marker id="k-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g font-family="IBM Plex Sans, sans-serif" fill="currentColor">
+
+          <text x="40" y="28" font-size="11" font-weight="600" letter-spacing="1.3" opacity=".62">HASH INPUT &mdash; 101 BYTES</text>
+
+          <rect x="40" y="40" width="270" height="42" rx="3" class="fill-asym" stroke-width="1.4"/>
+          <text class="s-asym" x="175" y="60" text-anchor="middle" font-size="11.5" font-weight="600">Z</text>
+          <text class="s-asym" x="175" y="75" text-anchor="middle" font-size="10">shared secret &middot; 32 B</text>
+
+          <rect x="312" y="40" width="118" height="42" rx="3" class="fill-neutral" stroke-width="1.3"/>
+          <text x="371" y="60" text-anchor="middle" font-size="11" font-weight="600" font-family="IBM Plex Mono, monospace">00 00 00 01</text>
+          <text x="371" y="75" text-anchor="middle" font-size="10" opacity=".75">counter &middot; 4 B</text>
+
+          <rect x="432" y="40" width="348" height="42" rx="3" class="fill-asym" stroke-width="1.4"/>
+          <text class="s-asym" x="606" y="60" text-anchor="middle" font-size="11.5" font-weight="600">sharedInfo = Q&#8337;</text>
+          <text class="s-asym" x="606" y="75" text-anchor="middle" font-size="10">the ephemeral public key, verbatim &middot; 65 B</text>
+
+          <path d="M 410 84 L 410 118" stroke="currentColor" stroke-width="1.4" marker-end="url(#k-ar)"/>
+
+          <rect x="310" y="120" width="200" height="46" rx="4" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="410" y="148" text-anchor="middle" font-size="13" font-weight="600">SHA-256</text>
+
+          <path d="M 410 168 L 410 198" stroke="currentColor" stroke-width="1.4" marker-end="url(#k-ar)"/>
+
+          <text x="250" y="192" font-size="11" font-weight="600" letter-spacing="1.3" opacity=".62">DIGEST &mdash; 32 BYTES</text>
+
+          <rect x="250" y="200" width="160" height="44" rx="3" class="fill-sym" stroke-width="1.5"/>
+          <text class="s-sym" x="330" y="220" text-anchor="middle" font-size="11.5" font-weight="600">K &mdash; AES-128 key</text>
+          <text class="s-sym" x="330" y="235" text-anchor="middle" font-size="10">bytes 0&ndash;15</text>
+
+          <rect x="410" y="200" width="160" height="44" rx="3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 4" opacity=".5"/>
+          <text x="490" y="220" text-anchor="middle" font-size="11" opacity=".6">discarded</text>
+          <text x="490" y="235" text-anchor="middle" font-size="10" opacity=".6">bytes 16&ndash;31</text>
+
+          <path d="M 574 222 L 604 222" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#k-ar)" opacity=".55"/>
+          <rect x="608" y="198" width="172" height="48" rx="4" fill="none" stroke="currentColor" stroke-width="1.1" stroke-dasharray="4 4" opacity=".5"/>
+          <text x="694" y="217" text-anchor="middle" font-size="10.5" opacity=".65">counter++ and hash again,</text>
+          <text x="694" y="232" text-anchor="middle" font-size="10.5" opacity=".65">if more bytes were needed</text>
+
+          <text x="40" y="272" font-size="11" opacity=".7">16 requested, 32 produced &mdash; on this curve the loop body runs exactly once.</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>
+      <b>Fig 3</b> One SHA-256 call is the entire key schedule. The counter exists for callers who ask for
+      more bytes than one digest supplies; with a 16-byte request it never advances past 1.
+    </figcaption>
+  </figure>
+
+  <p>
+    Two things about the <code>sharedInfo</code> slot are worth pausing on. First, it is the ephemeral public
+    key — <em>public</em>, attacker-visible data, which is fine: a KDF's context input is meant to bind, not
+    to hide. Second, because it changes every message, K changes every message even though Z would too. It is
+    belt-and-braces domain separation, and it is the mechanism that ties a derived key to exactly one blob.
+  </p>
+
+  <h3>Stage 4 &mdash; AES-128-GCM, all-zero IV</h3>
+  <p>
+    K encrypts the payload with AES in Galois/Counter Mode, producing ciphertext the same length as the
+    plaintext plus a 16-byte authentication tag. No additional authenticated data is passed. The IV is
+    sixteen zero bytes, fixed, forever.
+  </p>
+  <p>
+    A detail most write-ups skip: GCM's native nonce is 96 bits. A 16-byte IV is a legal but non-native
+    length, so the counter block J<sub>0</sub> is derived by running the IV through GHASH rather than by
+    simple concatenation. It makes no practical difference here — J<sub>0</sub> is still a fixed value for a
+    given key — but it is why a hand-rolled reimplementation that assumes a 12-byte nonce will not
+    interoperate.
+  </p>
+</section>
+
+<!-- ══════════════ THE BLOB ══════════════ -->
+<section id="blob">
+  <div class="eyebrow">The output</div>
+  <h2>81 bytes of overhead, and where they go</h2>
+
+  <p class="lead">
+    The result is one opaque <code>Data</code>. It is three concatenated fields with no header, no version
+    byte and no algorithm identifier — the reader is expected to already know which constant produced it.
+  </p>
+
+  <figure>
+    <div class="fig-body">
+      <svg viewBox="0 0 860 220" role="img" aria-label="Layout of a 125-byte ECIES blob: bytes 0 to 64 are the ephemeral public key in uncompressed X9.63 point form, bytes 65 to 108 are the AES-GCM ciphertext, bytes 109 to 124 are the authentication tag. The ephemeral public key itself splits into a one-byte 0x04 marker followed by the 32-byte X and 32-byte Y coordinates.">
+        <defs>
+          <marker id="b-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g font-family="IBM Plex Sans, sans-serif" fill="currentColor">
+
+          <!-- offset ruler -->
+          <g font-family="IBM Plex Mono, monospace" font-size="10.5" opacity=".7">
+            <text x="30" y="30">0</text>
+            <text x="446" y="30" text-anchor="middle">65</text>
+            <text x="728" y="30" text-anchor="middle">109</text>
+            <text x="830" y="30" text-anchor="end">125</text>
+          </g>
+          <line x1="30" y1="36" x2="30" y2="46" stroke="currentColor" stroke-width="1" opacity=".4"/>
+          <line x1="446" y1="36" x2="446" y2="46" stroke="currentColor" stroke-width="1" opacity=".4"/>
+          <line x1="728" y1="36" x2="728" y2="46" stroke="currentColor" stroke-width="1" opacity=".4"/>
+          <line x1="830" y1="36" x2="830" y2="46" stroke="currentColor" stroke-width="1" opacity=".4"/>
+
+          <!-- main bar -->
+          <rect x="30" y="48" width="416" height="54" class="fill-asym" stroke-width="1.5"/>
+          <text class="s-asym" x="238" y="72" text-anchor="middle" font-size="12.5" font-weight="600">ephemeral public key Q&#8337;</text>
+          <text class="s-asym" x="238" y="90" text-anchor="middle" font-size="10.5" opacity=".85">65 B &middot; always this size</text>
+
+          <rect x="446" y="48" width="282" height="54" class="fill-sym" stroke-width="1.5"/>
+          <text class="s-sym" x="587" y="72" text-anchor="middle" font-size="12.5" font-weight="600">AES-GCM ciphertext</text>
+          <text class="s-sym" x="587" y="90" text-anchor="middle" font-size="10.5" opacity=".85">44 B &middot; same length as the plaintext</text>
+
+          <rect x="728" y="48" width="102" height="54" fill="var(--sym)" stroke="var(--sym)" stroke-width="1.5" opacity=".92"/>
+          <text x="779" y="72" text-anchor="middle" font-size="12" font-weight="600" fill="var(--surface)">tag</text>
+          <text x="779" y="90" text-anchor="middle" font-size="10" fill="var(--surface)" opacity=".9">16 B</text>
+
+          <!-- expansion connectors -->
+          <path d="M 30 104 L 30 128" stroke="var(--asym)" stroke-width="1" opacity=".55"/>
+          <path d="M 446 104 L 446 128" stroke="var(--asym)" stroke-width="1" opacity=".55"/>
+
+          <!-- sub bar -->
+          <rect x="30" y="130" width="14" height="42" class="fill-neutral" stroke-width="1.3"/>
+          <rect x="44" y="130" width="201" height="42" class="fill-asym" stroke-width="1.3"/>
+          <text class="s-asym" x="144" y="149" text-anchor="middle" font-size="11.5" font-weight="600">X coordinate</text>
+          <text class="s-asym" x="144" y="164" text-anchor="middle" font-size="10">32 B</text>
+          <rect x="245" y="130" width="201" height="42" class="fill-asym" stroke-width="1.3"/>
+          <text class="s-asym" x="345" y="149" text-anchor="middle" font-size="11.5" font-weight="600">Y coordinate</text>
+          <text class="s-asym" x="345" y="164" text-anchor="middle" font-size="10">32 B</text>
+
+          <path d="M 37 176 L 37 192 L 70 192" stroke="currentColor" stroke-width="1" opacity=".55" fill="none"/>
+          <text x="76" y="196" font-size="10.5" opacity=".75" font-family="IBM Plex Mono, monospace">0x04</text>
+          <text x="112" y="196" font-size="10.5" opacity=".75">&mdash; uncompressed-point marker (ANSI X9.63 encoding)</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>
+      <b>Fig 4</b> The blob for the wallet's actual payload. Overhead is a constant 81 bytes — 65 for the
+      ephemeral public key, 16 for the tag — regardless of message length.
+    </figcaption>
+  </figure>
+
+  <p>
+    The 44-byte middle is not a coincidence. The plugin's Dart layer base64-encodes the 32-byte master key
+    before handing it down, so the string that reaches <code>SecKeyCreateEncryptedData</code> is 44 ASCII
+    characters. 65 + 44 + 16 = 125 bytes on disk, every time.
+  </p>
+
+  <div class="hexdump">
+    <pre><span class="off">0000</span>  <span class="hm">04</span> <span class="ha">82 ef 3e 52 38 7c 6b 12 8a 53 b6 d0 4e ff d6</span>
+<span class="off">0010</span>  <span class="ha">ec 77 90 9a 91 26 1b 1b a4 83 24 e7 c9 88 a4 63</span>
+<span class="off">0020</span>  <span class="ha">01 48 2e 86 70 97 2a 04 d1 02 9f 2e 23 f1 f8 0d</span>
+<span class="off">0030</span>  <span class="ha">ea a4 ce 78 ef 4f 4e 8f 46 61 7e 22 42 e6 2c 37</span>
+<span class="off">0040</span>  <span class="ha">42</span> <span class="hs">dc 74 35 86 e5 1b 66 b7 d2 aa 41 92 e5 e2 25</span>
+<span class="off">0050</span>  <span class="hs">92 27 2d 9c af 12 f0 f2 cc cb 72 10 7f 0e 37 42</span>
+<span class="off">0060</span>  <span class="hs">6b e4 66 91 7d 05 7a 77 e0 24 f2 1b 93</span> <span class="ht">7a 19 69</span>
+<span class="off">0070</span>  <span class="ht">f4 77 36 b6 f4 f0 8d 26 91 3b db 2f 9e</span></pre>
+  </div>
+
+  <p style="font-family:var(--f-ui);font-size:13px;color:var(--ink-3);margin-top:12px">
+    A real blob, produced on this machine. <span class="s-asym">Purple</span> is the ephemeral public key,
+    <span class="s-sym">green</span> the ciphertext, <span class="s-sym"><u>underlined</u></span> the tag.
+  </p>
+
+  <div class="facts">
+    <div class="fact"><div class="fact-n a">65 B</div><div class="fact-l">Ephemeral public key, prepended in clear</div></div>
+    <div class="fact"><div class="fact-n s">16 B</div><div class="fact-l">GCM tag, appended</div></div>
+    <div class="fact"><div class="fact-n">81 B</div><div class="fact-l">Fixed overhead, any message size</div></div>
+    <div class="fact"><div class="fact-n">125 B</div><div class="fact-l">What the wallet actually stores</div></div>
+  </div>
+</section>
+
+<!-- ══════════════ DECRYPT ══════════════ -->
+<section id="decrypt">
+  <div class="eyebrow">Decryption</div>
+  <h2>The same derivation, run from the other side</h2>
+
+  <p class="lead">
+    Nothing about the key schedule is stored. Decryption re-derives K from scratch — which is why the blob
+    has to carry Q<sub>e</sub>, and why tampering with those 65 bytes fails the tag check rather than
+    producing garbage.
+  </p>
+
+  <figure>
+    <div class="fig-body">
+      <svg viewBox="0 0 880 300" role="img" aria-label="Decryption splits the blob, sends the 65-byte ephemeral public key into the Secure Enclave, which requires a biometric match before performing cofactor ECDH with the private key. The 32-byte shared secret leaves the enclave; the KDF and AES-GCM open step run outside it, in the Security framework, returning the plaintext to the app.">
+        <defs>
+          <marker id="d-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="d-ara" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path class="mk-a" d="M 0 0 L 10 5 L 0 10 z"/>
+          </marker>
+        </defs>
+        <g font-family="IBM Plex Sans, sans-serif" fill="currentColor">
+
+          <!-- enclave -->
+          <rect x="600" y="16" width="264" height="252" rx="6" fill="none" stroke="var(--asym)" stroke-width="1.6" stroke-dasharray="6 4"/>
+          <text class="s-asym" x="732" y="38" text-anchor="middle" font-size="10.5" font-weight="600" letter-spacing="1.4">SECURE ENCLAVE</text>
+
+          <rect x="620" y="50" width="224" height="50" rx="4" class="fill-asym" stroke-width="1.4"/>
+          <text class="s-asym" x="732" y="70" text-anchor="middle" font-size="11.5" font-weight="600">Face ID / Touch ID gate</text>
+          <text class="s-asym" x="732" y="87" text-anchor="middle" font-size="10" opacity=".85">hardware-enforced, not app logic</text>
+
+          <path class="s-asym" d="M 732 100 L 732 124" stroke-width="1.3" marker-end="url(#d-ara)"/>
+
+          <rect x="620" y="126" width="224" height="50" rx="4" class="fill-asym" stroke-width="1.8"/>
+          <text class="s-asym" x="732" y="146" text-anchor="middle" font-size="11.5" font-weight="600">private key d&#8339;</text>
+          <text class="s-asym" x="732" y="163" text-anchor="middle" font-size="10" opacity=".85">never crosses this line</text>
+
+          <path class="s-asym" d="M 732 176 L 732 198" stroke-width="1.3" marker-end="url(#d-ara)"/>
+
+          <rect x="620" y="200" width="224" height="46" rx="4" class="fill-asym" stroke-width="1.4"/>
+          <text class="s-asym" x="732" y="228" text-anchor="middle" font-size="11.5" font-weight="600">cofactor ECDH</text>
+
+          <!-- app process, top row -->
+          <text x="20" y="30" font-size="10.5" font-weight="600" letter-spacing="1.4" opacity=".6">APP PROCESS</text>
+
+          <rect x="20" y="46" width="160" height="54" rx="4" class="fill-neutral" stroke-width="1.3"/>
+          <text x="100" y="70" text-anchor="middle" font-size="11.5" font-weight="600">stored blob</text>
+          <text x="100" y="86" text-anchor="middle" font-size="10" opacity=".75">125 B from the keychain</text>
+
+          <path d="M 184 73 L 216 73" stroke="currentColor" stroke-width="1.4" marker-end="url(#d-ar)"/>
+
+          <rect x="220" y="46" width="190" height="54" rx="4" class="fill-asym" stroke-width="1.3"/>
+          <text class="s-asym" x="315" y="70" text-anchor="middle" font-size="11.5" font-weight="600">split off Q&#8337;</text>
+          <text class="s-asym" x="315" y="86" text-anchor="middle" font-size="10" opacity=".85">bytes 0&ndash;64</text>
+
+          <path class="s-asym" d="M 414 73 L 596 73" stroke-width="1.4" marker-end="url(#d-ara)"/>
+          <text class="s-asym" x="505" y="65" text-anchor="middle" font-size="10">65 bytes in</text>
+
+          <!-- return path -->
+          <path d="M 618 223 L 426 223" stroke="currentColor" stroke-width="1.5" marker-end="url(#d-ar)"/>
+          <text x="522" y="215" text-anchor="middle" font-size="10">Z &middot; 32 B out</text>
+
+          <rect x="250" y="200" width="172" height="46" rx="4" class="fill-asym" stroke-width="1.3"/>
+          <text class="s-asym" x="336" y="228" text-anchor="middle" font-size="11.5" font-weight="600">X9.63 KDF &rarr; K</text>
+
+          <path d="M 246 223 L 204 223" stroke="currentColor" stroke-width="1.4" marker-end="url(#d-ar)"/>
+
+          <rect x="20" y="200" width="180" height="46" rx="4" class="fill-sym" stroke-width="1.4"/>
+          <text class="s-sym" x="110" y="221" text-anchor="middle" font-size="11.5" font-weight="600">AES-GCM open</text>
+          <text class="s-sym" x="110" y="237" text-anchor="middle" font-size="10" opacity=".85">verify tag, then release</text>
+
+          <text x="110" y="268" text-anchor="middle" font-size="10.5" opacity=".75">master key returned to the app</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>
+      <b>Fig 5</b> The trust boundary, drawn honestly. The private key never leaves the enclave — but the
+      per-message shared secret does, and so does the plaintext. The enclave performs the key agreement; the
+      KDF and the AES step run outside it.
+    </figcaption>
+  </figure>
+
+  <div class="note">
+    <p>
+      <strong>What that boundary does and does not buy you.</strong> An attacker who steals the blob and the
+      device storage gets nothing: without the enclave they cannot compute Z. An attacker with code execution
+      in the process <em>at the moment of a successful unlock</em> sees K and the master key in ordinary
+      memory. The enclave protects the key at rest and gates its use; it does not protect the plaintext after
+      the user has authorised its release. That is inherent to any design where the app needs the bytes.
+    </p>
+  </div>
+
+  <h3>Authentication is not optional</h3>
+  <p>
+    GCM's tag covers the ciphertext, and the KDF binding covers Q<sub>e</sub>, so every byte of the blob is
+    effectively authenticated. Flipping a single bit anywhere — in the ephemeral key, the ciphertext or the
+    tag — makes <code>SecKeyCreateDecryptedData</code> return <code>nil</code> rather than wrong plaintext.
+    All three cases were tested; all three were rejected.
+  </p>
+</section>
+
+<!-- ══════════════ VERIFICATION ══════════════ -->
+<section id="verified">
+  <div class="eyebrow">Verification</div>
+  <h2>Rebuilt by hand, from the outside</h2>
+
+  <p class="lead">
+    A header comment is a claim, not evidence. So the pipeline above was reimplemented from scratch against a
+    software P-256 key and checked against Apple's own output at every joint.
+  </p>
+
+  <p>
+    The test uses a software key rather than a Secure Enclave one for the obvious reason — the cross-check
+    needs the private scalar available for an independent ECDH. The algorithm is identical either way; only
+    the <em>location</em> of <em>d<sub>s</sub></em> differs, and that location has no bearing on the byte
+    format.
+  </p>
+
+  <div class="src">
+    <div class="src-head">
+      <span><b>ANSI X9.63 KDF, reimplemented</b></span>
+      <span>Swift &middot; macOS 26.5</span>
+    </div>
+<pre><span class="k">func</span> <span class="o">x963</span>(_ z: Data, sharedInfo: Data, out: Int) -&gt; Data {
+    <span class="k">var</span> result = Data(); <span class="k">var</span> counter: UInt32 = 1
+    <span class="k">while</span> result.count &lt; out {
+        <span class="k">var</span> block = z
+        block.append(contentsOf: withUnsafeBytes(of: <span class="hl">counter.bigEndian</span>) { Array($0) })
+        block.append(<span class="hl">sharedInfo</span>)                <span class="c">// = the 65-byte ephemeral public key</span>
+        <span class="k">var</span> digest = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
+        block.withUnsafeBytes { _ = CC_SHA256($0.baseAddress, CC_LONG(block.count), &amp;digest) }
+        result.append(contentsOf: digest); counter += 1
+    }
+    <span class="k">return</span> result.prefix(out)
+}</pre>
+  </div>
+
+  <div class="src">
+    <div class="src-head">
+      <span><b>Run output</b></span>
+      <span>truncated</span>
+    </div>
+<pre>plaintext 32 -&gt; blob 113 bytes  (overhead 81)
+ephemeral pubkey: 65 bytes, prefix byte 04
+gcm ciphertext: 32  tag: 16
+Z (shared secret): 32 bytes = <span class="k">e1fb7207401e52b8a63835de0db991eba49159d438657e85284a67b1bc03b399</span>
+derived AES-128 key: <span class="hl">910fdde90297983ca893161df172f845</span>
+Apple X963 KDF   key: <span class="hl">910fdde90297983ca893161df172f845</span>  match=<span class="hl">true</span>
+manual AES-128-GCM decrypt -&gt; 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+round-trip OK: <span class="hl">true</span></pre>
+  </div>
+
+  <p>
+    The hand-rolled KDF reproduces the byte-for-byte output of Apple's own
+    <code>kSecKeyAlgorithmECDHKeyExchangeCofactorX963SHA256</code> when given <code>requestedSize = 16</code>
+    and <code>sharedInfo = Q<sub>e</sub></code>. Feeding that key to CryptoKit's AES-GCM with a sixteen-zero-byte
+    nonce opens a box that <code>SecKeyCreateEncryptedData</code> sealed. Every claim in the header holds.
+  </p>
+
+  <div class="tablewrap">
+    <table class="data">
+      <thead>
+        <tr><th>Claim</th><th>How it was checked</th><th>Result</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Blob = Q<sub>e</sub> &#8214; C &#8214; T, 81 bytes overhead</td>
+          <td class="mono">32 B &rarr; 113 &middot; 44 &rarr; 125 &middot; 16 MiB &rarr; +81</td>
+          <td><span class="pill ok">confirmed</span></td>
+        </tr>
+        <tr>
+          <td>sharedInfo is the ephemeral public key</td>
+          <td>Manual KDF matched Apple's KDF only with that input</td>
+          <td><span class="pill ok">confirmed</span></td>
+        </tr>
+        <tr>
+          <td>AES key is the first 16 KDF bytes</td>
+          <td>Independent AES-GCM open succeeded</td>
+          <td><span class="pill ok">confirmed</span></td>
+        </tr>
+        <tr>
+          <td>IV is sixteen zero bytes</td>
+          <td>Same &mdash; any other nonce fails the tag</td>
+          <td><span class="pill ok">confirmed</span></td>
+        </tr>
+        <tr>
+          <td>Fresh ephemeral key per call</td>
+          <td>Two encryptions of one plaintext differ in all three fields</td>
+          <td><span class="pill ok">confirmed</span></td>
+        </tr>
+        <tr>
+          <td>Cofactor &equiv; Standard on P-256</td>
+          <td>Identical Z; a Standard-sealed blob opens with the Cofactor constant</td>
+          <td><span class="pill ok">confirmed</span></td>
+        </tr>
+        <tr>
+          <td>Every field is authenticated</td>
+          <td>Bit flips in Q<sub>e</sub>, C and T each rejected</td>
+          <td><span class="pill ok">confirmed</span></td>
+        </tr>
+        <tr>
+          <td>The &ldquo;Legacy&rdquo; label implies a message-size cap</td>
+          <td>Encrypted 16 MiB without complaint</td>
+          <td><span class="pill no">not observed</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══════════════ GOTCHAS ══════════════ -->
+<section id="gotchas">
+  <div class="eyebrow">Three things people get wrong</div>
+  <h2>The parts that look alarming and the part that is</h2>
+
+  <h3>1. The all-zero IV is safe — for a reason that is one refactor deep</h3>
+  <p>
+    Reusing a nonce in GCM is the textbook catastrophe: two messages under the same (key, IV) pair leak
+    <em>P<sub>1</sub> &oplus; P<sub>2</sub></em> and, worse, hand the attacker enough structure to recover the
+    GHASH subkey and forge tags at will. A hard-coded IV of sixteen zeros looks exactly like that mistake.
+  </p>
+  <p>
+    It is not, because the IV is only half the pair. Every message gets a brand-new ephemeral keypair, so
+    every message gets a different K. The pair <em>(K, IV)</em> is unique even though IV is constant.
+  </p>
+
+  <figure>
+    <div class="fig-body">
+      <svg viewBox="0 0 860 270" role="img" aria-label="Left panel: as used, each message has its own ephemeral key producing a different AES key, so the constant IV never repeats against the same key and the scheme is safe. Right panel: if the AES key were ever reused, the identical IV would produce an identical keystream, exposing the XOR of the two plaintexts and enabling tag forgery.">
+        <defs>
+          <marker id="v-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g font-family="IBM Plex Sans, sans-serif" fill="currentColor">
+
+          <line x1="430" y1="16" x2="430" y2="250" stroke="currentColor" stroke-width="1" opacity=".2"/>
+
+          <!-- LEFT: as used -->
+          <text class="s-sym" x="20" y="28" font-size="11" font-weight="600" letter-spacing="1.2">AS USED HERE</text>
+
+          <text x="20" y="58" font-size="10.5" opacity=".7">message 1</text>
+          <rect x="20" y="64" width="104" height="36" rx="3" class="fill-asym" stroke-width="1.3"/>
+          <text class="s-asym" x="72" y="87" text-anchor="middle" font-size="11">Q&#8337;&#185; fresh</text>
+          <path d="M 128 82 L 152 82" stroke="currentColor" stroke-width="1.2" marker-end="url(#v-ar)"/>
+          <rect x="156" y="64" width="130" height="36" rx="3" class="fill-sym" stroke-width="1.3"/>
+          <text class="s-sym" x="221" y="87" text-anchor="middle" font-size="11" font-family="IBM Plex Mono, monospace">K&#185; = 910f…</text>
+          <rect x="296" y="64" width="112" height="36" rx="3" class="fill-neutral" stroke-width="1.2"/>
+          <text x="352" y="87" text-anchor="middle" font-size="11" font-family="IBM Plex Mono, monospace">IV = 00…00</text>
+
+          <text x="20" y="128" font-size="10.5" opacity=".7">message 2</text>
+          <rect x="20" y="134" width="104" height="36" rx="3" class="fill-asym" stroke-width="1.3"/>
+          <text class="s-asym" x="72" y="157" text-anchor="middle" font-size="11">Q&#8337;&#178; fresh</text>
+          <path d="M 128 152 L 152 152" stroke="currentColor" stroke-width="1.2" marker-end="url(#v-ar)"/>
+          <rect x="156" y="134" width="130" height="36" rx="3" class="fill-sym" stroke-width="1.3"/>
+          <text class="s-sym" x="221" y="157" text-anchor="middle" font-size="11" font-family="IBM Plex Mono, monospace">K&#178; = 7c92…</text>
+          <rect x="296" y="134" width="112" height="36" rx="3" class="fill-neutral" stroke-width="1.2"/>
+          <text x="352" y="157" text-anchor="middle" font-size="11" font-family="IBM Plex Mono, monospace">IV = 00…00</text>
+
+          <rect x="20" y="192" width="388" height="52" rx="4" fill="none" stroke="var(--sym)" stroke-width="1.4"/>
+          <text class="s-sym" x="214" y="213" text-anchor="middle" font-size="11.5" font-weight="600">K&#185; &ne; K&#178; &rArr; the (key, IV) pair never repeats</text>
+          <text class="s-sym" x="214" y="231" text-anchor="middle" font-size="10.5" opacity=".85">a constant IV costs exactly nothing</text>
+
+          <!-- RIGHT: failure mode -->
+          <text class="s-bad" x="452" y="28" font-size="11" font-weight="600" letter-spacing="1.2">IF K WERE EVER REUSED</text>
+
+          <text x="452" y="58" font-size="10.5" opacity=".7">message 1</text>
+          <rect x="452" y="64" width="150" height="36" rx="3" fill="var(--bad-bg)" stroke="var(--bad)" stroke-width="1.3"/>
+          <text class="s-bad" x="527" y="87" text-anchor="middle" font-size="11" font-family="IBM Plex Mono, monospace">K = 910f…</text>
+          <rect x="612" y="64" width="112" height="36" rx="3" class="fill-neutral" stroke-width="1.2"/>
+          <text x="668" y="87" text-anchor="middle" font-size="11" font-family="IBM Plex Mono, monospace">IV = 00…00</text>
+          <path d="M 728 82 L 752 82" stroke="currentColor" stroke-width="1.2" marker-end="url(#v-ar)"/>
+          <text x="800" y="86" text-anchor="middle" font-size="10.5" opacity=".8">keystream S</text>
+
+          <text x="452" y="128" font-size="10.5" opacity=".7">message 2</text>
+          <rect x="452" y="134" width="150" height="36" rx="3" fill="var(--bad-bg)" stroke="var(--bad)" stroke-width="1.3"/>
+          <text class="s-bad" x="527" y="157" text-anchor="middle" font-size="11" font-family="IBM Plex Mono, monospace">K = 910f…</text>
+          <rect x="612" y="134" width="112" height="36" rx="3" class="fill-neutral" stroke-width="1.2"/>
+          <text x="668" y="157" text-anchor="middle" font-size="11" font-family="IBM Plex Mono, monospace">IV = 00…00</text>
+          <path d="M 728 152 L 752 152" stroke="currentColor" stroke-width="1.2" marker-end="url(#v-ar)"/>
+          <text x="800" y="156" text-anchor="middle" font-size="10.5" opacity=".8">the same S</text>
+
+          <rect x="452" y="192" width="388" height="52" rx="4" fill="none" stroke="var(--bad)" stroke-width="1.4"/>
+          <text class="s-bad" x="646" y="213" text-anchor="middle" font-size="11.5" font-weight="600">C&#185; &oplus; C&#178; = P&#185; &oplus; P&#178;, and the GHASH subkey falls out</text>
+          <text class="s-bad" x="646" y="231" text-anchor="middle" font-size="10.5" opacity=".9">confidentiality and authentication both gone</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>
+      <b>Fig 6</b> The only thing standing between these two panels is the freshness of the ephemeral keypair.
+      Cache a derived key &mdash; for a batch operation, say, or a &ldquo;don't re-derive on every call&rdquo;
+      optimisation &mdash; and the left panel becomes the right one.
+    </figcaption>
+  </figure>
+
+  <div class="warnbox">
+    <p>
+      <strong>So it is safe as written, and fragile as a design.</strong> The invariant that protects it
+      ("never reuse a derived key") lives nowhere in the code — it is a property of Apple's implementation
+      that a future refactor cannot violate today, but a hand-rolled reimplementation easily could.
+    </p>
+  </div>
+
+  <h3>2. &ldquo;Cofactor&rdquo; is a no-op on this curve</h3>
+  <p>
+    The cofactor <em>h</em> of an elliptic curve is the ratio between the number of points on the curve and
+    the order of the subgroup you actually use. Cofactor ECDH multiplies by <em>h</em> before taking the
+    shared point, which kills small-subgroup attacks on curves where <em>h</em> &gt; 1.
+  </p>
+  <p>
+    P-256 has <em>h</em> = 1. Multiplying by one is multiplying by one. The word in the constant name is
+    doing no work — and this is testable: cofactor and standard ECDH produce identical shared secrets on
+    P-256, and a blob sealed with <code>eciesEncryptionStandardX963SHA256AESGCM</code> opens cleanly with the
+    Cofactor constant.
+  </p>
+
+  <div class="src">
+    <div class="src-head"><span><b>Cofactor vs Standard on P-256</b></span><span>run output</span></div>
+<pre>P-256 cofactor Z == standard Z ? <span class="hl">true</span>
+Standard-sealed blob opened by Cofactor algorithm: <span class="hl">true</span></pre>
+  </div>
+  <p>
+    Which does not make the choice wrong — it makes it inert. Pick either; the naming just means one of them
+    would still be correct if Apple ever shipped a Secure Enclave curve with a cofactor.
+  </p>
+
+  <h3>3. AES-128 is not a setting</h3>
+  <p>
+    This is the one that actually constrains the design. The header rule is
+    <em>&ldquo;128bit for EC keys &le; 256bit&rdquo;</em>, and the Secure Enclave supports exactly one curve:
+    P-256. There is no larger key to move to, no parameter to pass, and no variant of the constant that asks
+    for AES-256.
+  </p>
+  <p>
+    So a 256-bit master key ends up wrapped at 128-bit strength on this path. That is not a break — 128-bit
+    symmetric security is far beyond reach — but it is a real asymmetry against the password path, which
+    wraps the same key at its full width. Worth documenting; not worth an incident.
+  </p>
+</section>
+
+<!-- ══════════════ LEGACY ══════════════ -->
+<section id="legacy">
+  <div class="eyebrow">Migration</div>
+  <h2>What &ldquo;Legacy&rdquo; actually changes</h2>
+
+  <p class="lead">
+    Apple's own header opens by telling you not to use this constant. The replacement,
+    <code>…CofactorVariableIVX963SHA256AESGCM</code>, differs in exactly one place: it asks the KDF for 32
+    bytes instead of 16, and takes the IV from the second half.
+  </p>
+
+  <figure>
+    <div class="fig-body">
+      <svg viewBox="0 0 820 240" role="img" aria-label="The legacy variant requests 16 bytes from the KDF for the AES key and uses a constant all-zero IV. The VariableIV variant requests 32 bytes and splits them into a 16-byte AES key and a 16-byte derived IV. That is the only difference between the two constants.">
+        <g font-family="IBM Plex Sans, sans-serif" fill="currentColor">
+
+          <text x="20" y="30" font-size="11" font-weight="600" letter-spacing="1.2" opacity=".62">LEGACY &mdash; IN USE TODAY</text>
+
+          <rect x="20" y="44" width="230" height="46" rx="3" class="fill-sym" stroke-width="1.4"/>
+          <text class="s-sym" x="135" y="64" text-anchor="middle" font-size="11.5" font-weight="600">KDF output &middot; 16 B</text>
+          <text class="s-sym" x="135" y="80" text-anchor="middle" font-size="10">&rarr; AES key K</text>
+
+          <rect x="274" y="44" width="230" height="46" rx="3" class="fill-warn" stroke-width="1.4" stroke-dasharray="5 3"/>
+          <text class="s-warn" x="389" y="64" text-anchor="middle" font-size="11.5" font-weight="600">IV &middot; 16 B</text>
+          <text class="s-warn" x="389" y="80" text-anchor="middle" font-size="10" font-family="IBM Plex Mono, monospace">00 00 … 00 &mdash; constant</text>
+
+          <text x="524" y="62" font-size="10.5" opacity=".7">the IV is not derived from</text>
+          <text x="524" y="78" font-size="10.5" opacity=".7">anything &mdash; it is a literal</text>
+
+          <line x1="20" y1="112" x2="800" y2="112" stroke="currentColor" stroke-width="1" opacity=".18"/>
+
+          <text class="s-sym" x="20" y="146" font-size="11" font-weight="600" letter-spacing="1.2">VARIABLE IV &mdash; THE REPLACEMENT</text>
+
+          <path d="M 20 158 L 20 166 L 504 166 L 504 158" fill="none" stroke="currentColor" stroke-width="1" opacity=".45"/>
+          <text x="262" y="182" text-anchor="middle" font-size="10.5" opacity=".7">one KDF call, 32 bytes requested</text>
+
+          <rect x="20" y="190" width="242" height="46" rx="3" class="fill-sym" stroke-width="1.4"/>
+          <text class="s-sym" x="141" y="210" text-anchor="middle" font-size="11.5" font-weight="600">bytes 0&ndash;15</text>
+          <text class="s-sym" x="141" y="226" text-anchor="middle" font-size="10">&rarr; AES key K</text>
+
+          <rect x="262" y="190" width="242" height="46" rx="3" class="fill-sym" stroke-width="1.4"/>
+          <text class="s-sym" x="383" y="210" text-anchor="middle" font-size="11.5" font-weight="600">bytes 16&ndash;31</text>
+          <text class="s-sym" x="383" y="226" text-anchor="middle" font-size="10">&rarr; IV</text>
+
+          <text x="524" y="208" font-size="10.5" opacity=".7">both halves change per message,</text>
+          <text x="524" y="224" font-size="10.5" opacity=".7">so the invariant is structural</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>
+      <b>Fig 7</b> The entire difference between the two constants. VariableIV removes the standing assumption
+      that the derived key is never reused, by making the IV vary with it.
+    </figcaption>
+  </figure>
+
+  <div class="tablewrap">
+    <table class="data">
+      <thead><tr><th>Property</th><th>Legacy</th><th>VariableIV</th></tr></thead>
+      <tbody>
+        <tr><td>Key derivation</td><td class="mono">X9.63 SHA-256, 16 B</td><td class="mono">X9.63 SHA-256, 32 B</td></tr>
+        <tr><td>IV</td><td class="mono">16 &times; 0x00, constant</td><td class="mono">KDF bytes 16&ndash;31</td></tr>
+        <tr><td>Blob size, 44-byte payload</td><td class="mono">125 B</td><td class="mono">125 B</td></tr>
+        <tr><td>Cross-readable</td><td colspan="2"><span class="pill no">no</span> &nbsp;a VariableIV blob is rejected by the Legacy constant, and the sizes give no hint</td></tr>
+        <tr><td>Apple's guidance</td><td><span class="pill wn">use the other one</span></td><td><span class="pill ok">preferred</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    That last row is the whole migration problem. The two formats are indistinguishable by length, so
+    switching constants silently invalidates every stored blob — for this plugin, every enrolled user's
+    biometric wrap. It is a one-word code change and a real migration: keep a version marker alongside the
+    blob, try the new constant first, fall back to the old one, and re-wrap on the next successful unlock.
+  </p>
+
+  <div class="okbox">
+    <p>
+      <strong>Priority, honestly.</strong> Nothing is exploitable today. The case for moving is that it
+      deletes a fragile invariant, and that Apple will eventually stop carrying the legacy path. It belongs on
+      a roadmap, not in a hotfix.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════ FAMILY ══════════════ -->
+<section id="family">
+  <div class="eyebrow">Context</div>
+  <h2>One of twenty siblings</h2>
+
+  <p class="lead">
+    The constant sits in a small combinatorial family: two ECDH flavours &times; five hash functions &times;
+    two IV strategies. Twenty names, one construction.
+  </p>
+
+  <div class="tablewrap">
+    <table class="data">
+      <thead><tr><th>Axis</th><th>Options</th><th>What is in use, and why</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>ECDH flavour</td>
+          <td class="mono">Standard &middot; Cofactor</td>
+          <td>Cofactor — indistinguishable from Standard on P-256, so the choice is stylistic</td>
+        </tr>
+        <tr>
+          <td>KDF hash</td>
+          <td class="mono">SHA-1 &middot; 224 &middot; 256 &middot; 384 &middot; 512</td>
+          <td>SHA-256 — matched to the curve; a longer hash buys nothing when the request is 16 bytes</td>
+        </tr>
+        <tr>
+          <td>IV strategy</td>
+          <td class="mono">Legacy &middot; VariableIV</td>
+          <td>Legacy — the one Apple recommends replacing</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    The plugin does not hard-code an assumption that any of these are available: before both encrypt and
+    decrypt it calls <code>SecKeyIsAlgorithmSupported</code> and throws a typed error if the answer is no.
+    That check is cheap and correct, and it is what a migration would hang off.
+  </p>
+
+  <div class="src">
+    <div class="src-head">
+      <span><b>packages/biometric_cipher/darwin/Classes/Managers/SecureEnclaveManager.swift</b> : 147&ndash;158</span>
+      <span>Swift</span>
+    </div>
+<pre><span class="k">let</span> algorithm: SecKeyAlgorithm = <span class="hl">.eciesEncryptionCofactorX963SHA256AESGCM</span>
+
+<span class="c">// Verification of encryption algorithm support for the public key</span>
+<span class="k">guard</span> keychainService.isAlgorithmSupported(key: publicKey,
+                                           operation: .encrypt,
+                                           algorithm: algorithm) <span class="k">else</span> {
+    <span class="k">throw</span> SecureEnclaveManagerError.encryptionAlgorithmNotSupported
+}
+
+<span class="k">return</span> <span class="k">try</span> keychainService.encryptData(key: publicKey,
+                                      algorithm: algorithm,
+                                      data: encryptionData) <span class="k">as</span> Data</pre>
+  </div>
+</section>
+
+<!-- ══════════════ SUMMARY ══════════════ -->
+<section id="summary">
+  <div class="eyebrow">In one paragraph</div>
+  <h2>The whole mechanism, restated</h2>
+
+  <p class="lead">
+    Generate a throwaway P-256 keypair. Multiply its private half against the Secure Enclave's public point
+    to get a 32-byte shared secret. Hash that secret together with a counter and the throwaway public key,
+    and keep the first 16 bytes of the digest as an AES-128 key. Encrypt the payload with AES-GCM under a
+    fixed all-zero IV, safe because the key is never reused. Ship the throwaway public key, the ciphertext
+    and the 16-byte tag as one 125-byte blob. To open it, hand the throwaway public key back to the enclave,
+    pass a biometric check, and repeat the derivation from the other side.
+  </p>
+
+  <p>
+    Nothing in that sentence is configurable. The one word of it that carries a design decision is
+    <em>fixed</em>, and the fix for that is a constant rename plus a migration.
+  </p>
+</section>
+
+</main>
+
+<footer>
+  <p>
+    Sources: <code>MacOSX.sdk 26.5 / Security.framework / SecKey.h</code>, lines 1110&ndash;1300;
+    <code>packages/biometric_cipher/darwin/Classes/Managers/SecureEnclaveManager.swift</code> at the revision
+    pinned in <code>pubspec.lock</code>. All measured values come from Swift programs run against the local
+    SDK on macOS 26.5, using a software P-256 key so the private scalar was available for independent
+    cross-checks; the Secure Enclave differs only in where that scalar lives.
+  </p>
+  <p style="margin-top:14px">
+    Companion to the <a href="01-biometric-cipher-teardown.html">Biometric Cipher Teardown</a>,
+    which covers the Android and Windows backends and the AW-321 recommendation.
+  </p>
+</footer>
+
+</div>
+</body>
+</html>

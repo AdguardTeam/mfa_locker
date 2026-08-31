@@ -1,8 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style>
 <title>ECIES Viewing List</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +24,7 @@
     --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --ground: #0A0C13; --surface: #12151F; --surface-2: #1A1E2B; --surface-3: #222739;
       --border: #262C3D; --border-firm: #3A4258;
       --ink: #E7EAF2; --ink-2: #A9B2C6; --ink-3: #7A8399;
@@ -33,6 +34,15 @@
       --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 28px -14px rgba(0,0,0,.7);
     }
   }
+  :root[data-theme="dark"] {
+      --ground: #0A0C13; --surface: #12151F; --surface-2: #1A1E2B; --surface-3: #222739;
+      --border: #262C3D; --border-firm: #3A4258;
+      --ink: #E7EAF2; --ink-2: #A9B2C6; --ink-3: #7A8399;
+      --asym: #9E93FF; --asym-soft: #1E1A44;
+      --sym: #47C8AF; --sym-soft: #0C2B27;
+      --warn: #DCAC44; --warn-bg: #2B2213;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 28px -14px rgba(0,0,0,.7);
+    }
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--ground); color: var(--ink);
@@ -103,7 +113,7 @@
 <div class="wrap">
 
 <header class="hero">
-  <div class="eyebrow">Companion note / <a href="AW-3303-artifacts/04-ecies-byte-by-byte.html">ECIES, Byte by Byte</a> / AW-321</div>
+  <div class="eyebrow">Companion note / <a href="04-ecies-byte-by-byte.html">ECIES, Byte by Byte</a> / AW-321</div>
   <h1>ECIES Viewing List</h1>
   <p class="lede">
     One or two videos per word in the constant, chosen to match the depth of the teardown. Titles and channels were
@@ -252,8 +262,8 @@
 </section>
 
 <footer>
-  <p>Companion to <a href="AW-3303-artifacts/04-ecies-byte-by-byte.html">ECIES, Byte by Byte</a>
-  and <a href="AW-3303-artifacts/05-the-missing-scalar.html">The Missing Scalar</a>.
+  <p>Companion to <a href="04-ecies-byte-by-byte.html">ECIES, Byte by Byte</a>
+  and <a href="05-the-missing-scalar.html">The Missing Scalar</a>.
   Channel and title metadata checked via YouTube oEmbed on 2026-08-28.</p>
 </footer>
 

@@ -1,0 +1,670 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style>
+<title>The Missing Scalar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+  :root {
+    --ground:      #F1F3F8;
+    --surface:     #FFFFFF;
+    --surface-2:   #E8EBF3;
+    --surface-3:   #DDE2ED;
+    --border:      #D4D9E6;
+    --border-firm: #B4BCD0;
+    --ink:         #12151E;
+    --ink-2:       #414A5E;
+    --ink-3:       #6D7689;
+
+    --secret:      #4B3FCC;
+    --secret-soft: #E5E2FB;
+    --sym:         #0D7566;
+    --sym-soft:    #D6EDE8;
+    --bad:         #99271F;
+    --bad-bg:      #F6DFDC;
+    --ok:          #17654A;
+    --ok-bg:       #DDEEE5;
+    --warn:        #8A5A08;
+    --warn-bg:     #F6EAD2;
+
+    --shadow: 0 1px 2px rgba(18,21,30,.05), 0 10px 28px -14px rgba(18,21,30,.16);
+    --measure: 66ch;
+    --f-display: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --f-body: "Spectral", ui-serif, Georgia, serif;
+    --f-ui: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0A0C13; --surface: #12151F; --surface-2: #1A1E2B; --surface-3: #222739;
+      --border: #262C3D; --border-firm: #3A4258;
+      --ink: #E7EAF2; --ink-2: #A9B2C6; --ink-3: #7A8399;
+      --secret: #9E93FF; --secret-soft: #1E1A44;
+      --sym: #47C8AF; --sym-soft: #0C2B27;
+      --bad: #F08D7C; --bad-bg: #2E1815;
+      --ok: #5FC492; --ok-bg: #12291F;
+      --warn: #DCAC44; --warn-bg: #2B2213;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 28px -14px rgba(0,0,0,.7);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0A0C13; --surface: #12151F; --surface-2: #1A1E2B; --surface-3: #222739;
+    --border: #262C3D; --border-firm: #3A4258;
+    --ink: #E7EAF2; --ink-2: #A9B2C6; --ink-3: #7A8399;
+    --secret: #9E93FF; --secret-soft: #1E1A44;
+    --sym: #47C8AF; --sym-soft: #0C2B27;
+    --bad: #F08D7C; --bad-bg: #2E1815;
+    --ok: #5FC492; --ok-bg: #12291F;
+    --warn: #DCAC44; --warn-bg: #2B2213;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 28px -14px rgba(0,0,0,.7);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 28px 96px; }
+
+  header.hero { padding-top: 64px; }
+  .eyebrow {
+    font-family: var(--f-ui); font-size: 11.5px; font-weight: 500;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .eyebrow a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--border-firm); }
+  h1 {
+    font-family: var(--f-display); font-weight: 600; font-size: 40px; line-height: 1.1;
+    letter-spacing: -.02em; margin: 14px 0 0; text-wrap: balance;
+  }
+  .lede { max-width: var(--measure); margin: 22px 0 0; font-size: 19px; line-height: 1.55; color: var(--ink-2); }
+
+  .objection {
+    max-width: var(--measure); margin: 34px 0 0; padding: 18px 22px;
+    background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--bad);
+    border-radius: 7px; box-shadow: var(--shadow);
+  }
+  .objection .lab { font-family: var(--f-ui); font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--bad); }
+  .objection p { margin: 8px 0 0; font-style: italic; color: var(--ink-2); }
+  .answer {
+    max-width: var(--measure); margin: 14px 0 0; padding: 18px 22px;
+    background: var(--ok-bg); border: 1px solid var(--border); border-left: 3px solid var(--ok);
+    border-radius: 7px;
+  }
+  .answer .lab { font-family: var(--f-ui); font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--ok); }
+  .answer p { margin: 8px 0 0; color: var(--ink); }
+
+  section { margin-top: 64px; }
+  .kicker { font-family: var(--f-ui); font-size: 11.5px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+  h2 { font-family: var(--f-display); font-weight: 600; font-size: 24px; line-height: 1.25; letter-spacing: -.015em; margin: 8px 0 0; text-wrap: balance; }
+  p { max-width: var(--measure); margin: 18px 0 0; }
+  code, .m { font-family: var(--f-mono); font-size: .86em; background: var(--surface-2); padding: 1px 5px; border-radius: 3px; color: var(--ink); }
+  b.sec { color: var(--secret); font-weight: 600; }
+  b.pub { color: var(--ink-2); font-weight: 600; }
+  b.key { color: var(--sym); font-weight: 600; }
+
+  figure {
+    margin: 34px 0 0; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; box-shadow: var(--shadow); overflow: hidden;
+  }
+  .fig-body { padding: 22px 20px 6px; overflow-x: auto; }
+  .fig-body svg { display: block; width: 100%; min-width: 640px; height: auto; color: var(--ink-2); font-family: var(--f-ui); }
+  figcaption { padding: 14px 20px 16px; border-top: 1px solid var(--border); font-family: var(--f-ui); font-size: 13px; line-height: 1.55; color: var(--ink-3); }
+  figcaption b { color: var(--ink-2); font-weight: 600; letter-spacing: .05em; text-transform: uppercase; font-size: 11px; margin-right: 8px; }
+
+  /* svg palette */
+  .f-secret { fill: var(--secret); }
+  .f-secret-soft { fill: var(--secret-soft); stroke: var(--secret); }
+  .f-pub { fill: var(--surface); stroke: var(--ink-3); }
+  .f-sym { fill: var(--sym-soft); stroke: var(--sym); }
+  .f-bad { fill: var(--bad-bg); stroke: var(--bad); }
+  .f-neutral { fill: var(--surface-2); stroke: var(--border-firm); }
+  .t-secret { fill: var(--secret); }
+  .t-sym { fill: var(--sym); }
+  .t-bad { fill: var(--bad); }
+  .t-ink { fill: var(--ink); }
+  .t-3 { fill: var(--ink-3); }
+  .s-bad { stroke: var(--bad); }
+  .s-sym { stroke: var(--sym); }
+  .s-secret { stroke: var(--secret); }
+  .mono { font-family: var(--f-mono); }
+
+  .tablewrap { margin: 28px 0 0; overflow-x: auto; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
+  table.data { width: 100%; min-width: 600px; border-collapse: collapse; font-family: var(--f-ui); font-size: 13.5px; }
+  table.data th { text-align: left; padding: 11px 14px; background: var(--surface-2); border-bottom: 1px solid var(--border); font-weight: 600; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
+  table.data td { padding: 11px 14px; border-bottom: 1px solid var(--border); color: var(--ink-2); vertical-align: top; line-height: 1.5; }
+  table.data tr:last-child td { border-bottom: none; }
+  table.data td.sym { font-family: var(--f-mono); font-size: 13px; color: var(--ink); white-space: nowrap; }
+  .pill { display: inline-block; font-family: var(--f-ui); font-size: 11px; font-weight: 600; letter-spacing: .05em; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+  .pill.sec { background: var(--secret-soft); color: var(--secret); }
+  .pill.pub { background: var(--surface-2); color: var(--ink-2); }
+  .pill.no { background: var(--bad-bg); color: var(--bad); }
+
+  .note, .warnbox {
+    max-width: var(--measure); margin: 26px 0 0; padding: 16px 18px; border-radius: 7px;
+    font-family: var(--f-ui); font-size: 14.5px; line-height: 1.58; border: 1px solid var(--border); background: var(--surface);
+  }
+  .note { border-left: 3px solid var(--secret); }
+  .warnbox { border-left: 3px solid var(--warn); background: var(--warn-bg); }
+  .note p, .warnbox p { max-width: none; margin: 10px 0 0; }
+  .note p:first-child, .warnbox p:first-child { margin-top: 0; }
+  .note strong, .warnbox strong { font-weight: 600; }
+
+  footer { margin-top: 64px; padding-top: 26px; border-top: 1px solid var(--border); font-family: var(--f-ui); font-size: 12.5px; color: var(--ink-3); max-width: var(--measure); }
+  footer p { max-width: none; }
+  footer a { color: var(--ink-2); }
+
+  @media (max-width: 700px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 18px 80px; }
+    header.hero { padding-top: 48px; }
+    h1 { font-size: 32px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">Companion note / <a href="04-ecies-byte-by-byte.html">ECIES, Byte by Byte</a> / AW-321</div>
+  <h1>The Missing Scalar</h1>
+  <p class="lede">
+    The header says the AES key is <em>negotiated</em> using the public key. It never says
+    <em>derived from</em> the public key — and the difference is one secret number that exists for a few
+    microseconds and is never written down.
+  </p>
+
+  <div class="objection">
+    <div class="lab">The objection</div>
+    <p>“The symmetric key is generated from the public key. The public key is public. So anyone can regenerate the
+    symmetric key and decrypt the blob.”</p>
+  </div>
+  <div class="answer">
+    <div class="lab">The correction</div>
+    <p>The key is generated from a <b class="sec">secret scalar</b> multiplied by a <b class="pub">public point</b>.
+    There are exactly two (scalar, point) pairs that reach it — the sender's and the enclave's — and every party
+    who holds only public data holds two points and no scalar. Two points cannot be multiplied together.</p>
+  </div>
+</header>
+
+<section>
+  <div class="kicker">Notation</div>
+  <h2>Three kinds of symbol, one operation</h2>
+  <p>
+    Everything below is written in terms of integers called <em>scalars</em> (d), points on the curve (Q), and one
+    fixed point everybody shares (G). A public key is what you get when you multiply G by your scalar; that
+    multiplication is the only operation the whole scheme uses.
+  </p>
+
+  <div class="tablewrap">
+    <table class="data">
+      <thead><tr><th>Symbol</th><th>What it is</th><th>Where it comes from</th><th>Who knows it</th></tr></thead>
+      <tbody>
+        <tr><td class="sym">G</td><td>the <b>base point</b> of P-256 — a fixed (x, y) on the curve</td><td>published in the curve standard; baked into every P-256 implementation, enclave included</td><td><span class="pill pub">everyone</span></td></tr>
+        <tr><td class="sym">n</td><td>the order of G — how many distinct multiples of G exist (≈ 2²⁵⁶)</td><td>same standard</td><td><span class="pill pub">everyone</span></td></tr>
+        <tr><td class="sym">d<sub>s</sub></td><td>the enclave's <b>static private scalar</b> — a random integer in [1, n−1]</td><td>drawn by the Secure Enclave's hardware RNG when <code>SecKeyCreateRandomKey</code> runs with <code>kSecAttrTokenIDSecureEnclave</code> (<code>SecureEnclaveManager.swift:41–43</code> → <code>KeychainService.swift:6</code>)</td><td><span class="pill sec">enclave only</span></td></tr>
+        <tr><td class="sym">Q<sub>s</sub> = d<sub>s</sub>·G</td><td>the enclave's <b>static public point</b></td><td>computed by the enclave once, returned to the app; read later via <code>SecKeyCopyPublicKey</code> (<code>KeychainService.swift:33</code>), no auth</td><td><span class="pill pub">everyone</span></td></tr>
+        <tr><td class="sym">d<sub>e</sub></td><td>the <b>ephemeral private scalar</b> — a random integer in [1, n−1]</td><td>drawn by the Security framework in the app process, inside <code>SecKeyCreateEncryptedData</code>, per call</td><td><span class="pill sec">sender, briefly</span></td></tr>
+        <tr><td class="sym">Q<sub>e</sub> = d<sub>e</sub>·G</td><td>the <b>ephemeral public point</b></td><td>computed from d<sub>e</sub>; shipped as the first 65 bytes of the blob</td><td><span class="pill pub">everyone</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    G is not chosen per key and not secret. It is the "unit" of the system, the way 1 is the unit of the integers.
+    For P-256 its coordinates, and the order n, are:
+  </p>
+  <blockquote class="spec" style="max-width:var(--measure);margin:18px 0 0;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--border-firm);border-radius:7px;font-family:var(--f-mono);font-size:12px;line-height:1.7;color:var(--ink-2);overflow-x:auto;">
+G<sub>x</sub> = 6B17D1F2 E12C4247 F8BCE6E5 63A440F2 77037D81 2DEB33A0 F4A13945 D898C296<br>
+G<sub>y</sub> = 4FE342E2 FE1A7F9B 8EE7EB4A 7C0F9E16 2BCE3357 6B315ECE CBB64068 37BF51F5<br>
+n&nbsp;&nbsp;= FFFFFFFF 00000000 FFFFFFFF FFFFFFFF BCE6FAAD A7179E84 F3B9CAC2 FC632551
+    <cite style="display:block;margin-top:10px;font-family:var(--f-ui);font-style:normal;font-size:11.5px;color:var(--ink-3);">NIST FIPS 186-4 / SEC 2, curve secp256r1 ("P-256")</cite>
+  </blockquote>
+
+  <p>
+    <b>k·G</b> means "add G to itself k times" under the curve's point-addition rule. It is computed by
+    double-and-add — about 256 doublings and additions — not by k separate steps. Going forward from a scalar to a
+    point is cheap; going back from a point to the scalar that produced it is the discrete-log problem.
+  </p>
+
+  <figure>
+    <div class="fig-body">
+      <svg viewBox="0 0 760 170" role="img" aria-label="A secret scalar d is multiplied by the shared base point G to produce a public point Q in about 256 curve operations. The reverse arrow, from Q back to d, is crossed out as the discrete-log problem.">
+        <defs>
+          <marker id="arr0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <!-- d -->
+        <rect x="40" y="48" width="170" height="52" rx="6" class="f-secret-soft" stroke-width="1.5"/>
+        <text x="125" y="70" text-anchor="middle" font-size="14" font-weight="600" class="t-secret mono">d</text>
+        <text x="125" y="88" text-anchor="middle" font-size="10.5" class="t-secret">random integer in [1, n−1]</text>
+
+        <!-- ×G operation -->
+        <line x1="210" y1="74" x2="300" y2="74" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr0)"/>
+        <rect x="302" y="50" width="150" height="48" rx="6" class="f-neutral" stroke-width="1.5"/>
+        <text x="377" y="70" text-anchor="middle" font-size="13" font-weight="600" class="t-ink mono">· G</text>
+        <text x="377" y="86" text-anchor="middle" font-size="10" class="t-3">double-and-add · ~256 steps</text>
+        <line x1="452" y1="74" x2="540" y2="74" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr0)"/>
+
+        <!-- Q -->
+        <rect x="542" y="48" width="178" height="52" rx="6" class="f-pub" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="631" y="70" text-anchor="middle" font-size="14" font-weight="600" class="t-ink mono">Q = d · G</text>
+        <text x="631" y="88" text-anchor="middle" font-size="10.5" class="t-3">a point (x, y) — public</text>
+
+        <!-- G source -->
+        <rect x="322" y="6" width="110" height="26" rx="5" class="f-pub" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="377" y="23" text-anchor="middle" font-size="10.5" class="t-3">G · fixed, public</text>
+        <line x1="377" y1="32" x2="377" y2="48" stroke="currentColor" stroke-width="1" marker-end="url(#arr0)"/>
+
+        <!-- reverse, crossed -->
+        <path d="M 600 100 C 600 140, 160 140, 150 100" fill="none" class="s-bad" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arr0)"/>
+        <circle cx="377" cy="130" r="12" class="f-bad" stroke-width="1.5"/>
+        <line x1="369" y1="122" x2="385" y2="138" class="s-bad" stroke-width="2"/>
+        <line x1="385" y1="122" x2="369" y2="138" class="s-bad" stroke-width="2"/>
+        <text x="377" y="160" text-anchor="middle" font-size="10.5" class="t-bad">Q → d is the discrete-log problem · ~2¹²⁸ curve operations on P-256</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 0</b> The single operation the scheme is built on. Both keypairs in this note — the enclave's
+    (d<sub>s</sub>, Q<sub>s</sub>) and the ephemeral (d<sub>e</sub>, Q<sub>e</sub>) — are exactly this picture run once
+    with a different random d. The forward arrow is cheap; the return arrow is the entire security assumption.</figcaption>
+  </figure>
+
+  <p>
+    One consequence of "multiplication is repeated addition" is that the scalars commute. Adding G to itself
+    d<sub>s</sub> times and then repeating that d<sub>e</sub> times is adding G to itself d<sub>e</sub>·d<sub>s</sub>
+    times, in whichever order you like:
+  </p>
+  <p style="font-family:var(--f-mono); font-size:14px; color:var(--ink)">
+    <b class="sec">d<sub>e</sub></b> · <b class="pub">Q<sub>s</sub></b>
+    &nbsp;=&nbsp; d<sub>e</sub> · (d<sub>s</sub> · G)
+    &nbsp;=&nbsp; (d<sub>e</sub> · d<sub>s</sub>) · G
+    &nbsp;=&nbsp; d<sub>s</sub> · (d<sub>e</sub> · G)
+    &nbsp;=&nbsp; <b class="sec">d<sub>s</sub></b> · <b class="pub">Q<sub>e</sub></b>
+  </p>
+  <p>
+    That identity is the whole reason two parties can land on the same point without either learning the other's
+    scalar — and it is the identity the next section draws.
+  </p>
+</section>
+
+<section>
+  <div class="kicker">The mechanism</div>
+  <h2>Two roads to Z, and neither one is paved with public data</h2>
+  <p>
+    Start from what the sender actually does. Before it touches the enclave's public key <b class="pub">Q<sub>s</sub></b>
+    at all, it draws a random 256-bit number <b class="sec">d<sub>e</sub></b> — a fresh secret that nobody else
+    has ever seen. Then it computes one product on the curve:
+  </p>
+  <p style="font-family:var(--f-mono); font-size:15px; color:var(--ink)">
+    Z &nbsp;=&nbsp; <b class="sec">d<sub>e</sub></b> · <b class="pub">Q<sub>s</sub></b>
+  </p>
+  <p>
+    That is where the confidentiality comes from. Q<sub>s</sub> is public, yes — but Z is not a function of
+    Q<sub>s</sub> alone; it is a function of Q<sub>s</sub> <em>and d<sub>e</sub></em>, and d<sub>e</sub> is
+    known to precisely one process for precisely one call.
+  </p>
+  <p>
+    The enclave reaches the same Z from the other side, because
+    Q<sub>s</sub> = d<sub>s</sub>·G and Q<sub>e</sub> = d<sub>e</sub>·G, so
+    d<sub>e</sub>·Q<sub>s</sub> = d<sub>e</sub>·d<sub>s</sub>·G = d<sub>s</sub>·Q<sub>e</sub>. Each side
+    multiplies <em>its own secret</em> by <em>the other side's public point</em>. Nobody ever multiplies two
+    public points, because on an elliptic curve that operation does not exist.
+  </p>
+
+  <figure>
+    <div class="fig-body">
+      <svg viewBox="0 0 760 400" role="img" aria-label="Z is reached from the left by the sender's secret scalar times the enclave's public point, and from the right by the enclave's secret scalar times the ephemeral public point. The attacker, holding only the two public points, has no path to Z.">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="arr-sym" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" class="f-sym" stroke="none"/>
+          </marker>
+        </defs>
+
+        <!-- column headers -->
+        <text x="140" y="26" text-anchor="middle" font-size="11" letter-spacing="1.5" class="t-3">SENDER — ANY PROCESS, NO AUTH</text>
+        <text x="620" y="26" text-anchor="middle" font-size="11" letter-spacing="1.5" class="t-3">SECURE ENCLAVE</text>
+
+        <!-- sender: d_e (secret) -->
+        <rect x="50" y="48" width="180" height="46" rx="6" class="f-secret-soft" stroke-width="1.5"/>
+        <text x="140" y="68" text-anchor="middle" font-size="14" font-weight="600" class="t-secret mono">d<tspan baseline-shift="sub" font-size="10">e</tspan></text>
+        <text x="140" y="85" text-anchor="middle" font-size="11" class="t-secret">random · this call only · then zeroed</text>
+
+        <!-- sender: Q_s (public) -->
+        <rect x="50" y="146" width="180" height="46" rx="6" class="f-pub" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="140" y="166" text-anchor="middle" font-size="14" font-weight="600" class="t-ink mono">Q<tspan baseline-shift="sub" font-size="10">s</tspan></text>
+        <text x="140" y="183" text-anchor="middle" font-size="11" class="t-3">enclave public key · anyone can read</text>
+
+        <!-- enclave: d_s (secret) -->
+        <rect x="530" y="48" width="180" height="46" rx="6" class="f-secret-soft" stroke-width="1.5"/>
+        <text x="620" y="68" text-anchor="middle" font-size="14" font-weight="600" class="t-secret mono">d<tspan baseline-shift="sub" font-size="10">s</tspan></text>
+        <text x="620" y="85" text-anchor="middle" font-size="11" class="t-secret">never leaves the enclave</text>
+
+        <!-- enclave: Q_e (public) -->
+        <rect x="530" y="146" width="180" height="46" rx="6" class="f-pub" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="620" y="166" text-anchor="middle" font-size="14" font-weight="600" class="t-ink mono">Q<tspan baseline-shift="sub" font-size="10">e</tspan></text>
+        <text x="620" y="183" text-anchor="middle" font-size="11" class="t-3">ephemeral public key · in the blob</text>
+
+        <!-- multiply nodes -->
+        <circle cx="290" cy="120" r="13" class="f-neutral" stroke-width="1.5"/>
+        <text x="290" y="125" text-anchor="middle" font-size="15" font-weight="600" class="t-ink">×</text>
+        <circle cx="470" cy="120" r="13" class="f-neutral" stroke-width="1.5"/>
+        <text x="470" y="125" text-anchor="middle" font-size="15" font-weight="600" class="t-ink">×</text>
+
+        <!-- lines into multiply nodes -->
+        <line x1="230" y1="71" x2="280" y2="110" stroke="currentColor" stroke-width="1.5"/>
+        <line x1="230" y1="169" x2="280" y2="130" stroke="currentColor" stroke-width="1.5"/>
+        <line x1="530" y1="71" x2="480" y2="110" stroke="currentColor" stroke-width="1.5"/>
+        <line x1="530" y1="169" x2="480" y2="130" stroke="currentColor" stroke-width="1.5"/>
+
+        <!-- arrows into Z -->
+        <line x1="303" y1="120" x2="346" y2="120" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="457" y1="120" x2="414" y2="120" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr)"/>
+        <text x="324" y="112" text-anchor="middle" font-size="10" class="t-3">encrypt</text>
+        <text x="436" y="112" text-anchor="middle" font-size="10" class="t-3">decrypt</text>
+
+        <!-- Z -->
+        <circle cx="380" cy="120" r="30" class="f-sym" stroke-width="1.5"/>
+        <text x="380" y="118" text-anchor="middle" font-size="15" font-weight="600" class="t-sym mono">Z</text>
+        <text x="380" y="132" text-anchor="middle" font-size="9.5" class="t-sym">32 B secret</text>
+
+        <!-- Z -> KDF -> K -->
+        <line x1="380" y1="150" x2="380" y2="186" class="s-sym" stroke-width="1.5" marker-end="url(#arr-sym)"/>
+        <rect x="322" y="188" width="116" height="34" rx="5" class="f-sym" stroke-width="1.5"/>
+        <text x="380" y="209" text-anchor="middle" font-size="11.5" class="t-sym">X9.63 KDF · SHA-256</text>
+        <line x1="380" y1="222" x2="380" y2="256" class="s-sym" stroke-width="1.5" marker-end="url(#arr-sym)"/>
+        <rect x="335" y="258" width="90" height="38" rx="5" class="f-sym" stroke-width="1.5"/>
+        <text x="380" y="275" text-anchor="middle" font-size="14" font-weight="600" class="t-sym mono">K</text>
+        <text x="380" y="289" text-anchor="middle" font-size="9.5" class="t-sym">AES-128 key</text>
+
+        <!-- attacker box -->
+        <rect x="50" y="318" width="240" height="62" rx="6" class="f-bad" stroke-width="1.5" stroke-dasharray="5 3"/>
+        <text x="170" y="339" text-anchor="middle" font-size="11" letter-spacing="1.5" class="t-bad">ATTACKER HOLDS</text>
+        <text x="170" y="358" text-anchor="middle" font-size="13" font-weight="600" class="t-bad mono">Q<tspan baseline-shift="sub" font-size="10">s</tspan> , Q<tspan baseline-shift="sub" font-size="10">e</tspan></text>
+        <text x="170" y="372" text-anchor="middle" font-size="10.5" class="t-bad">two points, zero scalars</text>
+
+        <!-- attacker's attempted edge -->
+        <line x1="240" y1="316" x2="352" y2="146" class="s-bad" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <circle cx="296" cy="231" r="12" class="f-bad" stroke-width="1.5"/>
+        <line x1="288" y1="223" x2="304" y2="239" class="s-bad" stroke-width="2"/>
+        <line x1="304" y1="223" x2="288" y2="239" class="s-bad" stroke-width="2"/>
+        <text x="322" y="322" font-size="10.5" class="t-bad">point × point is not an operation;</text>
+        <text x="322" y="336" font-size="10.5" class="t-bad">point ÷ G (to recover a scalar) is ECDLP</text>
+
+        <!-- legend -->
+        <rect x="530" y="322" width="14" height="14" rx="3" class="f-secret-soft" stroke-width="1.5"/>
+        <text x="551" y="333" font-size="10.5" class="t-3">secret scalar — one holder each</text>
+        <rect x="530" y="346" width="14" height="14" rx="3" class="f-pub" stroke-width="1.5" stroke-dasharray="3 2"/>
+        <text x="551" y="357" font-size="10.5" class="t-3">public point — anyone</text>
+        <rect x="530" y="370" width="14" height="14" rx="3" class="f-sym" stroke-width="1.5"/>
+        <text x="551" y="381" font-size="10.5" class="t-3">derived — never stored</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 1</b> Every road into Z starts at a purple box. The sender uses its own scalar against the
+    enclave's point; the enclave uses its own scalar against the sender's point. The attacker's inventory is the two
+    dashed boxes — and there is no arithmetic that takes two dashed boxes to Z.</figcaption>
+  </figure>
+
+  <div class="note">
+    <p><strong>Where the phrase “from the public key” comes from.</strong> The Security framework API is
+    <code>SecKeyCreateEncryptedData(publicKey, …)</code>: the <em>only</em> key you hand it is Q<sub>s</sub>.
+    So documentation says the key is negotiated “with the public key”. The random d<sub>e</sub> is an internal detail
+    the API never shows you, which is why the sentence reads as if Q<sub>s</sub> were the sole input.</p>
+  </div>
+</section>
+
+<section>
+  <div class="kicker">The ephemeral secret</div>
+  <h2>A number that exists for one multiplication</h2>
+  <p>
+    The whole scheme rests on d<sub>e</sub> being unavailable afterwards, so it is worth being precise about its
+    lifetime. It is generated inside <code>SecKeyCreateEncryptedData</code>, used twice — once to make
+    Q<sub>e</sub>, once to make Z — and then discarded. It is not returned to the caller, not written to the
+    keychain, and not placed in the blob. What goes in the blob is Q<sub>e</sub> = d<sub>e</sub>·G, which is a
+    one-way image of it.
+  </p>
+
+  <figure>
+    <div class="fig-body">
+      <svg viewBox="0 0 760 230" role="img" aria-label="Timeline of one encryption call: the ephemeral scalar is born, produces the ephemeral public point and the shared secret, then is zeroed. The public point outlives it in the blob, and the arrow from public point back to scalar is crossed out as the discrete-log problem.">
+        <defs>
+          <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <!-- time axis -->
+        <line x1="40" y1="60" x2="720" y2="60" stroke="currentColor" stroke-width="1" marker-end="url(#arr2)"/>
+        <text x="40" y="44" font-size="10.5" letter-spacing="1.5" class="t-3">ONE CALL TO SecKeyCreateEncryptedData</text>
+        <text x="718" y="44" text-anchor="end" font-size="10.5" letter-spacing="1.5" class="t-3">AFTER THE CALL</text>
+
+        <!-- d_e lane -->
+        <text x="40" y="106" font-size="10.5" letter-spacing="1.2" class="t-secret">d<tspan baseline-shift="sub" font-size="8">e</tspan> LIFETIME</text>
+        <line x1="150" y1="102" x2="470" y2="102" class="s-secret" stroke-width="6" stroke-linecap="round"/>
+        <line x1="470" y1="102" x2="720" y2="102" stroke="currentColor" stroke-width="1" stroke-dasharray="2 4" opacity=".5"/>
+
+        <!-- events on d_e lane -->
+        <circle cx="150" cy="102" r="5" class="f-secret"/>
+        <text x="150" y="128" text-anchor="middle" font-size="11" class="t-ink">random 256-bit</text>
+        <text x="150" y="142" text-anchor="middle" font-size="11" class="t-ink">d<tspan baseline-shift="sub" font-size="8">e</tspan> drawn</text>
+
+        <circle cx="290" cy="102" r="5" class="f-secret"/>
+        <text x="290" y="128" text-anchor="middle" font-size="11" class="t-ink">Q<tspan baseline-shift="sub" font-size="8">e</tspan> = d<tspan baseline-shift="sub" font-size="8">e</tspan>·G</text>
+        <text x="290" y="142" text-anchor="middle" font-size="11" class="t-3">one-way</text>
+
+        <circle cx="400" cy="102" r="5" class="f-secret"/>
+        <text x="400" y="128" text-anchor="middle" font-size="11" class="t-ink">Z = d<tspan baseline-shift="sub" font-size="8">e</tspan>·Q<tspan baseline-shift="sub" font-size="8">s</tspan></text>
+        <text x="400" y="142" text-anchor="middle" font-size="11" class="t-3">→ KDF → K → AES</text>
+
+        <circle cx="470" cy="102" r="6" class="f-bad" stroke-width="1.5"/>
+        <line x1="466" y1="98" x2="474" y2="106" class="s-bad" stroke-width="1.5"/>
+        <line x1="474" y1="98" x2="466" y2="106" class="s-bad" stroke-width="1.5"/>
+        <text x="470" y="128" text-anchor="middle" font-size="11" class="t-bad">d<tspan baseline-shift="sub" font-size="8">e</tspan> zeroed</text>
+        <text x="470" y="142" text-anchor="middle" font-size="11" class="t-bad">never stored</text>
+
+        <!-- Q_e lane -->
+        <text x="40" y="186" font-size="10.5" letter-spacing="1.2" class="t-3">Q<tspan baseline-shift="sub" font-size="8">e</tspan> LIFETIME</text>
+        <line x1="290" y1="182" x2="720" y2="182" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 6"/>
+        <circle cx="290" cy="182" r="5" class="f-pub" stroke-width="1.5"/>
+        <line x1="290" y1="107" x2="290" y2="177" stroke="currentColor" stroke-width="1" marker-end="url(#arr2)"/>
+        <text x="600" y="206" text-anchor="middle" font-size="11" class="t-3">first 65 bytes of the blob, public forever</text>
+
+        <!-- crossed back-arrow -->
+        <path d="M 560 176 C 560 150, 530 118, 480 108" fill="none" class="s-bad" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arr2)"/>
+        <rect x="560" y="120" width="160" height="34" rx="5" class="f-bad" stroke-width="1.5"/>
+        <text x="640" y="134" text-anchor="middle" font-size="10.5" class="t-bad">Q<tspan baseline-shift="sub" font-size="8">e</tspan> → d<tspan baseline-shift="sub" font-size="8">e</tspan> is the discrete log</text>
+        <text x="640" y="147" text-anchor="middle" font-size="10.5" class="t-bad">~2¹²⁸ curve operations on P-256</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 2</b> The scalar lives for the width of the purple bar. Its public image Q<sub>e</sub> is
+    shipped and lives forever, but the arrow from Q<sub>e</sub> back to d<sub>e</sub> is the one the entire
+    security of elliptic-curve cryptography says you cannot follow.</figcaption>
+  </figure>
+
+  <div class="tablewrap">
+    <table class="data">
+      <thead><tr><th>Value</th><th>Who has it</th><th>For how long</th><th>Enough to rebuild K?</th></tr></thead>
+      <tbody>
+        <tr><td class="sym">d<sub>e</sub></td><td><span class="pill sec">secret</span> the encrypting process</td><td>one call, then zeroed</td><td>yes — with Q<sub>s</sub></td></tr>
+        <tr><td class="sym">d<sub>s</sub></td><td><span class="pill sec">secret</span> the Secure Enclave</td><td>lifetime of the enrolment</td><td>yes — with Q<sub>e</sub>, after Face&nbsp;ID</td></tr>
+        <tr><td class="sym">Q<sub>s</sub></td><td><span class="pill pub">public</span> anyone who asks the keychain</td><td>lifetime of the enrolment</td><td><span class="pill no">no</span></td></tr>
+        <tr><td class="sym">Q<sub>e</sub></td><td><span class="pill pub">public</span> anyone with the blob</td><td>forever</td><td><span class="pill no">no</span></td></tr>
+        <tr><td class="sym">Q<sub>s</sub> + Q<sub>e</sub></td><td><span class="pill pub">public</span> the attacker's full hand</td><td>forever</td><td><span class="pill no">no</span> — this is the CDH problem</td></tr>
+        <tr><td class="sym">Z, K</td><td>whichever side just computed them</td><td>until the call returns</td><td>trivially — but nobody stores them</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="kicker">The half that is true</div>
+  <h2>Anyone can make <em>a</em> key. Nobody can remake <em>the</em> key.</h2>
+  <p>
+    Here is the part of the intuition that is correct, and it is important not to lose it: with Q<sub>s</sub> in
+    hand, anyone can run the sender's side of Fig&nbsp;1. Draw a fresh d<sub>e</sub>′, multiply, derive K′, encrypt.
+    No enclave, no biometric, no permission.
+  </p>
+  <p>
+    That is not a weakness. That is the definition of public-key encryption — the public key is an open padlock,
+    and anyone may snap it shut on a box. The plugin relies on exactly this: sealing the master key costs no
+    Face&nbsp;ID prompt because sealing needs no secret from the recipient.
+  </p>
+  <p>
+    What the attacker wants is different. They do not want to seal a <em>new</em> box; they want to open a
+    <em>specific</em> one that already exists. That box was locked under K, and K came from a d<sub>e</sub> that
+    the attacker never had and that no longer exists anywhere. Their fresh d<sub>e</sub>′ gives them a fresh K′
+    — a different key, useless against the old ciphertext.
+  </p>
+
+  <figure>
+    <div class="fig-body">
+      <svg viewBox="0 0 760 270" role="img" aria-label="Two panels. Left: with the public key, anyone can draw a fresh scalar, derive a fresh key, and seal a new blob. Right: opening an existing blob needs the specific key K, which requires either the sender's destroyed scalar or the enclave's locked scalar; the attacker's fresh scalar produces a different key.">
+        <defs>
+          <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <!-- panel frames -->
+        <rect x="20" y="20" width="345" height="232" rx="8" class="f-neutral" stroke-width="1" fill-opacity=".5"/>
+        <rect x="395" y="20" width="345" height="232" rx="8" class="f-neutral" stroke-width="1" fill-opacity=".5"/>
+        <text x="192" y="42" text-anchor="middle" font-size="11" letter-spacing="1.5" class="t-3">SEAL A NEW BLOB — ANYONE</text>
+        <text x="567" y="42" text-anchor="middle" font-size="11" letter-spacing="1.5" class="t-3">OPEN THIS BLOB — TWO PARTIES, EVER</text>
+
+        <!-- LEFT: fresh d_e' -->
+        <rect x="40" y="62" width="120" height="40" rx="5" class="f-secret-soft" stroke-width="1.5"/>
+        <text x="100" y="79" text-anchor="middle" font-size="13" font-weight="600" class="t-secret mono">d<tspan baseline-shift="sub" font-size="9">e</tspan>′</text>
+        <text x="100" y="94" text-anchor="middle" font-size="10" class="t-secret">fresh random</text>
+
+        <rect x="40" y="120" width="120" height="40" rx="5" class="f-pub" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="100" y="137" text-anchor="middle" font-size="13" font-weight="600" class="t-ink mono">Q<tspan baseline-shift="sub" font-size="9">s</tspan></text>
+        <text x="100" y="152" text-anchor="middle" font-size="10" class="t-3">public</text>
+
+        <line x1="160" y1="82" x2="196" y2="106" stroke="currentColor" stroke-width="1.5"/>
+        <line x1="160" y1="140" x2="196" y2="116" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="205" cy="111" r="11" class="f-neutral" stroke-width="1.5"/>
+        <text x="205" y="115" text-anchor="middle" font-size="13" font-weight="600" class="t-ink">×</text>
+        <line x1="216" y1="111" x2="248" y2="111" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr3)"/>
+
+        <rect x="250" y="91" width="96" height="40" rx="5" class="f-sym" stroke-width="1.5"/>
+        <text x="298" y="108" text-anchor="middle" font-size="13" font-weight="600" class="t-sym mono">K′</text>
+        <text x="298" y="123" text-anchor="middle" font-size="10" class="t-sym">a brand-new key</text>
+
+        <line x1="298" y1="131" x2="298" y2="176" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr3)"/>
+        <rect x="200" y="178" width="146" height="50" rx="5" class="f-neutral" stroke-width="1.5"/>
+        <text x="273" y="198" text-anchor="middle" font-size="11.5" class="t-ink">Q<tspan baseline-shift="sub" font-size="8">e</tspan>′ ‖ C′ ‖ T′</text>
+        <text x="273" y="214" text-anchor="middle" font-size="10" class="t-3">a new blob — only the enclave opens it</text>
+        <text x="40" y="230" font-size="10.5" class="t-3">= encryption. No secret</text>
+        <text x="40" y="243" font-size="10.5" class="t-3">required, by design.</text>
+
+        <!-- RIGHT: existing blob -->
+        <rect x="415" y="62" width="146" height="50" rx="5" class="f-neutral" stroke-width="1.5"/>
+        <text x="488" y="82" text-anchor="middle" font-size="11.5" class="t-ink">Q<tspan baseline-shift="sub" font-size="8">e</tspan> ‖ C ‖ T</text>
+        <text x="488" y="98" text-anchor="middle" font-size="10" class="t-3">the stored 125 bytes</text>
+
+        <!-- needs K -->
+        <line x1="561" y1="87" x2="600" y2="87" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr3)"/>
+        <text x="580" y="79" text-anchor="middle" font-size="9.5" class="t-3">needs</text>
+        <rect x="602" y="67" width="116" height="40" rx="5" class="f-sym" stroke-width="1.5"/>
+        <text x="660" y="84" text-anchor="middle" font-size="13" font-weight="600" class="t-sym mono">K</text>
+        <text x="660" y="99" text-anchor="middle" font-size="10" class="t-sym">this one exact key</text>
+
+        <!-- three candidate inputs -->
+        <line x1="660" y1="107" x2="660" y2="126" stroke="currentColor" stroke-width="1" opacity=".6"/>
+        <line x1="470" y1="126" x2="720" y2="126" stroke="currentColor" stroke-width="1" opacity=".6"/>
+        <line x1="470" y1="126" x2="470" y2="142" stroke="currentColor" stroke-width="1" opacity=".6" marker-end="url(#arr3)"/>
+        <line x1="567" y1="126" x2="567" y2="142" stroke="currentColor" stroke-width="1" opacity=".6" marker-end="url(#arr3)"/>
+        <line x1="660" y1="126" x2="660" y2="142" stroke="currentColor" stroke-width="1" opacity=".6" marker-end="url(#arr3)"/>
+        <text x="740" y="130" text-anchor="end" font-size="9.5" class="t-3">K = KDF( scalar · point )</text>
+
+        <!-- option 1: original d_e -->
+        <rect x="415" y="146" width="110" height="46" rx="5" class="f-bad" stroke-width="1.5" stroke-dasharray="5 3"/>
+        <text x="470" y="163" text-anchor="middle" font-size="12" font-weight="600" class="t-bad mono">d<tspan baseline-shift="sub" font-size="9">e</tspan> · Q<tspan baseline-shift="sub" font-size="9">s</tspan></text>
+        <text x="470" y="178" text-anchor="middle" font-size="9.5" class="t-bad">d<tspan baseline-shift="sub" font-size="7">e</tspan> was zeroed</text>
+        <text x="470" y="189" text-anchor="middle" font-size="9.5" class="t-bad">exists nowhere</text>
+
+        <!-- option 2: enclave -->
+        <rect x="512" y="146" width="110" height="46" rx="5" class="f-secret-soft" stroke-width="1.5"/>
+        <text x="567" y="163" text-anchor="middle" font-size="12" font-weight="600" class="t-secret mono">d<tspan baseline-shift="sub" font-size="9">s</tspan> · Q<tspan baseline-shift="sub" font-size="9">e</tspan></text>
+        <text x="567" y="178" text-anchor="middle" font-size="9.5" class="t-secret">only the enclave</text>
+        <text x="567" y="189" text-anchor="middle" font-size="9.5" class="t-secret">only after Face ID</text>
+
+        <!-- option 3: attacker's fresh scalar -->
+        <rect x="608" y="146" width="112" height="46" rx="5" class="f-bad" stroke-width="1.5" stroke-dasharray="5 3"/>
+        <text x="664" y="163" text-anchor="middle" font-size="12" font-weight="600" class="t-bad mono">d<tspan baseline-shift="sub" font-size="9">e</tspan>′ · Q<tspan baseline-shift="sub" font-size="9">s</tspan></text>
+        <text x="664" y="178" text-anchor="middle" font-size="9.5" class="t-bad">gives K′ ≠ K</text>
+        <text x="664" y="189" text-anchor="middle" font-size="9.5" class="t-bad">wrong scalar, wrong key</text>
+
+        <text x="415" y="222" font-size="10.5" class="t-3">= decryption. One live secret scalar</text>
+        <text x="415" y="235" font-size="10.5" class="t-3">required, and it sits behind the biometric gate.</text>
+      </svg>
+    </div>
+    <figcaption><b>Fig 3</b> The difference between the two panels is the difference between <em>a</em> key and
+    <em>the</em> key. Left: any scalar will do, so anyone can encrypt. Right: only the scalar that
+    <em>was</em> used — or the enclave's, which stands in for it — reproduces K. The attacker's own fresh scalar is
+    the third box, and it lands on the wrong key.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="kicker">Reading the KDF line correctly</div>
+  <h2>Q<sub>e</sub> goes into the hash — as a label, not as a secret</h2>
+  <p>
+    One more sentence in the sibling note may have fed the objection: “the ephemeral public key is used as
+    <code>sharedInfo</code> for the KDF.” So a public value <em>is</em> an input to the key derivation. But look at
+    the full hash input:
+  </p>
+  <p style="font-family:var(--f-mono); font-size:14px; color:var(--ink)">
+    K = SHA-256( <b class="key">Z</b> ‖ 00000001 ‖ <b class="pub">Q<sub>e</sub></b> )[0..16]
+  </p>
+  <p>
+    All of the entropy the attacker lacks is in Z. Q<sub>e</sub> is there to <em>bind</em> the key to this
+    particular blob — so that a Q<sub>e</sub> from one blob cannot be spliced onto the ciphertext of another —
+    not to hide anything. A KDF's context string is meant to be public. If you deleted Q<sub>e</sub> from that
+    line the scheme would lose a binding property but not one bit of confidentiality; if you deleted Z it would
+    lose everything.
+  </p>
+
+  <div class="warnbox">
+    <p><strong>When the objection <em>would</em> be right.</strong> Your reading is exactly the failure mode
+    to keep watching for. K becomes recoverable from public data if any of these ever happen: an implementation
+    logs or caches d<sub>e</sub>; d<sub>e</sub> is drawn from a weak RNG (then Q<sub>e</sub> → d<sub>e</sub>
+    stops being hard); or the enclave's d<sub>s</sub> becomes extractable. None of those are properties of the
+    algorithm — they are properties of the code around it, which is where review attention belongs.</p>
+  </div>
+</section>
+
+<section>
+  <div class="kicker">In one paragraph</div>
+  <h2>The whole answer, restated</h2>
+  <p>
+    The symmetric key is not derived from the public key. It is derived from a secret scalar times a public
+    point. The sender's scalar is random, used once, and destroyed; the enclave's scalar never leaves the
+    hardware. The attacker inherits the two public points and neither scalar, and turning two points into the
+    secret they share is the Diffie–Hellman problem that P-256 is chosen to make infeasible. Anyone can use the
+    public key to make a <em>new</em> key and seal a <em>new</em> message — that is what “public-key encryption”
+    means — but nobody without one of the two scalars can reproduce the key that sealed an existing one.
+  </p>
+</section>
+
+<footer>
+  <p>Companion to <a href="04-ecies-byte-by-byte.html">ECIES, Byte by Byte</a>,
+  which measures the byte layout this note reasons about. Notation follows that note: d<sub>s</sub>/Q<sub>s</sub> is the
+  Secure Enclave's static keypair, d<sub>e</sub>/Q<sub>e</sub> the per-message ephemeral keypair, G the P-256 base point.</p>
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,618 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style>
+<title>Biometric Cipher Audit</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #eef1f4;
+    --surface: #ffffff;
+    --surface-2: #f5f7f9;
+    --ink: #182129;
+    --ink-2: #3c4a56;
+    --muted: #5c6f7d;
+    --line: #dbe2e8;
+    --line-strong: #c2ccd4;
+    --accent: #106a72;
+    --accent-ink: #0b4d53;
+    --accent-soft: #e2f0f0;
+    --accent-soft-line: #bcdcdc;
+
+    --crit: #a3352c;
+    --crit-bg: #fbe9e7;
+    --crit-line: #eabdb7;
+    --warn: #8a5a12;
+    --warn-bg: #faf0dc;
+    --warn-line: #e7cd9a;
+    --ok: #276e4e;
+    --ok-bg: #e5f3ea;
+    --ok-line: #b7dcc3;
+    --info: #2a5788;
+    --info-bg: #e8eff8;
+    --info-line: #bcd1e8;
+
+    --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-serif: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1417;
+      --surface: #151d22;
+      --surface-2: #101619;
+      --ink: #e6edf1;
+      --ink-2: #c1ccd3;
+      --muted: #8fa1ab;
+      --line: #26333b;
+      --line-strong: #34434c;
+      --accent: #4bc2c9;
+      --accent-ink: #8fe0e5;
+      --accent-soft: #12292b;
+      --accent-soft-line: #1e4448;
+
+      --crit: #ec786c;
+      --crit-bg: #2c1917;
+      --crit-line: #532823;
+      --warn: #e0b464;
+      --warn-bg: #2a2114;
+      --warn-line: #4d3c1e;
+      --ok: #74cf9f;
+      --ok-bg: #142822;
+      --ok-line: #1f4636;
+      --info: #7fb0e8;
+      --info-bg: #131f2c;
+      --info-line: #223a54;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0e1417;
+    --surface: #151d22;
+    --surface-2: #101619;
+    --ink: #e6edf1;
+    --ink-2: #c1ccd3;
+    --muted: #8fa1ab;
+    --line: #26333b;
+    --line-strong: #34434c;
+    --accent: #4bc2c9;
+    --accent-ink: #8fe0e5;
+    --accent-soft: #12292b;
+    --accent-soft-line: #1e4448;
+
+    --crit: #ec786c;
+    --crit-bg: #2c1917;
+    --crit-line: #532823;
+    --warn: #e0b464;
+    --warn-bg: #2a2114;
+    --warn-line: #4d3c1e;
+    --ok: #74cf9f;
+    --ok-bg: #142822;
+    --ok-line: #1f4636;
+    --info: #7fb0e8;
+    --info-bg: #131f2c;
+    --info-line: #223a54;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-serif);
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--accent-soft); color: var(--accent-ink); }
+
+  a { color: var(--accent-ink); text-decoration-color: var(--accent-soft-line); text-underline-offset: 2px; }
+  a:hover { text-decoration-color: currentColor; }
+  a:focus-visible, button:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px;
+  }
+
+  code, .mono { font-family: var(--font-mono); }
+  code {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0.1em 0.4em;
+    font-size: 0.86em;
+    color: var(--ink-2);
+    word-break: break-word;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    color: var(--ink);
+  }
+
+  /* ---------- Top nav ---------- */
+  .topnav {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  .topnav-inner {
+    max-width: 980px; margin: 0 auto;
+    padding: 12px 28px;
+    display: flex; align-items: center; gap: 22px;
+    overflow-x: auto;
+    font-family: var(--font-sans);
+  }
+  .topnav-brand {
+    font-weight: 700; font-size: 13.5px; color: var(--ink);
+    white-space: nowrap; flex-shrink: 0;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .topnav-brand .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .topnav-links { display: flex; gap: 4px; flex-wrap: nowrap; }
+  .topnav-links a {
+    font-size: 13px; font-weight: 500; color: var(--muted);
+    text-decoration: none; white-space: nowrap;
+    padding: 6px 10px; border-radius: 6px;
+  }
+  .topnav-links a:hover { color: var(--ink); background: var(--surface-2); }
+
+  /* ---------- Layout ---------- */
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 28px; }
+  .prose { max-width: 700px; }
+  header.hero { padding: 56px 0 38px; border-bottom: 1px solid var(--line); }
+  .kicker {
+    font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--accent-ink); margin: 0 0 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .kicker::before { content: ""; width: 22px; height: 1px; background: var(--accent); display: inline-block; }
+  h1.title {
+    font-size: clamp(32px, 4.6vw, 46px); line-height: 1.08; margin: 0 0 18px;
+  }
+  .dek {
+    font-family: var(--font-serif); font-size: 19px; color: var(--ink-2);
+    max-width: 700px; margin: 0 0 26px;
+  }
+  .meta-row {
+    display: flex; flex-wrap: wrap; gap: 10px 28px;
+    font-family: var(--font-mono); font-size: 12.5px; color: var(--muted);
+  }
+  .meta-row b { color: var(--ink-2); font-weight: 600; }
+
+  section { padding: 52px 0; border-bottom: 1px solid var(--line); }
+  section:last-of-type { border-bottom: none; }
+  .section-label {
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--muted); margin: 0 0 8px;
+  }
+  h2.section-title { font-size: 27px; margin: 0 0 6px; }
+  .section-intro { color: var(--ink-2); max-width: 700px; margin: 10px 0 30px; }
+
+  p { margin: 14px 0; }
+  .prose p, .prose li { max-width: 68ch; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 6px 0; }
+
+  /* ---------- Badges / chips ---------- */
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--font-sans); font-size: 12px; font-weight: 600;
+    padding: 3px 10px; border-radius: 999px; letter-spacing: 0.01em;
+    border: 1px solid transparent; white-space: nowrap;
+  }
+  .chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+  .chip.crit { background: var(--crit-bg); color: var(--crit); border-color: var(--crit-line); }
+  .chip.warn { background: var(--warn-bg); color: var(--warn); border-color: var(--warn-line); }
+  .chip.ok   { background: var(--ok-bg);   color: var(--ok);   border-color: var(--ok-line); }
+  .chip.info { background: var(--info-bg); color: var(--info); border-color: var(--info-line); }
+
+  /* ---------- Comparison table ---------- */
+  .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  table { width: 100%; border-collapse: collapse; font-family: var(--font-sans); font-size: 14px; min-width: 720px; }
+  thead th {
+    text-align: left; font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; padding: 13px 16px;
+    background: var(--surface-2); border-bottom: 1px solid var(--line);
+  }
+  tbody td { padding: 14px 16px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink-2); }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody td:first-child { font-weight: 600; color: var(--ink); white-space: nowrap; }
+  tbody tr:hover { background: var(--surface-2); }
+  td .mono, th .mono { font-size: 0.92em; }
+
+  /* ---------- Platform cards ---------- */
+  .platform-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+    flex-wrap: wrap; margin-bottom: 6px;
+  }
+  .platform-head h2 { margin: 0; font-size: 27px; }
+  .platform-verdict { font-family: var(--font-sans); font-size: 14px; color: var(--ink-2); margin: 4px 0 28px; max-width: 700px; }
+
+  .spec-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 1px; background: var(--line); border: 1px solid var(--line);
+    border-radius: 12px; overflow: hidden; margin: 24px 0 32px;
+  }
+  .spec-cell { background: var(--surface); padding: 16px 18px; }
+  .spec-cell .k {
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 6px;
+  }
+  .spec-cell .v { font-family: var(--font-sans); font-size: 14.5px; font-weight: 600; color: var(--ink); line-height: 1.4; }
+  .spec-cell .v .mono { font-weight: 500; font-size: 0.85em; color: var(--ink-2); }
+
+  h3.sub { font-family: var(--font-sans); font-size: 16px; margin: 30px 0 12px; color: var(--ink); }
+
+  .findings { list-style: none; padding: 0; margin: 16px 0; display: flex; flex-direction: column; gap: 10px; }
+  .finding {
+    border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+    padding: 14px 18px; display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; align-items: start;
+  }
+  .finding .chip { margin-top: 2px; }
+  .finding .ftitle { font-family: var(--font-sans); font-weight: 600; font-size: 14.5px; color: var(--ink); grid-column: 2; }
+  .finding .fbody { grid-column: 2; color: var(--ink-2); font-size: 15px; margin: 0; }
+  .finding .fbody:first-of-type { margin-top: 2px; }
+
+  blockquote {
+    margin: 22px 0; padding: 4px 0 4px 20px; border-left: 3px solid var(--accent);
+    color: var(--ink-2); font-style: italic;
+  }
+
+  .callout {
+    border: 1px solid var(--line); border-left: 4px solid var(--accent);
+    background: var(--accent-soft); border-radius: 10px; padding: 18px 22px; margin: 26px 0;
+  }
+  .callout.crit { border-left-color: var(--crit); background: var(--crit-bg); }
+  .callout .t {
+    font-family: var(--font-sans); font-weight: 700; font-size: 13px; text-transform: uppercase;
+    letter-spacing: 0.04em; margin-bottom: 8px; color: var(--ink);
+  }
+  .callout p { margin: 8px 0; color: var(--ink-2); font-family: var(--font-sans); font-size: 14.5px; }
+  .callout p:first-of-type { margin-top: 0; }
+
+  .flow {
+    font-family: var(--font-mono); font-size: 13px; line-height: 2.1;
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 20px; margin: 20px 0; overflow-x: auto; color: var(--ink-2);
+  }
+  .flow .step { color: var(--ink); }
+  .flow .arrow { color: var(--accent); }
+
+  /* decision matrix */
+  .matrix-scroll { overflow-x: auto; }
+
+  footer.sources {
+    padding: 56px 0 80px;
+  }
+  .src-list { list-style: none; padding: 0; margin: 20px 0; }
+  .src-list li {
+    padding: 12px 0; border-bottom: 1px solid var(--line);
+    font-family: var(--font-sans); font-size: 14.5px; display: flex; gap: 12px; justify-content: space-between; flex-wrap: wrap;
+  }
+  .src-list li:last-child { border-bottom: none; }
+  .src-list .label { color: var(--ink-2); }
+  .src-list .ref { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); }
+
+  .colophon { font-family: var(--font-sans); font-size: 12.5px; color: var(--muted); margin-top: 30px; }
+
+  @media (max-width: 640px) {
+    header.hero { padding: 40px 0 28px; }
+    section { padding: 38px 0; }
+    .wrap { padding: 0 18px; }
+    .spec-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <div class="topnav-inner">
+    <div class="topnav-brand"><span class="dot"></span> Biometric Cipher Audit</div>
+    <div class="topnav-links">
+      <a href="#overview">Overview</a>
+      <a href="#android">Android</a>
+      <a href="#windows">Windows</a>
+      <a href="#macos">macOS</a>
+      <a href="#ios">iOS</a>
+      <a href="#differences">Differences</a>
+      <a href="#sources">Sources</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="kicker">AdGuard Wallet &middot; Encryption Architecture Review</p>
+    <h1 class="title">How four operating systems guard one master key</h1>
+    <p class="dek">AdGuard Wallet locks every seed phrase behind a single master key, and lets a device's own secure hardware unwrap it with a fingerprint or face instead of a password. The Dart-level scheme is identical everywhere. What each OS actually lets an app bind that key to is not &mdash; and on one platform, that gap turned into a real vulnerability.</p>
+    <div class="meta-row">
+      <span><b>Ticket</b> Jira AW-321</span>
+      <span><b>Historical PR</b> Bitbucket #112 &middot; declined</span>
+      <span><b>Library</b> <span class="mono">locker</span> v1.0.6 / <span class="mono">biometric_cipher</span> &middot; AdguardTeam/mfa_locker</span>
+      <span><b>Reviewed</b> August 2026</span>
+    </div>
+  </div>
+</header>
+
+<section id="overview">
+  <div class="wrap">
+    <p class="section-label">01 &mdash; Where this stands today</p>
+    <h2 class="section-title">The ticket, and what actually shipped instead</h2>
+    <div class="prose section-intro">
+      <p><a href="https://jira.int.agrd.dev/browse/AW-321">AW-321</a> asked, in December 2024, for an iOS/macOS implementation combining asymmetric and symmetric cryptography via the Secure Enclave. The resulting branch became <a href="https://bit.int.agrd.dev/projects/FLUTTER/repos/adguard-wallet/pull-requests/112">PR&nbsp;#112</a>, a new <code>secure_mnemonic</code> plugin with hand-rolled, per-platform Swift managers &mdash; <code>SecureEnclaveManager.swift</code> for iOS, a separate <code>GenerateKeyPairExtension.swift</code> for macOS, and Android/Windows stubs that never grew past Flutter's plugin template. Bitbucket declined the PR in February 2025; the ticket has sat in <b>To&nbsp;Do</b> ever since, with a 2025 comment simply asking whether the approach is still worth pursuing.</p>
+      <p>It was overtaken by a broader initiative. <b><span class="mono">locker</span></b> (a.k.a. MFA&nbsp;Locker) is a standalone, source-available library at <code>github.com/AdguardTeam/mfa_locker</code>, pulled into the wallet as a git dependency and already wired into every screen that touches wallet secrets. It solves AW-321's actual problem &mdash; hardware-backed biometric unlock &mdash; for <b>all four</b> desktop/mobile targets at once, through one shared plugin, <code>biometric_cipher</code>. AW-321 is functionally superseded, just not by the branch anyone was watching.</p>
+    </div>
+
+    <p class="section-label" style="margin-top:8px;">02 &mdash; The shared foundation</p>
+    <h2 class="section-title" style="font-size:22px;">One envelope, wrapped four different ways</h2>
+    <div class="prose section-intro" style="margin-bottom:22px;">
+      <p>Every platform runs identical Dart code for the data itself (<code>package:locker</code>, using <code>package:cryptography</code>): a random 256-bit <b>master key</b> encrypts every vault entry with <b>AES-256-GCM</b>; the password path derives its own key with <b>Argon2id</b> at OWASP's recommended parameters (19&nbsp;MiB memory, 2&nbsp;iterations); an <b>HMAC-SHA256</b> tag over the whole store catches tampering. The master key itself is never derived twice &mdash; it's generated once and stored as a list of <code>KeyWrap</code>s, one per unlock method (<code>Origin.pwd</code>, <code>Origin.bio</code>), so the password and the biometric prompt are two independent doors onto the exact same key.</p>
+    </div>
+    <div class="flow">
+      <span class="step">master key (AES-256, random)</span><br>
+      <span class="arrow">├──</span> <span class="step">wrapped by Argon2id(password)</span> &nbsp;&mdash;&nbsp; <span style="color:var(--muted)">same on every platform</span><br>
+      <span class="arrow">└──</span> <span class="step">wrapped by biometric_cipher(tag)</span> &nbsp;&mdash;&nbsp; <span style="color:var(--muted)">this is where the four platforms diverge</span>
+    </div>
+    <p class="prose" style="color:var(--ink-2); max-width:700px;">Only that second wrap is platform-native code. It's the entire surface of this report.</p>
+
+    <div class="table-scroll" style="margin-top:8px;">
+      <table>
+        <thead>
+          <tr><th>Platform</th><th>Hardware root</th><th>Key shape</th><th>Auto-invalidates on re-enrollment</th><th>Status today</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Android</td>
+            <td>Keystore (TEE, StrongBox attempted)</td>
+            <td><span class="mono">AES-256-GCM</span> symmetric</td>
+            <td>Implicit (SDK default, not set explicitly)</td>
+            <td><span class="chip warn">Ships &middot; minor defects</span></td>
+          </tr>
+          <tr>
+            <td>iOS</td>
+            <td>Secure Enclave</td>
+            <td><span class="mono">EC P-256</span> + ECIES hybrid</td>
+            <td>Explicit &middot; <span class="mono">.biometryCurrentSet</span></td>
+            <td><span class="chip ok">Ships &middot; clean</span></td>
+          </tr>
+          <tr>
+            <td>macOS</td>
+            <td>Secure Enclave (Apple Silicon / T2 only)</td>
+            <td><span class="mono">EC P-256</span> + ECIES &mdash; identical Swift to iOS</td>
+            <td>Explicit &middot; <span class="mono">.biometryCurrentSet</span></td>
+            <td><span class="chip warn">Ships &middot; no non-SE fallback</span></td>
+          </tr>
+          <tr>
+            <td>Windows</td>
+            <td>Windows Hello (<span class="mono">KeyCredentialManager</span>)</td>
+            <td><span class="mono">RSA-2048</span> sign &rarr; derived AES key</td>
+            <td>n/a &mdash; feature disabled</td>
+            <td><span class="chip crit">Disabled &middot; critical finding</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="android">
+  <div class="wrap">
+    <p class="section-label">03 &mdash; Platform</p>
+    <div class="platform-head">
+      <h2>Android</h2>
+      <span class="chip warn">Sound design, real code defects</span>
+    </div>
+    <p class="platform-verdict">Android's biometric key is a symmetric AES-256 key generated straight into the Android Keystore and gated by <span class="mono">androidx.biometric.BiometricPrompt</span>. The design is correct and the historical failure modes from the pre-<span class="mono">biometric_cipher</span> era are gone &mdash; but the code has accumulated a handful of real bugs, none of them exploitable, all of them worth fixing.</p>
+
+    <div class="spec-grid">
+      <div class="spec-cell"><div class="k">Key generator</div><div class="v"><span class="mono">KeyGenerator("AES", "AndroidKeyStore")</span></div></div>
+      <div class="spec-cell"><div class="k">Cipher transform</div><div class="v"><span class="mono">AES/GCM/NoPadding</span></div></div>
+      <div class="spec-cell"><div class="k">Auth requirement</div><div class="v"><span class="mono">setUserAuthenticationRequired(true)</span>, timeout 0 &mdash; every op re-prompts</div></div>
+      <div class="spec-cell"><div class="k">Hardware tier</div><div class="v"><span class="mono">setIsStrongBoxBacked()</span> called unconditionally</div></div>
+    </div>
+
+    <h3 class="sub">What's solid</h3>
+    <p>A real <span class="mono">CryptoObject</span> binds the cipher to the prompt (<span class="mono">repositories/AuthenticationRepositoryImpl.kt:84</span>), and cancel is cleanly split from genuine failure &mdash; <span class="mono">ERROR_USER_CANCELED</span> / <span class="mono">ERROR_NEGATIVE_BUTTON</span> map to <span class="mono">authenticationUserCanceled</span>, everything else to <span class="mono">authenticationError</span>. That's exactly the distinction a 2025 review comment on the old <span class="mono">secure_mnemonic</span> plugin asked for and never got. <span class="mono">KeyPermanentlyInvalidatedException</span> is caught before the biometric prompt ever shows, and the historical "second failed fingerprint crashes the app" bug (reported against the pre-decessor plugin under AW-300) has no equivalent path here &mdash; each callback fires exactly once and resumes the coroutine exactly once.</p>
+
+    <h3 class="sub">Findings</h3>
+    <ul class="findings">
+      <li class="finding">
+        <span class="chip warn">Defect</span>
+        <p class="ftitle">StrongBox is requested unconditionally on a minSdk that predates it</p>
+        <p class="fbody"><span class="mono">setIsStrongBoxBacked()</span> requires API&nbsp;28+, called with no SDK guard in <span class="mono">SecureRepositoryImpl.kt:44</span>, while <span class="mono">build.gradle</span> sets <span class="mono">minSdk&nbsp;23</span>. On real API&nbsp;23&ndash;27 devices this throws <span class="mono">NoSuchMethodError</span> &mdash; the method only carries a <span class="mono">@RequiresApi</span> lint annotation, nothing enforced at runtime.</p>
+      </li>
+      <li class="finding">
+        <span class="chip warn">Defect</span>
+        <p class="ftitle">No StrongBox-unavailable fallback</p>
+        <p class="fbody">Android's documented pattern is try-StrongBox, catch <span class="mono">StrongBoxUnavailableException</span>, retry without it &mdash; some devices report the feature but fail generation anyway. That retry doesn't exist here, and the uncaught exception surfaces as the operation name (e.g. <span class="mono">"generateKey"</span>) rather than a real <span class="mono">BiometricCipherExceptionCode</span>, because the handler falls back to that when the thrown type isn't one of the plugin's own sealed exceptions.</p>
+      </li>
+      <li class="finding">
+        <span class="chip info">Dead code</span>
+        <p class="ftitle">TPM status detection is hardcoded</p>
+        <p class="fbody"><span class="mono">getTPMStatus()</span> always returns <span class="mono">SUPPORTED</span> (<span class="mono">SecureServiceImpl.kt:13</span>) &mdash; no device check at all. <span class="mono">UNSUPPORTED</span> and <span class="mono">TPM_VERSION_UNSUPPORTED</span> are unreachable values.</p>
+      </li>
+      <li class="finding">
+        <span class="chip info">Code defect</span>
+        <p class="ftitle">A copy-paste error empties the configuration-error hierarchy</p>
+        <p class="fbody">All four nested subclasses meant for <span class="mono">ConfigureException</span> instead extend <span class="mono">CryptographicException</span> &mdash; it compiles (both are <span class="mono">sealed</span> in the same package) but leaves <span class="mono">ConfigureException</span> with zero real subclasses.</p>
+      </li>
+      <li class="finding">
+        <span class="chip info">Gap</span>
+        <p class="ftitle">Prompt isn't dismissed on external cancellation</p>
+        <p class="fbody">There's no <span class="mono">invokeOnCancellation { biometricPrompt.cancelAuthentication() }</span>. If the owning coroutine scope is cancelled while a system dialog is showing, that dialog is left on screen.</p>
+      </li>
+    </ul>
+    <p class="prose" style="color:var(--muted); font-family:var(--font-sans); font-size:13.5px; max-width:700px;">Test coverage: solid on unit logic (Robolectric + mocks); the one instrumented test needing a real biometric interaction is <span class="mono">@Ignore</span>d, and nothing exercises the StrongBox-fallback or lockout paths above.</p>
+  </div>
+</section>
+
+<section id="windows">
+  <div class="wrap">
+    <p class="section-label">03 &mdash; Platform</p>
+    <div class="platform-head">
+      <h2>Windows</h2>
+      <span class="chip crit">Critical finding &middot; feature disabled</span>
+    </div>
+    <p class="platform-verdict">This is the one platform where the biometric path was a genuine, exploitable vulnerability &mdash; not a coding slip, but a direct consequence of what Windows Hello can and can't promise to an ordinary desktop app. AdGuard's own security investigation (ticket AW-2956) is unusually thorough, and it now fully governs the shipped behavior.</p>
+
+    <h3 class="sub">How it worked</h3>
+    <p>The plugin signed a fixed string with a Windows Hello credential and turned the signature into an AES key: <span class="mono">KeyCredentialManager.OpenAsync(tag)</span> &rarr; <span class="mono">RequestSignAsync(data)</span> &rarr; <span class="mono">CreateAESKey(signature)</span>. That's a structurally different pattern from Apple's or Android's &mdash; sign-then-derive, not encrypt-then-store &mdash; and both inputs were constants baked into every build:</p>
+    <div class="flow">
+      <span class="step">tag</span> = <span class="mono">'adguard_wallet_bio_key'</span> &nbsp;<span style="color:var(--muted)">(<span class="mono">LockerConstants</span>, identical on every install)</span><br>
+      <span class="step">data-to-sign</span> = <span class="mono">'locker_authentication_request'</span> &nbsp;<span style="color:var(--muted)">(default, wallet never overrides it)</span>
+    </div>
+    <p>Same credential, same input, same signature every time &mdash; which is <i>required</i> for the key to be reproducible at every unlock, but also means the resulting AES key is fully determined by two non-secret, world-known strings.</p>
+
+    <div class="callout crit">
+      <div class="t">Why this is Windows-only</div>
+      <p>On iOS, macOS and Android, the OS checks which app owns a hardware key <b>before</b> any biometric prompt appears &mdash; Apple via code-signing identity and Secure Enclave/keychain ownership, Android via the kernel UID enforced by the keystore daemon. Neither lets a second app touch the first app's key, biometric approval or not.</p>
+      <p>An unpackaged Win32 app &mdash; what Flutter for Windows produces &mdash; gets no equivalent. <span class="mono">KeyCredentialManager</span> exposes only a string name, scoped to the <b>Windows user account</b>, not the calling process. Any other program running as that same user can call <span class="mono">OpenAsync('adguard_wallet_bio_key')</span> and <span class="mono">RequestSignAsync('locker_authentication_request')</span> itself. The genuine system Hello prompt appears &mdash; it just never says which app asked. One careless approval and the malicious process holds the same AES key the wallet does, which unwraps the master key, which decrypts every seed phrase plus the raw database encryption key.</p>
+    </div>
+
+    <table style="margin:22px 0 30px;">
+      <thead><tr><th>Platform</th><th>App-identity token at the keystore layer</th><th>Can another app reuse the key after one biometric approval?</th></tr></thead>
+      <tbody>
+        <tr><td>iOS / macOS</td><td>Code-signing identifier + keychain access group, checked by <span class="mono">securityd</span> before the prompt</td><td>No</td></tr>
+        <tr><td>Android</td><td>Kernel UID, enforced by the Keystore/KeyMint daemon</td><td>No</td></tr>
+        <tr><td>Windows (unpackaged)</td><td><b>None</b> &mdash; no UID, no code-signing, no package identity</td><td><b>Yes</b></td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="sub">Two proposed fixes, both rejected</h3>
+    <p><b>Package as MSIX, scope by Package Family Name</b> &mdash; the ticket's original hypothesis, refuted with high confidence. A packaged-but-not-isolated app still runs full-trust; Microsoft's own guidance and community testing show credentials shared across PFNs at the user level regardless. Only a genuine <b>AppContainer</b> sandbox might change this, and that path is public-preview, Windows&nbsp;11&nbsp;24H2-only, has no first-class Flutter packaging route, and puts every native plugin at risk &mdash; <span class="mono">flutter_secure_storage</span>'s DPAPI-keyed storage re-binds identity inside a container and can lock users out, and file-picker dialogs are a confirmed Microsoft <i>won't-fix</i> <span class="mono">E_ACCESSDENIED</span> in partial trust. The investigation's verdict: run a 1&ndash;3&nbsp;day isolation experiment before spending anything on it, because the security benefit is still unproven.</p>
+    <p><b>Split the master key</b> &mdash; derive half from the password, half from a Windows Hello-gated DPAPI secret. A formal review of this proposal found it doesn't fix the actual threat: <span class="mono">UserConsentVerifier</span> only returns an enum, it releases no key material and signs nothing, so malware simply skips calling it; and <span class="mono">CryptProtectData</span>/<span class="mono">CryptUnprotectData</span> are scoped to the user account, not the app &mdash; the exact mechanism behind Bitwarden's CVE-2023-27706. Stripped of both non-barriers, the scheme's security reduces to the password alone, with a biometric gesture bolted on for show.</p>
+
+    <h3 class="sub">Where it stands</h3>
+    <div class="spec-grid" style="grid-template-columns: repeat(auto-fit, minmax(260px,1fr));">
+      <div class="spec-cell">
+        <div class="k">Shipped fix &middot; AW-2957</div>
+        <div class="v">Biometric unlock fully disabled on Windows: <span class="mono">determineBiometricState()</span> hardcodes <span class="mono">hardwareUnavailable</span>, <span class="mono">enableBiometric()</span> is a no-op, the auth-method picker offers <span class="mono">passwordOnly</span> only</div>
+      </div>
+      <div class="spec-cell">
+        <div class="k">Cleanup</div>
+        <div class="v">First password unlock after update deletes any stale Windows Hello credential and its key-wrap (<span class="mono">locker_wallet_repository.dart:774</span>) &mdash; residual gap: it doesn't yet run at app launch, only on that first password unlock</div>
+      </div>
+      <div class="spec-cell">
+        <div class="k">Build health</div>
+        <div class="v">The MSVC 14.51 <span class="mono">/await</span> + <span class="mono">&lt;experimental/coroutine&gt;</span> break that briefly forced a warning-silencing workaround was durably fixed &mdash; <span class="mono">/await</span> removed outright in the v1.0.6 release (PR&nbsp;#39, "remove await flag")</div>
+      </div>
+      <div class="spec-cell">
+        <div class="k">Industry read</div>
+        <div class="v">1Password, post-fix Bitwarden and KeePassXC all treat Windows Hello as convenience over a password root of trust, never a standalone unlock &mdash; the current posture matches, not just stalls</div>
+      </div>
+    </div>
+
+    <h3 class="sub">The options still on the table</h3>
+    <div class="table-scroll matrix-scroll">
+      <table>
+        <thead><tr><th>Option</th><th>Closes the vulnerability</th><th>Effort</th><th>Cost</th></tr></thead>
+        <tbody>
+          <tr><td>A &middot; Password-only, permanently</td><td><span class="chip ok">Fully</span></td><td>None &mdash; already shipped</td><td>No biometric convenience on Windows</td></tr>
+          <tr><td>B &middot; AppContainer, then re-enable biometric</td><td><span class="chip warn">Only if the experiment confirms isolation</span></td><td>Multi-week&ndash;month spike; every native plugin needs re-validation in a low-integrity sandbox</td><td>Preview-only OS tech, Windows 11 24H2+, unproven</td></tr>
+          <tr><td>Hybrid &middot; &ldquo;Quick Unlock&rdquo;</td><td><span class="chip warn">Removes the worst property, not malware-proof</span></td><td>Moderate</td><td>Password still required at cold start; Hello only re-unlocks a live session</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="macos">
+  <div class="wrap">
+    <p class="section-label">03 &mdash; Platform</p>
+    <div class="platform-head">
+      <h2>macOS</h2>
+      <span class="chip warn">Shares iOS's code &middot; one hardware gap</span>
+    </div>
+    <p class="platform-verdict">macOS doesn't have its own crypto implementation at all &mdash; <span class="mono">pubspec.yaml</span> sets <span class="mono">sharedDarwinSource: true</span> for both Apple platforms, and Flutter's tooling routes both straight to the same <span class="mono">darwin/Classes</span> Swift sources. The one plugin-level file remaining under <span class="mono">macos/</span> is a vestigial podspec left over from before the platforms were unified; it isn't built.</p>
+
+    <div class="spec-grid">
+      <div class="spec-cell"><div class="k">Key type</div><div class="v">Secure Enclave <span class="mono">EC&nbsp;P-256</span>, non-extractable private key</div></div>
+      <div class="spec-cell"><div class="k">Cipher</div><div class="v"><span class="mono">.eciesEncryptionCofactorX963SHA256AESGCM</span></div></div>
+      <div class="spec-cell"><div class="k">Access control</div><div class="v"><span class="mono">.biometryCurrentSet</span> &mdash; auto-invalidates on re-enrollment</div></div>
+      <div class="spec-cell"><div class="k">Hardware requirement</div><div class="v">Apple Silicon or T2 &mdash; live-probed, no fallback</div></div>
+    </div>
+
+    <p>The single deliberate divergence from iOS is UX, not security: macOS skips the extra explicit confirmation prompt that iOS shows during key <i>generation</i>, on the reasoning that it's a redundant second Touch&nbsp;ID window on a Mac. Every other code path &mdash; encryption, decryption, key invalidation, deletion &mdash; is unconditional, shared Swift.</p>
+
+    <h3 class="sub">Findings</h3>
+    <ul class="findings">
+      <li class="finding">
+        <span class="chip warn">Hardware gap</span>
+        <p class="ftitle">No software fallback on Macs without a Secure Enclave</p>
+        <p class="fbody"><span class="mono">isSecureEnclaveSupported()</span> does a live probe (attempts to create a temporary Secure Enclave key); on an Intel Mac without a T2 chip, that fails and every biometric operation surfaces <span class="mono">secureEnclaveUnavailable</span>. There's no software-only key path underneath it &mdash; biometric unlock is simply unavailable on that hardware class, the same way it now is on Windows, just for a hardware reason rather than a security one.</p>
+      </li>
+      <li class="finding">
+        <span class="chip info">Hardening, already applied</span>
+        <p class="ftitle">A macOS-specific Keychain quirk is explicitly worked around</p>
+        <p class="fbody">A comment in <span class="mono">SecureEnclaveManager.swift</span> documents that invalidated Secure Enclave keys can remain in the macOS Keychain reporting <span class="mono">errSecInteractionNotAllowed</span> &mdash; indistinguishable from a valid key by that status alone. <span class="mono">isKeyValid</span> cross-checks against a tracked enrollment-state baseline to catch this, unconditionally on both platforms. It traces to two dedicated fixes in the commit history (AW-2524, AW-2526), so this reads as hardening earned from a real bug, not speculative defense.</p>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<section id="ios">
+  <div class="wrap">
+    <p class="section-label">03 &mdash; Platform</p>
+    <div class="platform-head">
+      <h2>iOS</h2>
+      <span class="chip ok">Cleanest implementation of the four</span>
+    </div>
+    <p class="platform-verdict">This is the platform AW-321 originally asked for, and &mdash; via the shared <span class="mono">darwin</span> code described under macOS &mdash; it's what actually got built: a real asymmetric-plus-symmetric hybrid through the Secure Enclave, using Apple's own ECIES suite instead of the bespoke ECDH/HKDF/AES-GCM code the declined PR&nbsp;#112 hand-rolled.</p>
+
+    <div class="spec-grid">
+      <div class="spec-cell"><div class="k">Key generation</div><div class="v"><span class="mono">kSecAttrKeyTypeECSECPrimeRandom</span>, 256-bit, <span class="mono">kSecAttrTokenIDSecureEnclave</span></div></div>
+      <div class="spec-cell"><div class="k">Encrypt / decrypt</div><div class="v"><span class="mono">SecKeyCreateEncryptedData</span> / <span class="mono">DecryptedData</span></div></div>
+      <div class="spec-cell"><div class="k">Under the hood</div><div class="v">Ephemeral EC key &middot; cofactor ECDH &middot; X9.63-SHA256 KDF &middot; AES-GCM</div></div>
+      <div class="spec-cell"><div class="k">Access control</div><div class="v"><span class="mono">.privateKeyUsage</span> + <span class="mono">.biometryCurrentSet</span> (falls back to <span class="mono">.userPresence</span> only if biometry is unavailable)</div></div>
+    </div>
+
+    <p>Every biometric decrypt runs through the Security framework's own access-control check &mdash; Face&nbsp;ID or Touch&nbsp;ID triggers implicitly inside <span class="mono">SecKeyCreateDecryptedData</span>, with no bespoke prompt-handling code to get wrong. <span class="mono">.biometryCurrentSet</span> (never the looser <span class="mono">.biometryAny</span>) means the key auto-invalidates the moment a new fingerprint or face is enrolled &mdash; the stricter, safer choice. <span class="mono">isKeyValid</span> is a genuine silent probe: it queries with <span class="mono">kSecUseAuthenticationUISkip</span> set explicitly, so checking key validity can never accidentally trigger a Face&nbsp;ID prompt.</p>
+
+    <h3 class="sub">One behavioral extra</h3>
+    <p>iOS alone shows an explicit confirmation prompt during key <i>generation</i> (skipped on macOS &mdash; see above), with a clean rollback: if the user cancels, the partially-created key is deleted via a best-effort <span class="mono">try? deleteKey(tag:)</span>. No TODOs or open issues were found anywhere in the shared <span class="mono">darwin/Classes</span> source.</p>
+  </div>
+</section>
+
+<section id="differences">
+  <div class="wrap">
+    <p class="section-label">04 &mdash; Synthesis</p>
+    <h2 class="section-title">What actually differs, and why</h2>
+
+    <h3 class="sub">Three different cryptographic shapes, not four</h3>
+    <p class="prose">iOS and macOS run one true asymmetric-plus-symmetric hybrid (Secure Enclave EC keypair, unwrapped via ECIES) &mdash; literally the same Swift files. Android runs a plain symmetric AES key inside the Keystore; simpler, and entirely adequate given Android's UID-level app binding. Windows, while it worked, wasn't encryption-shaped at all: it turned a deterministic signature into a key, a structurally different &mdash; and here, exploitable &mdash; pattern.</p>
+
+    <h3 class="sub">The real fault line is app-identity binding, not cryptography</h3>
+    <p class="prose">Every platform here uses hardware that's individually strong: Secure Enclave, Android's TEE/StrongBox, Windows Hello's biometric matcher are all sound in isolation. What separates the safe platforms from Windows is a single OS-level guarantee: does the platform check <i>which app</i> is asking before it hands over a key, and does it do that check before showing any biometric prompt? Apple and Android both answer yes, unconditionally. Unpackaged Win32 has no such primitive &mdash; that's a platform limitation this codebase inherited, not a bug it introduced.</p>
+
+    <h3 class="sub">Code quality bugs cluster on Android</h3>
+    <p class="prose">The Android implementation is the only one with defects independent of the vulnerability story above &mdash; the unguarded StrongBox call on old <span class="mono">minSdk</span>, the missing StrongBox-fallback retry, hardcoded TPM detection, the copy-paste exception hierarchy. None rise to the severity of the Windows finding, but they're concrete, fixable, and currently untested.</p>
+
+    <h3 class="sub">AW-321 is stale, not wrong</h3>
+    <p class="prose">The ticket's premise &mdash; combine asymmetric and symmetric cryptography via the Secure Enclave &mdash; is precisely what shipped on iOS and macOS. It just shipped through <span class="mono">biometric_cipher</span>/<span class="mono">locker</span>, a cross-platform initiative the ticket never points to, while the branch it does point to (PR&nbsp;#112) sits declined. Worth closing AW-321 with a pointer to this architecture rather than leaving it open as unstarted work.</p>
+  </div>
+</section>
+
+<footer class="sources" id="sources">
+  <div class="wrap">
+    <p class="section-label">05 &mdash; Sources</p>
+    <h2 class="section-title" style="font-size:22px;">Primary references</h2>
+    <ul class="src-list">
+      <li><span class="label">Jira &mdash; original ask, now stale</span><span class="ref">AW-321</span></li>
+      <li><span class="label">Bitbucket &mdash; declined, superseded PR</span><span class="ref">FLUTTER/adguard-wallet #112</span></li>
+      <li><span class="label">Windows Hello vulnerability &mdash; full investigation conclusion</span><span class="ref">AW-2956 &middot; specs/.current/AW-2956/conclusion/</span></li>
+      <li><span class="label">Windows Hello disabled &mdash; shipped mitigation</span><span class="ref">AW-2957 &middot; PR #920</span></li>
+      <li><span class="label">Two-part key proposal &mdash; formal rejection</span><span class="ref">specs/.current/AW-2956/approach-review/</span></li>
+      <li><span class="label"><span class="mono">/await</span> coroutine break &mdash; durable fix</span><span class="ref">mfa_locker PR #39 &middot; AW-3087</span></li>
+      <li><span class="label">Library source</span><span class="ref">github.com/AdguardTeam/mfa_locker</span></li>
+    </ul>
+    <p class="colophon">Compiled from the shipping <span class="mono">locker</span>/<span class="mono">biometric_cipher</span> source, AdGuard's internal AW-2956 investigation documents, and Jira/Bitbucket history for AW-321 and PR&nbsp;#112.</p>
+  </div>
+</footer>
+</body>
+</html>

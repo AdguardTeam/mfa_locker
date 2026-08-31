@@ -1,0 +1,757 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found]){display:none!important}</style>
+<title>The Same Key Twice?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --ground:    #EFF1F6;
+    --surface:   #FFFFFF;
+    --surface-2: #E4E7F0;
+    --border:    #D3D7E3;
+    --border-2:  #B9BFD2;
+    --ink:       #161826;
+    --ink-2:     #4A4F63;
+    --ink-3:     #767C92;
+
+    --asym:      #4C41C8;
+    --asym-soft: #E7E4FA;
+    --sym:       #0C7A63;
+    --sym-soft:  #D8EFE7;
+    --bad:       #A3271E;
+    --bad-soft:  #F7E0DC;
+    --warn:      #8A5D07;
+    --warn-soft: #F5EAD0;
+
+    --code-bg:   #E9EBF3;
+
+    --f-disp: "Archivo", ui-sans-serif, system-ui, sans-serif;
+    --f-body: "Source Serif 4", ui-serif, Georgia, serif;
+    --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:    #0C0E16;
+      --surface:   #151827;
+      --surface-2: #1D2133;
+      --border:    #2A2F45;
+      --border-2:  #3C4260;
+      --ink:       #E8EAF4;
+      --ink-2:     #AAB0C6;
+      --ink-3:     #7C8299;
+
+      --asym:      #9C93F0;
+      --asym-soft: #221D45;
+      --sym:       #4EC7A9;
+      --sym-soft:  #0E352C;
+      --bad:       #E8867B;
+      --bad-soft:  #421F1A;
+      --warn:      #DFB45F;
+      --warn-soft: #382C10;
+
+      --code-bg:   #10131F;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:    #0C0E16;
+    --surface:   #151827;
+    --surface-2: #1D2133;
+    --border:    #2A2F45;
+    --border-2:  #3C4260;
+    --ink:       #E8EAF4;
+    --ink-2:     #AAB0C6;
+    --ink-3:     #7C8299;
+
+    --asym:      #9C93F0;
+    --asym-soft: #221D45;
+    --sym:       #4EC7A9;
+    --sym-soft:  #0E352C;
+    --bad:       #E8867B;
+    --bad-soft:  #421F1A;
+    --warn:      #DFB45F;
+    --warn-soft: #382C10;
+
+    --code-bg:   #10131F;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 17px;
+    line-height: 1.65;
+  }
+
+  .wrap {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 48px 20px 96px;
+  }
+
+  /* ---------- hero ---------- */
+  .q-eyebrow {
+    font-family: var(--f-disp);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-family: var(--f-disp);
+    font-weight: 700;
+    font-size: clamp(30px, 5.4vw, 46px);
+    line-height: 1.12;
+    letter-spacing: -.015em;
+    margin: 0 0 26px;
+    text-wrap: balance;
+  }
+  .verdict {
+    display: grid;
+    gap: 12px;
+    margin: 0 0 14px;
+  }
+  .verdict-line {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--sym);
+    border-radius: 6px;
+    padding: 14px 18px;
+    font-size: 17px;
+  }
+  .verdict-line.v2 { border-left-color: var(--asym); }
+  .verdict-line strong { font-weight: 600; }
+  .hero-note {
+    color: var(--ink-2);
+    font-size: 15.5px;
+    max-width: 66ch;
+  }
+
+  /* ---------- shared ---------- */
+  .k-asym { color: var(--asym); font-weight: 600; }
+  .k-sym  { color: var(--sym);  font-weight: 600; }
+  .k-bad  { color: var(--bad);  font-weight: 600; }
+  code, .mono {
+    font-family: var(--f-mono);
+    font-size: .85em;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    white-space: nowrap;
+  }
+  section { margin-top: 64px; }
+  .step {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 0 0 6px;
+  }
+  .step-n {
+    font-family: var(--f-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--asym);
+    letter-spacing: .08em;
+  }
+  h2 {
+    font-family: var(--f-disp);
+    font-weight: 700;
+    font-size: 25px;
+    letter-spacing: -.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  section > p, section > .prose { max-width: 66ch; }
+  p { margin: 14px 0; }
+
+  /* ---------- algorithm-name decoder ---------- */
+  .name-strip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 22px;
+    margin: 24px 0 8px;
+  }
+  .name-strip .full {
+    font-family: var(--f-mono);
+    font-size: 14px;
+    font-weight: 600;
+    word-break: break-all;
+    margin: 0 0 16px;
+  }
+  .name-strip .full .seg-a { color: var(--asym); }
+  .name-strip .full .seg-s { color: var(--sym); }
+  .decode {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 8px 18px;
+    font-size: 14.5px;
+    align-items: baseline;
+  }
+  .decode dt {
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink-2);
+  }
+  .decode dd { margin: 0; color: var(--ink-2); }
+  @media (max-width: 560px) {
+    .decode { grid-template-columns: 1fr; gap: 2px; }
+    .decode dd { margin: 0 0 8px; }
+  }
+
+  /* ---------- figures ---------- */
+  figure {
+    margin: 26px 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px 18px 14px;
+  }
+  .fig-scroll { overflow-x: auto; }
+  .fig-scroll svg {
+    display: block;
+    width: 100%;
+    min-width: 620px;
+    height: auto;
+    margin: 0 auto;
+  }
+  figcaption {
+    font-family: var(--f-disp);
+    font-size: 13.5px;
+    color: var(--ink-3);
+    padding: 12px 6px 2px;
+    border-top: 1px solid var(--border);
+    margin-top: 14px;
+  }
+
+  /* svg vocabulary */
+  .bx      { fill: var(--surface);   stroke: var(--border-2); stroke-width: 1.4; }
+  .bx-a    { fill: var(--surface);   stroke: var(--asym);     stroke-width: 1.6; }
+  .bx-a-dash { fill: var(--asym-soft); stroke: var(--asym);   stroke-width: 1.6; stroke-dasharray: 5 4; }
+  .bx-s    { fill: var(--sym-soft);  stroke: var(--sym);      stroke-width: 1.6; }
+  .bx-mut  { fill: var(--surface-2); stroke: var(--border-2); stroke-width: 1.2; }
+  .bx-encl { fill: none;             stroke: var(--asym);     stroke-width: 2; }
+  .ln      { stroke: var(--ink-2); stroke-width: 1.6; fill: none; }
+  .ln-dash { stroke: var(--asym);  stroke-width: 1.6; fill: none; stroke-dasharray: 5 4; }
+  .t       { font-family: var(--f-disp); font-size: 14px; font-weight: 600; fill: var(--ink); }
+  .t-big   { font-family: var(--f-disp); font-size: 17px; font-weight: 700; fill: var(--ink); }
+  .t-sub   { font-family: var(--f-disp); font-size: 11.5px; fill: var(--ink-2); }
+  .t-lab   { font-family: var(--f-mono); font-size: 11.5px; fill: var(--ink-2); }
+  .t-eq    { font-family: var(--f-mono); font-size: 13px; font-weight: 500; fill: var(--ink); }
+  .t-a     { fill: var(--asym); }
+  .t-s     { fill: var(--sym); }
+  .t-b     { fill: var(--bad); }
+  .t-neq   { font-family: var(--f-disp); font-size: 32px; font-weight: 700; fill: var(--bad); }
+  .arrow   { fill: var(--ink-2); }
+  .arrow-a { fill: var(--asym); }
+
+  /* ---------- callouts ---------- */
+  .callout {
+    max-width: 72ch;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 22px 0;
+    font-size: 15.5px;
+    background: var(--surface);
+  }
+  .callout .co-title {
+    font-family: var(--f-disp);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    margin: 0 0 8px;
+  }
+  .callout p { margin: 8px 0 0; }
+  .co-danger { border-left: 4px solid var(--bad); }
+  .co-danger .co-title { color: var(--bad); }
+  .co-warn { border-left: 4px solid var(--warn); }
+  .co-warn .co-title { color: var(--warn); }
+  .co-good { border-left: 4px solid var(--sym); }
+  .co-good .co-title { color: var(--sym); }
+
+  /* ---------- attacker table ---------- */
+  .haves {
+    display: grid;
+    gap: 10px;
+    margin: 22px 0;
+  }
+  .have {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 4px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 13px 18px;
+    align-items: baseline;
+    font-size: 15.5px;
+  }
+  .have .who {
+    font-family: var(--f-mono);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .have .why { color: var(--ink-2); }
+  .have.public  .who { color: var(--ink-3); }
+  .have.needed  { border-left: 4px solid var(--bad); }
+  .have.needed  .who { color: var(--bad); }
+  @media (max-width: 560px) {
+    .have { grid-template-columns: 1fr; }
+  }
+
+  /* ---------- footer ---------- */
+  .refs {
+    margin-top: 72px;
+    border-top: 1px solid var(--border);
+    padding-top: 22px;
+    font-family: var(--f-disp);
+    font-size: 13.5px;
+    color: var(--ink-2);
+  }
+  .refs h2 {
+    font-size: 13px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 12px;
+  }
+  .refs ul { margin: 0; padding-left: 18px; }
+  .refs li { margin: 6px 0; }
+  .refs a { color: var(--asym); }
+  a:focus-visible, :focus-visible {
+    outline: 2px solid var(--asym);
+    outline-offset: 2px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="q-eyebrow">biometric_cipher &middot; Secure Enclave &middot; ECIES</p>
+  <h1>If we encrypt twice with the same public key, do we get the same AES key twice?</h1>
+
+  <div class="verdict">
+    <div class="verdict-line">
+      <strong>No.</strong> A <span class="k-sym">brand-new AES key</span> is derived on every single
+      <code>encrypt()</code> call, because the public key is only <em>half</em> of the recipe &mdash; the other half
+      is a <span class="k-asym">fresh ephemeral key pair</span> that <code>SecKeyCreateEncryptedData</code>
+      generates internally each time and destroys before it returns.
+    </div>
+    <div class="verdict-line v2">
+      And nothing extra needs to be stored for decryption: the ephemeral <em>public</em> key travels
+      <strong>inside the ciphertext blob</strong>. The Secure Enclave holds exactly one secret &mdash; the same
+      private key <span class="k-asym">d</span>, forever &mdash; and recomputes each message&rsquo;s AES key on the fly.
+    </div>
+  </div>
+  <p class="hero-note">
+    Both of your intuitions were half right: the keys <em>are</em> different every time, and decryption <em>does</em>
+    need per-message material &mdash; but that material is public, so it rides along with the ciphertext instead of
+    living in the enclave. The four steps below walk through exactly how, using the code in
+    <code>SecureEnclaveManager.swift</code>.
+  </p>
+
+  <!-- ============================ name decoder ============================ -->
+  <section>
+    <div class="step"><span class="step-n">FIRST</span><h2>What the algorithm name actually promises</h2></div>
+    <p>
+      You remembered correctly: the code uses the <strong>older, &ldquo;legacy&rdquo; variant</strong>.
+      <code>SecureEnclaveManager.swift</code> lines&nbsp;147 and&nbsp;167 both select
+      <code>.eciesEncryptionCofactorX963SHA256AESGCM</code> &mdash; Apple&rsquo;s <code>SecKey.h</code> marks it
+      <em>Legacy</em> and points new code at the <code>&hellip;VariableIV&hellip;</code> sibling. What
+      &ldquo;legacy&rdquo; changes is covered in step&nbsp;4; it does <em>not</em> change the answer to your question.
+    </p>
+    <div class="name-strip">
+      <p class="full"><span class="seg-a">ecies</span>Encryption<span class="seg-a">Cofactor</span><span class="seg-s">X963SHA256</span><span class="seg-s">AESGCM</span></p>
+      <dl class="decode">
+        <dt>ecies</dt>
+        <dd>Elliptic Curve <em>Integrated</em> Encryption Scheme &mdash; a bundle: key agreement + key derivation + symmetric cipher in one call.</dd>
+        <dt>Cofactor</dt>
+        <dd>the ECDH flavour. On P-256 the cofactor is 1, so this is a no-op distinction here.</dd>
+        <dt>X963SHA256</dt>
+        <dd>the KDF: ANSI X9.63 with SHA-256 turns the raw ECDH result into a clean AES key.</dd>
+        <dt>AESGCM</dt>
+        <dd>the actual data cipher: AES-128-GCM (128-bit, because the Secure Enclave key is a 256-bit EC key).</dd>
+      </dl>
+    </div>
+    <p>
+      The important word is <em>Integrated</em>. A P-256 key cannot encrypt your data directly &mdash; EC keys only do
+      point arithmetic. So &ldquo;encrypting with the public key&rdquo; really means: <strong>agree on a fresh
+      symmetric key using EC math, then encrypt with AES</strong>. The agreement step is where the randomness lives.
+    </p>
+  </section>
+
+  <!-- ============================ step 1: encrypt ============================ -->
+  <section>
+    <div class="step"><span class="step-n">STEP 1</span><h2>One encrypt call, end to end</h2></div>
+    <p>
+      When <code>encrypt()</code> hands the plaintext to <code>SecKeyCreateEncryptedData</code>, the Security
+      framework silently generates a <span class="k-asym">one-shot ephemeral key pair (e,&nbsp;E)</span> &mdash; a fresh
+      random private scalar <span class="k-asym">e</span> and its public point <span class="k-asym">E</span>. The AES
+      key is <em>not</em> derived from your public key alone; it is derived from the ECDH combination of
+      <span class="k-asym">e</span> (new every call) with your enclave public key <span class="k-asym">P</span> (always
+      the same). Fresh <span class="k-asym">e</span> in, fresh <span class="k-sym">K</span> out.
+    </p>
+
+    <figure>
+      <div class="fig-scroll">
+      <svg viewBox="0 0 760 700" role="img" aria-label="Encryption pipeline: the static enclave public key P and a fresh ephemeral pair e,E feed ECDH, whose shared secret runs through the X9.63 KDF to produce a new AES-128 key K; K encrypts the plaintext with AES-GCM, and the output blob is the ephemeral public key E, the ciphertext, and the GCM tag.">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" class="arrow"/>
+          </marker>
+          <marker id="ar-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" class="arrow-a"/>
+          </marker>
+        </defs>
+
+        <!-- inputs -->
+        <rect class="bx-a-dash" x="30" y="16" width="330" height="76" rx="8"/>
+        <text class="t" x="195" y="44" text-anchor="middle">Ephemeral pair (<tspan class="t-a">e</tspan>, <tspan class="t-a">E</tspan>)</text>
+        <text class="t-sub" x="195" y="63" text-anchor="middle">fresh randomness, generated inside the call</text>
+        <text class="t-sub" x="195" y="79" text-anchor="middle">by SecKeyCreateEncryptedData itself</text>
+
+        <rect class="bx-a" x="400" y="16" width="330" height="76" rx="8"/>
+        <text class="t" x="565" y="49" text-anchor="middle">Enclave public key <tspan class="t-a">P</tspan></text>
+        <text class="t-sub" x="565" y="69" text-anchor="middle">static &mdash; identical on every call</text>
+
+        <!-- e into ECDH -->
+        <polyline class="ln" points="195,92 195,198 272,198" marker-end="url(#ar)"/>
+        <text class="t-lab" x="207" y="176"><tspan class="t-a">e</tspan> &mdash; the private half</text>
+        <!-- P into ECDH -->
+        <polyline class="ln" points="565,92 565,198 488,198" marker-end="url(#ar)"/>
+        <text class="t-lab" x="553" y="176" text-anchor="end"><tspan class="t-a">P</tspan></text>
+
+        <!-- E bypass down the left margin -->
+        <polyline class="ln-dash" points="60,92 60,596" marker-end="url(#ar-a)"/>
+        <!-- sharedInfo branch into KDF -->
+        <polyline class="ln-dash" points="60,314 272,314" marker-end="url(#ar-a)"/>
+        <circle cx="60" cy="314" r="3" fill="var(--asym)"/>
+        <text class="t-lab t-a" x="72" y="304">sharedInfo = E</text>
+        <text class="t-lab t-a" x="72" y="447">E is also copied into</text>
+        <text class="t-lab t-a" x="72" y="464">the output, in the clear</text>
+
+        <!-- ECDH -->
+        <rect class="bx" x="280" y="170" width="200" height="56" rx="8"/>
+        <text class="t" x="380" y="194" text-anchor="middle">ECDH</text>
+        <text class="t-sub" x="380" y="213" text-anchor="middle">point multiply: e &#215; P</text>
+
+        <polyline class="ln" points="380,226 380,286" marker-end="url(#ar)"/>
+        <text class="t-lab" x="392" y="260">32-byte shared secret S</text>
+
+        <!-- KDF -->
+        <rect class="bx" x="280" y="286" width="200" height="56" rx="8"/>
+        <text class="t" x="380" y="310" text-anchor="middle">X9.63 KDF &middot; SHA-256</text>
+        <text class="t-sub" x="380" y="329" text-anchor="middle">whitens S into key material</text>
+
+        <polyline class="ln" points="380,342 380,402" marker-end="url(#ar)"/>
+        <text class="t-lab" x="392" y="376">16 bytes out</text>
+
+        <!-- K -->
+        <rect class="bx-s" x="280" y="402" width="200" height="60" rx="8"/>
+        <text class="t" x="380" y="428" text-anchor="middle"><tspan class="t-s">AES-128 key K</tspan></text>
+        <text class="t-sub" x="380" y="448" text-anchor="middle">brand-new for this one message</text>
+
+        <polyline class="ln" points="380,462 380,522" marker-end="url(#ar)"/>
+
+        <!-- plaintext from the right -->
+        <polyline class="ln" points="700,550 488,550" marker-end="url(#ar)"/>
+        <text class="t-lab" x="700" y="538" text-anchor="end">plaintext &mdash; the wrapped master key</text>
+
+        <!-- AES-GCM -->
+        <rect class="bx" x="280" y="522" width="200" height="56" rx="8"/>
+        <text class="t" x="380" y="546" text-anchor="middle">AES-GCM encrypt</text>
+        <text class="t-sub" x="380" y="565" text-anchor="middle">IV = 16 zero bytes (see step 4)</text>
+
+        <polyline class="ln" points="380,578 380,598" marker-end="url(#ar)"/>
+
+        <!-- output blob -->
+        <rect class="bx-a-dash" x="30" y="600" width="180" height="48"/>
+        <text class="t-lab t-a" x="120" y="628" text-anchor="middle">E &middot; 65 B</text>
+        <rect class="bx-mut" x="210" y="600" width="390" height="48"/>
+        <text class="t-lab" x="405" y="628" text-anchor="middle">ciphertext &middot; plaintext length</text>
+        <rect class="bx-mut" x="600" y="600" width="130" height="48"/>
+        <text class="t-lab" x="665" y="628" text-anchor="middle">tag &middot; 16 B</text>
+        <text class="t-sub" x="380" y="676" text-anchor="middle">the Data your Swift code returns &mdash; 81 bytes longer than the plaintext</text>
+      </svg>
+      </div>
+      <figcaption>
+        One <code>SecKeyCreateEncryptedData</code> call. Solid boxes are computed values; the dashed indigo box and
+        lines are the ephemeral material born inside this call. The private half <strong>e</strong> is erased when the
+        call returns; the public half <strong>E</strong> is shipped as the first 65 bytes of the output.
+      </figcaption>
+    </figure>
+
+    <p>
+      Note what happens to the two ephemeral halves. The private scalar <span class="k-asym">e</span> exists for
+      microseconds &mdash; used once for the ECDH multiply, then gone; it is never written anywhere. The public point
+      <span class="k-asym">E</span> is <em>deliberately published</em>: it becomes the first 65 bytes of the blob your
+      code stores. That asymmetry is the entire trick.
+    </p>
+  </section>
+
+  <!-- ============================ step 2: run twice ============================ -->
+  <section>
+    <div class="step"><span class="step-n">STEP 2</span><h2>Run it twice &mdash; same P, different everything else</h2></div>
+    <p>
+      Because <span class="k-asym">e</span> is drawn fresh from the system RNG on every call, two encryptions of even
+      the <em>same plaintext</em> under the <em>same public key</em> agree on nothing downstream: different shared
+      secret, different AES key, different ciphertext, different blob. You can verify this from Dart in seconds &mdash;
+      call <code>encrypt()</code> twice with one string and compare the Base64: the outputs differ from the first byte
+      of the ephemeral key onward.
+    </p>
+
+    <figure>
+      <div class="fig-scroll">
+      <svg viewBox="0 0 760 380" role="img" aria-label="The same public key P feeds two encrypt calls; each call draws its own random ephemeral scalar, e1 and e2, so the derived AES keys K1 and K2 are different.">
+        <rect class="bx-a" x="255" y="20" width="250" height="64" rx="8"/>
+        <text class="t" x="380" y="48" text-anchor="middle">the same public key <tspan class="t-a">P</tspan></text>
+        <text class="t-sub" x="380" y="68" text-anchor="middle">reused for every encrypt call</text>
+
+        <polyline class="ln" points="330,84 330,118 190,118 190,140" marker-end="url(#ar2)"/>
+        <polyline class="ln" points="430,84 430,118 570,118 570,140" marker-end="url(#ar2)"/>
+        <defs>
+          <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" class="arrow"/>
+          </marker>
+        </defs>
+
+        <rect class="bx-a-dash" x="75" y="140" width="230" height="56" rx="8"/>
+        <text class="t" x="190" y="164" text-anchor="middle">call 1: random <tspan class="t-a">e&#8321;</tspan></text>
+        <text class="t-sub" x="190" y="183" text-anchor="middle">new ephemeral pair</text>
+
+        <rect class="bx-a-dash" x="455" y="140" width="230" height="56" rx="8"/>
+        <text class="t" x="570" y="164" text-anchor="middle">call 2: random <tspan class="t-a">e&#8322;</tspan></text>
+        <text class="t-sub" x="570" y="183" text-anchor="middle">new ephemeral pair</text>
+
+        <polyline class="ln" points="190,196 190,244" marker-end="url(#ar2)"/>
+        <text class="t-lab" x="202" y="226">ECDH + KDF</text>
+        <polyline class="ln" points="570,196 570,244" marker-end="url(#ar2)"/>
+        <text class="t-lab" x="582" y="226">ECDH + KDF</text>
+
+        <rect class="bx-s" x="75" y="244" width="230" height="64" rx="8"/>
+        <text class="t-big" x="190" y="272" text-anchor="middle"><tspan class="t-s">K&#8321;</tspan></text>
+        <text class="t-sub" x="190" y="293" text-anchor="middle">AES key for message 1</text>
+
+        <rect class="bx-s" x="455" y="244" width="230" height="64" rx="8"/>
+        <text class="t-big" x="570" y="272" text-anchor="middle"><tspan class="t-s">K&#8322;</tspan></text>
+        <text class="t-sub" x="570" y="293" text-anchor="middle">AES key for message 2</text>
+
+        <text class="t-neq" x="380" y="288" text-anchor="middle">&#8800;</text>
+        <text class="t-sub" x="380" y="348" text-anchor="middle">equal only if e&#8321; = e&#8322; &mdash; probability &#8776; 2&#8315;&#178;&#8309;&#8310; per pair</text>
+      </svg>
+      </div>
+      <figcaption>
+        Same long-term key, two calls, two unrelated AES keys. The public key is a constant <em>ingredient</em>, not
+        the key itself.
+      </figcaption>
+    </figure>
+
+    <div class="callout co-danger">
+      <p class="co-title">Why your feared scenario would be catastrophic</p>
+      <p>
+        Your instinct was sound. If the AES key really were a pure function of <span class="k-asym">P</span>, every
+        message would be encrypted under the <em>same</em> (key,&nbsp;IV) pair &mdash; and this algorithm uses an
+        all-zero IV. Reusing a key+nonce pair in GCM leaks the XOR of plaintexts and can forge tags: a real break, no
+        enclave needed. The scheme is safe <em>precisely because</em> that scenario never occurs &mdash; the fresh
+        ephemeral key guarantees a unique AES key per message.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================ step 3: decrypt ============================ -->
+  <section>
+    <div class="step"><span class="step-n">STEP 3</span><h2>Decryption: the same key, recomputed from the other side</h2></div>
+    <p>
+      So how does <code>decrypt()</code> find a key that was never stored? It doesn&rsquo;t look it up &mdash; it
+      <strong>re-derives</strong> it. The blob opens with <span class="k-asym">E</span>, and Diffie&ndash;Hellman
+      symmetry means the enclave&rsquo;s private key <span class="k-asym">d</span> combined with
+      <span class="k-asym">E</span> lands on the <em>same shared secret</em> the encryptor reached from the opposite
+      pair of halves. Same secret &rarr; same KDF &rarr; same <span class="k-sym">K</span>.
+    </p>
+
+    <figure>
+      <div class="fig-scroll">
+      <svg viewBox="0 0 760 700" role="img" aria-label="Decryption pipeline: the ephemeral public key E is read from the front of the blob and combined with the enclave's private key d via ECDH inside the Secure Enclave, reproducing the same shared secret; the KDF then rebuilds the same AES key K, which decrypts the ciphertext and verifies the tag.">
+        <defs>
+          <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" class="arrow"/>
+          </marker>
+          <marker id="ar3-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" class="arrow-a"/>
+          </marker>
+        </defs>
+
+        <!-- input blob -->
+        <rect class="bx-a-dash" x="30" y="20" width="180" height="48"/>
+        <text class="t-lab t-a" x="120" y="48" text-anchor="middle">E &middot; 65 B</text>
+        <rect class="bx-mut" x="210" y="20" width="390" height="48"/>
+        <text class="t-lab" x="405" y="48" text-anchor="middle">ciphertext</text>
+        <rect class="bx-mut" x="600" y="20" width="130" height="48"/>
+        <text class="t-lab" x="665" y="48" text-anchor="middle">tag &middot; 16 B</text>
+
+        <!-- E into enclave ECDH -->
+        <polyline class="ln-dash" points="120,68 120,105 475,105 475,210" marker-end="url(#ar3-a)"/>
+        <text class="t-lab t-a" x="134" y="97">E &mdash; read straight from the blob</text>
+
+        <!-- ct + tag route down the right -->
+        <polyline class="ln" points="650,68 650,568 598,568" marker-end="url(#ar3)"/>
+        <text class="t-lab" x="660" y="346">ciphertext</text>
+        <text class="t-lab" x="660" y="363">+ tag</text>
+
+        <!-- Secure Enclave -->
+        <rect class="bx-encl" x="30" y="150" width="590" height="180" rx="12"/>
+        <text class="t-lab t-a" x="50" y="180" style="letter-spacing:.12em">SECURE ENCLAVE</text>
+        <text class="t-sub" x="600" y="180" text-anchor="end">unlocked by Face ID / Touch ID</text>
+
+        <rect class="bx-a" x="70" y="210" width="260" height="76" rx="8"/>
+        <text class="t" x="200" y="238" text-anchor="middle">private key <tspan class="t-a">d</tspan></text>
+        <text class="t-sub" x="200" y="257" text-anchor="middle">the only secret ever stored</text>
+        <text class="t-sub" x="200" y="273" text-anchor="middle">never leaves, never changes</text>
+
+        <polyline class="ln" points="330,248 360,248" marker-end="url(#ar3)"/>
+
+        <rect class="bx" x="360" y="210" width="230" height="76" rx="8"/>
+        <text class="t" x="475" y="242" text-anchor="middle">ECDH: d &#215; E</text>
+        <text class="t-sub" x="475" y="263" text-anchor="middle">same math, other private half</text>
+
+        <!-- out of enclave -->
+        <polyline class="ln" points="475,286 475,392" marker-end="url(#ar3)"/>
+        <text class="t-lab" x="487" y="352">the same shared secret S</text>
+
+        <!-- symmetry equation -->
+        <text class="t-lab" x="40" y="382" style="letter-spacing:.1em">WHY IT MATCHES</text>
+        <text class="t-eq" x="40" y="408">e&#183;P = e&#183;(d&#183;G)</text>
+        <text class="t-eq" x="40" y="430">&nbsp;&nbsp;&nbsp;&nbsp;= d&#183;(e&#183;G) = d&#183;E</text>
+
+        <!-- KDF + K -->
+        <rect class="bx-s" x="360" y="392" width="230" height="72" rx="8"/>
+        <text class="t" x="475" y="420" text-anchor="middle">X9.63 KDF &rarr; <tspan class="t-s">the same K</tspan></text>
+        <text class="t-sub" x="475" y="441" text-anchor="middle">recomputed on the fly, never stored</text>
+
+        <polyline class="ln" points="475,464 475,540" marker-end="url(#ar3)"/>
+
+        <!-- GCM decrypt -->
+        <rect class="bx" x="360" y="540" width="230" height="56" rx="8"/>
+        <text class="t" x="475" y="564" text-anchor="middle">AES-GCM decrypt + verify</text>
+        <text class="t-sub" x="475" y="583" text-anchor="middle">IV = 16 zero bytes again</text>
+
+        <polyline class="ln" points="475,596 475,628" marker-end="url(#ar3)"/>
+        <text class="t" x="475" y="652" text-anchor="middle">plaintext</text>
+        <text class="t-sub" x="475" y="674" text-anchor="middle">any tampering with E, ciphertext or tag &rarr; the tag check fails</text>
+      </svg>
+      </div>
+      <figcaption>
+        <code>SecKeyCreateDecryptedData</code>. Only the ECDH multiply runs inside the Secure Enclave (that is the
+        step gated by biometrics); the KDF and AES-GCM run in the Security framework in your process. No per-message
+        state exists anywhere.
+      </figcaption>
+    </figure>
+
+    <div class="callout co-good">
+      <p class="co-title">The answer to your second question</p>
+      <p>
+        Different keys per message do <em>not</em> require storing anything per message. The &ldquo;secret&rdquo; each
+        message needs is reconstructed from two parts: one <strong>public and attached to the message</strong>
+        (<span class="k-asym">E</span>), one <strong>private and permanent</strong> (<span class="k-asym">d</span> in
+        the enclave). One stored key decrypts an unlimited number of blobs, each wrapped under its own AES key.
+      </p>
+    </div>
+
+    <p>
+      A pleasant side effect of this design, and the reason the plugin can re-wrap data silently: encryption uses only
+      public material, so <code>encrypt()</code> never shows a biometric prompt. Face&nbsp;ID appears only on
+      <code>decrypt()</code>, when <span class="k-asym">d</span> must actually be <em>used</em>.
+    </p>
+  </section>
+
+  <!-- ============================ step 4: attacker ============================ -->
+  <section>
+    <div class="step"><span class="step-n">STEP 4</span><h2>What an attacker holds, and why it isn&rsquo;t enough</h2></div>
+    <p>
+      Suppose an attacker exfiltrates everything your app can see on disk and in memory after the fact. Their haul:
+    </p>
+
+    <div class="haves">
+      <div class="have public">
+        <span class="who">P &mdash; public</span>
+        <span class="why">the enclave public key. Public by design; grants the ability to <em>encrypt</em>, which helps no one.</span>
+      </div>
+      <div class="have public">
+        <span class="who">E &mdash; public</span>
+        <span class="why">the ephemeral public key, first 65 bytes of every blob. Also useless alone &mdash; it is the public half.</span>
+      </div>
+      <div class="have public">
+        <span class="who">blob</span>
+        <span class="why">ciphertext + tag. Opaque without K.</span>
+      </div>
+      <div class="have needed">
+        <span class="who">e &mdash; needed</span>
+        <span class="why">the ephemeral private scalar. Destroyed microseconds after key derivation; it never existed outside that one call&rsquo;s stack.</span>
+      </div>
+      <div class="have needed">
+        <span class="who">d &mdash; needed</span>
+        <span class="why">the enclave private key. Generated inside the Secure Enclave, marked non-exportable, and usable only after Face&nbsp;ID / Touch&nbsp;ID (<code>.biometryCurrentSet</code>).</span>
+      </div>
+    </div>
+
+    <p>
+      Recovering <span class="k-sym">K</span> means computing the shared secret <em>S</em> from
+      <span class="k-asym">P</span> and <span class="k-asym">E</span> alone &mdash; with neither private half. That is
+      the <strong>computational Diffie&ndash;Hellman problem</strong> on P-256, and it is exactly the hardness
+      assumption all of TLS rests on. There is no shortcut through the KDF either: X9.63/SHA-256 is deterministic, but
+      its <em>input</em> is the secret the attacker doesn&rsquo;t have. So the honest phrasing of your first question
+      is: the AES key is not &ldquo;derived from the public key&rdquo; &mdash; it is derived from a
+      <em>Diffie&ndash;Hellman agreement</em> in which the public key is the only reusable ingredient, and every
+      derivation consumes one private value that no longer exists and one that never leaves silicon.
+    </p>
+  </section>
+
+  <!-- ============================ legacy footnote ============================ -->
+  <section>
+    <div class="step"><span class="step-n">FINALLY</span><h2>The &ldquo;older version&rdquo; you remembered &mdash; what it actually changes</h2></div>
+
+    <div class="callout co-warn">
+      <p class="co-title">Legacy vs VariableIV (finding F-8 in the crypto analysis)</p>
+      <p>
+        The variant in the code derives <strong>16 bytes</strong> from the KDF (just the AES key) and uses a
+        <strong>fixed all-zero IV</strong>. The modern
+        <code>eciesEncryptionCofactorVariableIVX963SHA256AESGCM</code> derives <strong>32 bytes</strong> &mdash; key
+        <em>and</em> IV. With a unique key per message the zero IV is harmless, which is why Apple shipped it at all.
+        But it is one refactor away from danger (if anyone ever caches or reuses a derived key, step&nbsp;2&rsquo;s
+        red box becomes reality), so migrating is right on principle. Note it is <strong>format-breaking</strong>:
+        old blobs will not decrypt under the new constant, so a migration needs a version byte in the stored format.
+      </p>
+    </div>
+
+    <p>
+      One more inherent quirk worth knowing: because the Secure Enclave only holds 256-bit EC keys, ECIES here always
+      yields <strong>AES-128</strong>-GCM &mdash; there is no parameter to request AES-256. So the biometric wrap of
+      the AES-256 master key is itself protected at the 128-bit level. Not broken, not urgent, but a real asymmetry
+      with the password path that deserves a line of documentation.
+    </p>
+  </section>
+
+  <div class="refs">
+    <h2>Where to verify this</h2>
+    <ul>
+      <li><span class="mono">packages/biometric_cipher/darwin/Classes/Managers/SecureEnclaveManager.swift:147, 167</span> &mdash; the algorithm constant in encrypt/decrypt.</li>
+      <li><span class="mono">docs/AW-321-biometric-cipher-crypto-analysis.md</span> &sect;4.1 &mdash; the iOS/macOS deep dive; F-8 is the legacy-variant finding.</li>
+      <li><a href="04-ecies-byte-by-byte.html">ECIES, Byte by Byte</a> &mdash; your companion artifact dissecting the exact byte layout of the blob.</li>
+      <li>Apple <span class="mono">SecKey.h</span> &mdash; the header comments marking the constant Legacy and describing KDF/IV behaviour per variant.</li>
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>
