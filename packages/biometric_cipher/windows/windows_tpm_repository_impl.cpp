@@ -1,5 +1,6 @@
 #include "include/biometric_cipher/repositories/windows_tpm_repository_impl.h"
 #include "include/biometric_cipher/common/memory_deallocation.h"
+#include "include/biometric_cipher/common/string_util.h"
 #include "include/biometric_cipher/enums/tpm_status.h"
 #include "include/biometric_cipher/errors/error_codes.h"
 
@@ -47,6 +48,47 @@ namespace biometric_cipher
 		catch (const std::exception) {
 			throw hresult_error(error_tpm_version, L"Incorrect TPM version");
 		}
+	}
+
+	std::vector<TpmKeyInfo> WindowsTpmRepositoryImpl::ListTpmKeys() const
+	{
+		SECURITY_STATUS status = ERROR_SUCCESS;
+
+		NCryptHandleFree providerHandle;
+
+		status = m_NCryptWrapper->OpenStorageProvider(providerHandle, MS_PLATFORM_CRYPTO_PROVIDER, 0);
+		CheckStatus(error_tpm_unsupported, L"NCryptOpenStorageProvider failed", status);
+
+		std::vector<TpmKeyInfo> keys;
+		NCryptKeyName* keyName = nullptr;
+		PVOID enumState = nullptr;
+
+		while (true)
+		{
+			status = m_NCryptWrapper->EnumKeys(providerHandle, &keyName, &enumState, 0);
+			if (status == NTE_NO_MORE_ITEMS)
+			{
+				break;
+			}
+			CheckStatus(error_tpm_unsupported, L"NCryptEnumKeys failed", status);
+
+			if (keyName != nullptr)
+			{
+				keys.push_back(TpmKeyInfo{
+					StringUtil::ConvertWideStringToString(keyName->pszName),
+					StringUtil::ConvertWideStringToString(keyName->pszAlgid)
+				});
+				m_NCryptWrapper->FreeBuffer(keyName);
+				keyName = nullptr;
+			}
+		}
+
+		if (enumState != nullptr)
+		{
+			m_NCryptWrapper->FreeBuffer(enumState);
+		}
+
+		return keys;
 	}
 
 	const std::wstring WindowsTpmRepositoryImpl::ParsePlatformType(const std::wstring& platformVersion)

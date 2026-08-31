@@ -21,6 +21,20 @@ namespace biometric_cipher{
 				(const NCryptHandleFree& providerHandle, LPCWSTR pszProperty, PBYTE pbOutput, DWORD cbOutput, DWORD* pcbResult, DWORD dwFlags),
 				(const, override)
 			);
+
+			MOCK_METHOD(
+				(SECURITY_STATUS),
+				EnumKeys,
+				(NCryptHandleFree const& providerHandle, NCryptKeyName** ppKeyName, PVOID* ppEnumState, DWORD dwFlags),
+				(const, override)
+			);
+
+			MOCK_METHOD(
+				(SECURITY_STATUS),
+				FreeBuffer,
+				(PVOID pvInput),
+				(const, override)
+			);
 		};
 	}  // namespace test
 }  // namespace biometric_cipher

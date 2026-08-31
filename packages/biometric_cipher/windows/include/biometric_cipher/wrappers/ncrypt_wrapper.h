@@ -24,5 +24,16 @@ namespace biometric_cipher
 			DWORD * pcbResult,
 			DWORD dwFlags
 		) const = 0;
+
+		virtual SECURITY_STATUS EnumKeys(
+			NCryptHandleFree const& providerHandle,
+			NCryptKeyName** ppKeyName,
+			PVOID* ppEnumState,
+			DWORD dwFlags
+		) const = 0;
+
+		virtual SECURITY_STATUS FreeBuffer(
+			PVOID pvInput
+		) const = 0;
 	};
 }

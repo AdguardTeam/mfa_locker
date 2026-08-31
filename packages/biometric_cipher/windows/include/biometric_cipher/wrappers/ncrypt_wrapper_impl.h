@@ -29,5 +29,22 @@ namespace biometric_cipher
 		{
 			return NCryptGetProperty(providerHandle.get(), pszProperty, pbOutput, cbOutput, pcbResult, dwFlags);
 		}
+
+		SECURITY_STATUS EnumKeys(
+			NCryptHandleFree const& providerHandle,
+			NCryptKeyName** ppKeyName,
+			PVOID* ppEnumState,
+			DWORD dwFlags
+		) const override
+		{
+			return NCryptEnumKeys(providerHandle.get(), nullptr, ppKeyName, ppEnumState, dwFlags);
+		}
+
+		SECURITY_STATUS FreeBuffer(
+			PVOID pvInput
+		) const override
+		{
+			return NCryptFreeBuffer(pvInput);
+		}
 	};
 }

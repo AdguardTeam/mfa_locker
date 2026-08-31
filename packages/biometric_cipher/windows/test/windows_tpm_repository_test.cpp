@@ -154,5 +154,101 @@ namespace biometric_cipher {
 				winrt::hresult_error
 			);
 		}
+
+		TEST_F(WindowsTpmRepositoryTest, ListTpmKeys_ReturnsAllTpmKeys)
+		{
+			EXPECT_CALL(*m_mockNCryptWrapper, OpenStorageProvider)
+				.Times(1)
+				.WillOnce([](NCryptHandleFree& providerHandle, LPCWSTR pszProviderName, DWORD dwFlags) -> SECURITY_STATUS
+					{
+						EXPECT_STREQ(pszProviderName, MS_PLATFORM_CRYPTO_PROVIDER);
+						EXPECT_EQ(dwFlags, 0);
+
+						return ERROR_SUCCESS;
+					}
+				);
+
+			NCryptKeyName firstKey = {};
+			firstKey.pszName = const_cast<LPWSTR>(L"tpm_key_one");
+			firstKey.pszAlgid = const_cast<LPWSTR>(L"RSA");
+
+			NCryptKeyName secondKey = {};
+			secondKey.pszName = const_cast<LPWSTR>(L"tpm_key_two");
+			secondKey.pszAlgid = const_cast<LPWSTR>(L"ECC");
+
+			EXPECT_CALL(*m_mockNCryptWrapper, EnumKeys)
+				.Times(3)
+				.WillOnce([&firstKey](NCryptHandleFree const&, NCryptKeyName** ppKeyName, PVOID* ppEnumState, DWORD) -> SECURITY_STATUS
+					{
+						*ppKeyName = &firstKey;
+						*ppEnumState = reinterpret_cast<PVOID>(1);
+
+						return ERROR_SUCCESS;
+					}
+				)
+				.WillOnce([&secondKey](NCryptHandleFree const&, NCryptKeyName** ppKeyName, PVOID* ppEnumState, DWORD) -> SECURITY_STATUS
+					{
+						*ppKeyName = &secondKey;
+						*ppEnumState = reinterpret_cast<PVOID>(1);
+
+						return ERROR_SUCCESS;
+					}
+				)
+				.WillOnce([](NCryptHandleFree const&, NCryptKeyName**, PVOID* ppEnumState, DWORD) -> SECURITY_STATUS
+					{
+						*ppEnumState = reinterpret_cast<PVOID>(1);
+
+						return NTE_NO_MORE_ITEMS;
+					}
+				);
+
+			EXPECT_CALL(*m_mockNCryptWrapper, FreeBuffer)
+				.Times(3)
+				.WillRepeatedly([](PVOID pvInput) -> SECURITY_STATUS
+					{
+						EXPECT_NE(pvInput, nullptr);
+
+						return ERROR_SUCCESS;
+					}
+				);
+
+			// Act
+			auto keys = m_Repository->ListTpmKeys();
+
+			// Assert
+			ASSERT_EQ(keys.size(), static_cast<size_t>(2));
+			EXPECT_EQ(keys[0].name, "tpm_key_one");
+			EXPECT_EQ(keys[0].algorithm, "RSA");
+			EXPECT_EQ(keys[1].name, "tpm_key_two");
+			EXPECT_EQ(keys[1].algorithm, "ECC");
+		}
+
+		TEST_F(WindowsTpmRepositoryTest, ListTpmKeys_ThrowsIfEnumKeysFails)
+		{
+			EXPECT_CALL(*m_mockNCryptWrapper, OpenStorageProvider)
+				.Times(1)
+				.WillOnce([](NCryptHandleFree& providerHandle, LPCWSTR pszProviderName, DWORD dwFlags) -> SECURITY_STATUS
+					{
+						return ERROR_SUCCESS;
+					}
+				);
+
+			EXPECT_CALL(*m_mockNCryptWrapper, EnumKeys)
+				.Times(1)
+				.WillOnce([](NCryptHandleFree const&, NCryptKeyName** ppKeyName, PVOID* ppEnumState, DWORD) -> SECURITY_STATUS
+					{
+						*ppKeyName = nullptr;
+						*ppEnumState = nullptr;
+
+						return NTE_BAD_KEY;
+					}
+				);
+
+			// Act & Assert
+			EXPECT_THROW(
+				m_Repository->ListTpmKeys(),
+				winrt::hresult_error
+			);
+		}
 	}
 }

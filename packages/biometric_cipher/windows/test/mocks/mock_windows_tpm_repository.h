@@ -9,6 +9,8 @@ namespace biometric_cipher {
 		class MockWindowsTpmRepository : public WindowsTpmRepository {
 		public:
 			MOCK_METHOD(int, GetWindowsTpmVersion, (), (const, override));
+
+			MOCK_METHOD((std::vector<TpmKeyInfo>), ListTpmKeys, (), (const, override));
 		};
 	}
 }

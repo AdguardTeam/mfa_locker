@@ -16,6 +16,8 @@ namespace biometric_cipher
 
 		int GetWindowsTpmVersion() const override;
 
+		std::vector<TpmKeyInfo> ListTpmKeys() const override;
+
 	private:
 		static void CheckStatus(const winrt::hresult hr, const std::wstring& message, const int errorCode);
 
