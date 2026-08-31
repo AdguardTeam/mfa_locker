@@ -32,35 +32,49 @@ class _MfaLockerTransaction implements LockerTransaction {
       });
 
   @override
-  Future<EntryId> write(EntryAddInput input) => _locker._sync(() async {
-        _ensureOpen();
+  Future<EntryId> write(EntryAddInput input) => _locker._sync(
+        () => _locker._executeWithCleanup<EntryId>(
+          // dispose input.meta only on error because it is cached
+          erasables: [input.value],
+          erasablesOnError: [input.meta],
+          callback: () async {
+            _ensureOpen();
 
-        final entryId = await _locker._storage.addEntryWithKeys(
-          input: input,
-          keys: _keys,
-        );
+            final entryId = await _locker._storage.addEntryWithKeys(
+              input: input,
+              keys: _keys,
+            );
 
-        _locker._metaCache[entryId]?.erase();
-        _locker._metaCache[entryId] = input.meta;
+            _locker._metaCache[entryId]?.erase();
+            _locker._metaCache[entryId] = input.meta;
 
-        return entryId;
-      });
+            return entryId;
+          },
+        ),
+      );
 
   @override
-  Future<void> update(EntryUpdateInput input) => _locker._sync(() async {
-        _ensureOpen();
+  Future<void> update(EntryUpdateInput input) => _locker._sync(
+        () => _locker._executeWithCleanup(
+          // dispose input.meta only on error because it is cached
+          erasables: [if (input.value != null) input.value!],
+          erasablesOnError: [if (input.meta != null) input.meta!],
+          callback: () async {
+            _ensureOpen();
 
-        await _locker._storage.updateEntryWithKeys(
-          input: input,
-          keys: _keys,
-        );
+            await _locker._storage.updateEntryWithKeys(
+              input: input,
+              keys: _keys,
+            );
 
-        final meta = input.meta;
-        if (meta != null) {
-          _locker._metaCache[input.id]?.erase();
-          _locker._metaCache[input.id] = meta;
-        }
-      });
+            final meta = input.meta;
+            if (meta != null) {
+              _locker._metaCache[input.id]?.erase();
+              _locker._metaCache[input.id] = meta;
+            }
+          },
+        ),
+      );
 
   @override
   Future<void> delete(EntryId id) => _locker._sync(() async {

@@ -431,6 +431,73 @@ void main() {
         expect(writeKeys.single, same(keys));
       });
 
+      test('write erases the input value but keeps the cached meta', () async {
+        // Arrange
+        final meta = _StorageHelpers.createEntryMeta([5]);
+        final value = _StorageHelpers.createEntryValue([1]);
+        when(() => storage.addEntryWithKeys(input: any(named: 'input'), keys: any(named: 'keys')))
+            .thenAnswer((_) async => EntryId('new'));
+
+        final txn = await locker.beginTransaction(cipher);
+
+        // Act
+        await txn.write(EntryAddInput(meta: meta, value: value));
+
+        // Assert
+        expect(value.isErased, isTrue);
+        expect(meta.isErased, isFalse);
+      });
+
+      test('write erases both value and meta when storage fails', () async {
+        // Arrange
+        final meta = _StorageHelpers.createEntryMeta([5]);
+        final value = _StorageHelpers.createEntryValue([1]);
+        when(() => storage.addEntryWithKeys(input: any(named: 'input'), keys: any(named: 'keys')))
+            .thenThrow(StorageException.other('boom'));
+
+        final txn = await locker.beginTransaction(cipher);
+
+        // Act & Assert
+        await expectLater(txn.write(EntryAddInput(meta: meta, value: value)), throwsA(isA<StorageException>()));
+        expect(value.isErased, isTrue);
+        expect(meta.isErased, isTrue);
+      });
+
+      test('update erases the input value but keeps the cached meta', () async {
+        // Arrange
+        final meta = _StorageHelpers.createEntryMeta([5]);
+        final value = _StorageHelpers.createEntryValue([1]);
+        when(() => storage.updateEntryWithKeys(input: any(named: 'input'), keys: any(named: 'keys')))
+            .thenAnswer((_) async {});
+
+        final txn = await locker.beginTransaction(cipher);
+
+        // Act
+        await txn.update(EntryUpdateInput(id: EntryId('a'), meta: meta, value: value));
+
+        // Assert
+        expect(value.isErased, isTrue);
+        expect(meta.isErased, isFalse);
+      });
+
+      test('update erases both value and meta when storage fails', () async {
+        // Arrange
+        final meta = _StorageHelpers.createEntryMeta([5]);
+        final value = _StorageHelpers.createEntryValue([1]);
+        when(() => storage.updateEntryWithKeys(input: any(named: 'input'), keys: any(named: 'keys')))
+            .thenThrow(StorageException.other('boom'));
+
+        final txn = await locker.beginTransaction(cipher);
+
+        // Act & Assert
+        await expectLater(
+          txn.update(EntryUpdateInput(id: EntryId('a'), meta: meta, value: value)),
+          throwsA(isA<StorageException>()),
+        );
+        expect(value.isErased, isTrue);
+        expect(meta.isErased, isTrue);
+      });
+
       test('delete removes meta and tolerates a missing entry', () async {
         // Arrange
         when(() => storage.deleteEntryWithKeys(id: any(named: 'id'), keys: any(named: 'keys')))
