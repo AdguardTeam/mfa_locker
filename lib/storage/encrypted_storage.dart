@@ -10,6 +10,7 @@ import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
+import 'package:locker/storage/models/unlocked_keys.dart';
 
 /// Interface for encrypted storage that manages secure data.
 ///
@@ -54,6 +55,22 @@ abstract interface class EncryptedStorage {
     required int lockTimeout,
   });
 
+  /// Unwraps the master key using [cipherFunc].
+  ///
+  /// This is the single authentication point of the storage: for biometrics it
+  /// triggers exactly one system prompt. The returned [UnlockedKeys] is reused
+  /// by the `*WithKeys` methods so a sequence of operations performs a single
+  /// authentication.
+  ///
+  /// The caller is responsible for erasing the returned [UnlockedKeys] when no
+  /// longer needed.
+  ///
+  /// Throws [StorageException] if the storage is not initialized, the HMAC is
+  /// invalid, or authentication fails.
+  Future<UnlockedKeys> unlockKeys({
+    required CipherFunc cipherFunc,
+  });
+
   /// Adds an additional authentication method or replaces an existing one.
   ///
   /// Creates a new wrap for the master key using [newWrapFunc], allowing
@@ -85,6 +102,14 @@ abstract interface class EncryptedStorage {
     required CipherFunc cipherFunc,
   });
 
+  /// Like [deleteEntry] but reuses an already-unwrapped master key ([keys]).
+  ///
+  /// Requires [keys] returned by [unlockKeys]; no authentication is performed.
+  Future<void> deleteEntryWithKeys({
+    required EntryId id,
+    required UnlockedKeys keys,
+  });
+
   /// Adds an entry to the storage.
   ///
   /// [input] - Entry data (meta, value, optional fixed ID). When [input.id] is
@@ -99,6 +124,14 @@ abstract interface class EncryptedStorage {
     required CipherFunc cipherFunc,
   });
 
+  /// Like [addEntry] but reuses an already-unwrapped master key ([keys]).
+  ///
+  /// Requires [keys] returned by [unlockKeys]; no authentication is performed.
+  Future<EntryId> addEntryWithKeys({
+    required EntryAddInput input,
+    required UnlockedKeys keys,
+  });
+
   /// Updates an entry by its id.
   ///
   /// [input] - Update data (id, optional meta, optional value). At least one of
@@ -111,12 +144,25 @@ abstract interface class EncryptedStorage {
     required CipherFunc cipherFunc,
   });
 
+  /// Like [updateEntry] but reuses an already-unwrapped master key ([keys]).
+  ///
+  /// Requires [keys] returned by [unlockKeys]; no authentication is performed.
+  Future<void> updateEntryWithKeys({
+    required EntryUpdateInput input,
+    required UnlockedKeys keys,
+  });
+
   /// Retrieves and decrypts all entries metadata and maps them to their ids.
   ///
   /// Requires [cipherFunc] to decrypt the master key.
   Future<Map<EntryId, EntryMeta>> readAllMeta({
     required CipherFunc cipherFunc,
   });
+
+  /// Like [readAllMeta] but reuses an already-unwrapped master key ([keys]).
+  ///
+  /// Requires [keys] returned by [unlockKeys]; no authentication is performed.
+  Future<Map<EntryId, EntryMeta>> readAllMetaWithKeys(UnlockedKeys keys);
 
   /// Retrieves and decrypts an entry value by id.
   ///
@@ -127,6 +173,14 @@ abstract interface class EncryptedStorage {
   Future<EntryValue> readValue({
     required EntryId id,
     required CipherFunc cipherFunc,
+  });
+
+  /// Like [readValue] but reuses an already-unwrapped master key ([keys]).
+  ///
+  /// Requires [keys] returned by [unlockKeys]; no authentication is performed.
+  Future<EntryValue> readValueWithKeys({
+    required EntryId id,
+    required UnlockedKeys keys,
   });
 
   /// Updates the storage lock timeout value.

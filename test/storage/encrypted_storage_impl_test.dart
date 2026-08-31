@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:locker/storage/encrypted_storage_impl.dart';
 import 'package:locker/storage/models/data/key_wrap.dart';
 import 'package:locker/storage/models/data/origin.dart';
+import 'package:locker/storage/models/data/storage_entry.dart';
 import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
@@ -1678,6 +1679,111 @@ void main() {
         expect(deleteCalls, greaterThanOrEqualTo(1), reason: 'there must be at least one deletion');
         expect(await storageFile.exists(), isFalse, reason: 'file must not exist after erase');
         expect(readCalls, 1, reason: 'erase does not trigger a read; the only read was from addEntry');
+      });
+    });
+
+    group('unlockKeys and key-based operations', () {
+      late Uint8List masterKeyBytes;
+
+      setUp(() async {
+        // Storage with a single pwd-wrapped entry encrypted under masterKeyBytes.
+        final masterKey = await CryptographyUtils.generateAESKey();
+        masterKeyBytes = masterKey.bytes;
+
+        final encryptedMeta = await CryptographyUtils.encrypt(
+          key: masterKey,
+          data: _Helpers.createEntryMeta([1]),
+        );
+        final encryptedValue = await CryptographyUtils.encrypt(
+          key: masterKey,
+          data: _Helpers.createEntryValue([2, 3]),
+        );
+
+        final data = await _Helpers.createStorageData(
+          masterKey: masterKey,
+          wraps: [KeyWrap(origin: Origin.pwd, encryptedKey: masterKeyBytes)],
+          entries: [
+            StorageEntry(
+              id: EntryId('a'),
+              encryptedMeta: encryptedMeta,
+              encryptedValue: encryptedValue,
+            ),
+          ],
+        );
+
+        await _Helpers.writeStorageData(storageFile, data);
+      });
+
+      test('unlockKeys returns keys that decode entries via WithKeys operations', () async {
+        // Arrange
+        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
+
+        // Act
+        final keys = await storage.unlockKeys(cipherFunc: cipher);
+
+        // Assert
+        expect(keys.isErased, isFalse);
+
+        final metas = await storage.readAllMetaWithKeys(keys);
+        expect(metas.keys, contains(EntryId('a')));
+
+        final value = await storage.readValueWithKeys(id: EntryId('a'), keys: keys);
+        expect(value.bytes, orderedEquals([2, 3]));
+      });
+
+      test('read/update/add/delete via WithKeys round-trip without re-authentication', () async {
+        // Arrange
+        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
+        final keys = await storage.unlockKeys(cipherFunc: cipher);
+
+        // Act
+        await storage.updateEntryWithKeys(
+          input: EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([9, 9])),
+          keys: keys,
+        );
+        final updated = await storage.readValueWithKeys(id: EntryId('a'), keys: keys);
+
+        final newId = await storage.addEntryWithKeys(
+          input: EntryAddInput(
+            meta: _Helpers.createEntryMeta([7]),
+            value: _Helpers.createEntryValue([8]),
+            id: EntryId('b'),
+          ),
+          keys: keys,
+        );
+
+        // Assert
+        expect(updated.bytes, orderedEquals([9, 9]));
+        expect(newId, EntryId('b'));
+
+        var all = await storage.readAllMetaWithKeys(keys);
+        expect(all.keys, containsAll([EntryId('a'), EntryId('b')]));
+
+        await storage.deleteEntryWithKeys(id: EntryId('b'), keys: keys);
+        all = await storage.readAllMetaWithKeys(keys);
+        expect(all.keys, isNot(contains(EntryId('b'))));
+      });
+
+      test('unlockKeys with a failing cipher throws', () async {
+        // Arrange
+        final cipher = _Helpers.createDecryptFailingPasswordCipherFunc();
+
+        // Act & Assert
+        await expectLater(
+          storage.unlockKeys(cipherFunc: cipher),
+          throwsA(isA<DecryptFailedException>()),
+        );
+      });
+
+      test('WithKeys operations throw after keys are erased', () async {
+        // Arrange
+        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
+        final keys = await storage.unlockKeys(cipherFunc: cipher);
+        keys.erase();
+
+        // Act & Assert
+        expect(keys.isErased, isTrue);
+        await expectLater(storage.readAllMetaWithKeys(keys), throwsStateError);
       });
     });
   });

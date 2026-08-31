@@ -7,6 +7,7 @@ import 'package:biometric_cipher/data/biometric_status.dart';
 import 'package:biometric_cipher/data/tpm_status.dart';
 import 'package:locker/erasable/erasable.dart';
 import 'package:locker/locker/locker.dart';
+import 'package:locker/locker/locker_transaction.dart';
 import 'package:locker/locker/models/biometric_state.dart';
 import 'package:locker/security/biometric_cipher_provider.dart';
 import 'package:locker/security/models/bio_cipher_func.dart';
@@ -23,9 +24,12 @@ import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
+import 'package:locker/storage/models/unlocked_keys.dart';
 import 'package:locker/utils/sync.dart';
 import 'package:meta/meta.dart';
 import 'package:rxdart/rxdart.dart';
+
+part 'mfa_locker_transaction.dart';
 
 class MFALocker implements Locker {
   final EncryptedStorage _storage;
@@ -43,6 +47,8 @@ class MFALocker implements Locker {
   Map<EntryId, EntryMeta> _metaCache = {};
 
   final _sync = Sync();
+
+  _MfaLockerTransaction? _activeTransaction;
 
   @override
   ValueStream<LockerState> get stateStream => _stateController.stream;
@@ -103,11 +109,46 @@ class MFALocker implements Locker {
       );
 
   @override
+  Future<LockerTransaction> beginTransaction(CipherFunc cipherFunc) => _sync(
+        () => _executeWithCleanup(
+          erasables: [cipherFunc],
+          callback: () async {
+            if (_activeTransaction != null) {
+              throw StateError('A transaction is already open');
+            }
+            if (!(await isStorageInitialized)) {
+              throw StateError('Storage is not initialized');
+            }
+
+            final keys = await _storage.unlockKeys(cipherFunc: cipherFunc);
+
+            try {
+              // Reuse the already-unwrapped keys to load metadata and transition
+              // to unlocked instead of performing a second authentication.
+              if (_stateController.value != LockerState.unlocked) {
+                _metaCache = await _storage.readAllMetaWithKeys(keys);
+                _stateController.add(LockerState.unlocked);
+              }
+            } catch (_) {
+              keys.erase();
+              rethrow;
+            }
+
+            final transaction = _MfaLockerTransaction._(this, keys);
+            _activeTransaction = transaction;
+
+            return transaction;
+          },
+        ),
+      );
+
+  @override
   void lock() {
     if (_stateController.value != LockerState.unlocked) {
       return;
     }
 
+    _activeTransaction?._detachAndErase();
     _cleanupState();
     _stateController.add(LockerState.locked);
   }
@@ -255,6 +296,7 @@ class MFALocker implements Locker {
 
   @override
   void dispose() {
+    _activeTransaction?._detachAndErase();
     _cleanupState();
     _stateController.close();
   }
