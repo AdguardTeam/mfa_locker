@@ -107,6 +107,25 @@ abstract class LockerRepository {
   /// Read entry value using biometric authentication
   Future<String> readEntryWithBiometric({required EntryId id});
 
+  /// Duplicate an entry using two separate biometric authentications (naive).
+  ///
+  /// Reads the source value (prompt #1), then writes a copy (prompt #2).
+  /// Kept alongside [duplicateEntryInTransactionWithBiometric] to demonstrate
+  /// the multi-prompt cost the transaction avoids.
+  Future<void> duplicateEntryWithBiometric({
+    required EntryId sourceId,
+    required String newName,
+  });
+
+  /// Duplicate an entry within a single biometric transaction.
+  ///
+  /// Reads the source value and writes a copy under one unwrap, so one prompt
+  /// covers both operations.
+  Future<void> duplicateEntryInTransactionWithBiometric({
+    required EntryId sourceId,
+    required String newName,
+  });
+
   /// Delete entry using biometric authentication
   Future<void> deleteEntryWithBiometric({required EntryId id});
 
@@ -392,6 +411,40 @@ class LockerRepositoryImpl implements LockerRepository {
     );
 
     return _entryValueToString(entryValue);
+  }
+
+  @override
+  Future<void> duplicateEntryWithBiometric({
+    required EntryId sourceId,
+    required String newName,
+  }) async {
+    await _ensureLockerInstance();
+
+    // Two separate biometric authentications (one per locker operation).
+    final value = await readEntryWithBiometric(id: sourceId);
+    await addEntryWithBiometric(name: newName, value: value);
+  }
+
+  @override
+  Future<void> duplicateEntryInTransactionWithBiometric({
+    required EntryId sourceId,
+    required String newName,
+  }) async {
+    await _ensureLockerInstance();
+
+    // One authentication; read + write reuse the same unwrapped master key.
+    final bioCipherFunc = await _securityProvider.authenticateBiometric();
+    final transaction = await _locker.beginTransaction(bioCipherFunc);
+    try {
+      final value = await transaction.readValue(sourceId);
+      final valueEntry = _createEntryValue(_entryValueToString(value));
+
+      await transaction.write(
+        EntryAddInput(meta: _createEntryMeta(newName), value: valueEntry),
+      );
+    } finally {
+      await transaction.close();
+    }
   }
 
   @override
