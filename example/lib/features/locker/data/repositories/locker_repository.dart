@@ -434,17 +434,14 @@ class LockerRepositoryImpl implements LockerRepository {
 
     // One authentication; read + write reuse the same unwrapped master key.
     final bioCipherFunc = await _securityProvider.authenticateBiometric();
-    final transaction = await _locker.beginTransaction(bioCipherFunc);
-    try {
+    await _locker.withTransaction(bioCipherFunc, (transaction) async {
       final value = await transaction.readValue(sourceId);
       final valueEntry = _createEntryValue(_entryValueToString(value));
 
       await transaction.write(
         EntryAddInput(meta: _createEntryMeta(newName), value: valueEntry),
       );
-    } finally {
-      await transaction.close();
-    }
+    });
   }
 
   @override

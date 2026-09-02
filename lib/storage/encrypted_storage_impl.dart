@@ -20,7 +20,6 @@ import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
-import 'package:locker/storage/models/unlocked_keys.dart';
 import 'package:locker/utils/cryptography_utils.dart';
 import 'package:locker/utils/sync.dart';
 import 'package:path/path.dart' as p;
@@ -150,11 +149,10 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
       });
 
   @override
-  Future<UnlockedKeys> unlockKeys({required CipherFunc cipherFunc}) => _sync(() async {
+  Future<ErasableByteArray> getMasterKey({required CipherFunc cipherFunc}) => _sync(() async {
         final data = await _loadData();
-        final masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
 
-        return UnlockedKeys(masterKey: masterKey);
+        return _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
       });
 
   @override
@@ -250,14 +248,14 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
       });
 
   @override
-  Future<void> deleteEntryWithKeys({
+  Future<void> deleteEntryWithMasterKey({
     required EntryId id,
-    required UnlockedKeys keys,
+    required ErasableByteArray masterKey,
   }) =>
       _sync(() async {
         final data = await _loadData();
 
-        await _deleteEntryWithMasterKey(data, id, keys.masterKey);
+        await _deleteEntryWithMasterKey(data, id, masterKey);
       });
 
   @override
@@ -278,14 +276,14 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
       });
 
   @override
-  Future<EntryId> addEntryWithKeys({
+  Future<EntryId> addEntryWithMasterKey({
     required EntryAddInput input,
-    required UnlockedKeys keys,
+    required ErasableByteArray masterKey,
   }) =>
       _sync(() async {
         final data = await _loadData();
 
-        return _addEntryWithMasterKey(data, input, keys.masterKey);
+        return _addEntryWithMasterKey(data, input, masterKey);
       });
 
   @override
@@ -315,9 +313,9 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
       });
 
   @override
-  Future<void> updateEntryWithKeys({
+  Future<void> updateEntryWithMasterKey({
     required EntryUpdateInput input,
-    required UnlockedKeys keys,
+    required ErasableByteArray masterKey,
   }) =>
       _sync(() async {
         if (input.meta == null && input.value == null) {
@@ -331,7 +329,7 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
           throw StorageException.entryNotFound();
         }
 
-        await _updateEntryWithMasterKey(data, input, keys.masterKey);
+        await _updateEntryWithMasterKey(data, input, masterKey);
       });
 
   @override
@@ -349,10 +347,10 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
       });
 
   @override
-  Future<Map<EntryId, EntryMeta>> readAllMetaWithKeys(UnlockedKeys keys) => _sync(() async {
+  Future<Map<EntryId, EntryMeta>> readAllMetaWithMasterKey(ErasableByteArray masterKey) => _sync(() async {
         final data = await _loadData();
 
-        return _readAllMetaWithMasterKey(data, keys.masterKey);
+        return _readAllMetaWithMasterKey(data, masterKey);
       });
 
   @override
@@ -374,14 +372,14 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
       });
 
   @override
-  Future<EntryValue> readValueWithKeys({
+  Future<EntryValue> readValueWithMasterKey({
     required EntryId id,
-    required UnlockedKeys keys,
+    required ErasableByteArray masterKey,
   }) =>
       _sync(() async {
         final data = await _loadData();
 
-        return _readValueWithMasterKey(data, id, keys.masterKey);
+        return _readValueWithMasterKey(data, id, masterKey);
       });
 
   @override

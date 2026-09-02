@@ -40,10 +40,12 @@ The repo contains:
 mfa_locker/
 ├── lib/
 │   ├── locker/
-│   │   ├── locker.dart              # Locker abstract interface (public API)
-│   │   ├── mfa_locker.dart          # MFALocker — main implementation
+│   │   ├── locker.dart                     # Locker abstract interface (public API)
+│   │   ├── locker_transaction.dart         # LockerTransaction — single-unwrap transaction handle
+│   │   ├── mfa_locker.dart                 # MFALocker — main implementation (+ beginTransaction/withTransaction)
+│   │   ├── mfa_locker_transaction.dart     # Concrete transaction held by MFALocker
 │   │   └── models/
-│   │       └── biometric_state.dart # BiometricState enum (9 states: includes keyInvalidated)
+│   │       └── biometric_state.dart        # BiometricState enum (9 states: includes keyInvalidated)
 │   ├── security/
 │   │   ├── security_provider.dart          # SecurityProvider — password/biometric auth factory
 │   │   ├── biometric_cipher_provider.dart  # BiometricCipherProvider — TPM/Secure Enclave ops (includes isKeyValid)
@@ -210,6 +212,7 @@ Layered architecture: **Locker (API) → Security (auth) → Storage (persistenc
 - **Metadata cache**: After unlock, `EntryMeta` objects are cached in `_metaCache`. Values (`EntryValue`) are never cached — fetched and erased on demand.
 - **Storage format**: JSON file containing `salt`, `lockTimeout`, `masterKey` (wrapped key list), `entries` (array of encrypted meta+value), `hmacKey`, `hmacSignature`.
 - **Atomic writes**: Storage writes to a temp file first, then atomically renames to target path. macOS restricts file permissions via `chmod 600`.
+- **Scoped transactions**: `MFALocker.beginTransaction` authenticates exactly once (the single biometric prompt on a composite user action) and returns a `LockerTransaction` that reuses the unwrapped master key for all of its operations with no further native calls. Prefer `withTransaction`, which closes the transaction automatically in `finally`; `lock()`, auto-lock and `dispose()` also close the active transaction.
 
 #### Example App Layer (`example/lib/`)
 

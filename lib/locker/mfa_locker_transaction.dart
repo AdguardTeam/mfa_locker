@@ -2,21 +2,20 @@ part of 'mfa_locker.dart';
 
 /// Concrete [LockerTransaction] held by [MFALocker].
 ///
-/// Runs all operations under the owning locker's reentrant lock so they
-/// serialize with regular one-shot methods, and refreshes the metadata cache
-/// exactly like the one-shot paths.
+/// Runs under the locker's reentrant lock and refreshes the metadata cache
+/// like the one-shot paths.
 class _MfaLockerTransaction implements LockerTransaction {
   final MFALocker _locker;
-  final UnlockedKeys _keys;
+  final ErasableByteArray _masterKey;
   bool _closed = false;
 
-  _MfaLockerTransaction._(this._locker, this._keys);
+  _MfaLockerTransaction._(this._locker, this._masterKey);
 
   @override
   bool get isClosed => _closed;
 
   @override
-  bool get isErased => _keys.isErased;
+  bool get isErased => _masterKey.isErased;
 
   void _ensureOpen() {
     if (_closed) {
@@ -28,7 +27,7 @@ class _MfaLockerTransaction implements LockerTransaction {
   Future<EntryValue> readValue(EntryId id) => _locker._sync(() async {
         _ensureOpen();
 
-        return _locker._storage.readValueWithKeys(id: id, keys: _keys);
+        return _locker._storage.readValueWithMasterKey(id: id, masterKey: _masterKey);
       });
 
   @override
@@ -40,9 +39,9 @@ class _MfaLockerTransaction implements LockerTransaction {
           callback: () async {
             _ensureOpen();
 
-            final entryId = await _locker._storage.addEntryWithKeys(
+            final entryId = await _locker._storage.addEntryWithMasterKey(
               input: input,
-              keys: _keys,
+              masterKey: _masterKey,
             );
 
             _locker._metaCache[entryId]?.erase();
@@ -62,9 +61,9 @@ class _MfaLockerTransaction implements LockerTransaction {
           callback: () async {
             _ensureOpen();
 
-            await _locker._storage.updateEntryWithKeys(
+            await _locker._storage.updateEntryWithMasterKey(
               input: input,
-              keys: _keys,
+              masterKey: _masterKey,
             );
 
             final meta = input.meta;
@@ -81,7 +80,7 @@ class _MfaLockerTransaction implements LockerTransaction {
         _ensureOpen();
 
         try {
-          await _locker._storage.deleteEntryWithKeys(id: id, keys: _keys);
+          await _locker._storage.deleteEntryWithMasterKey(id: id, masterKey: _masterKey);
         } on StorageException catch (error) {
           // The entry is already absent in storage - treat delete as an
           // idempotent success and fall through to reconcile the cache.
@@ -108,7 +107,7 @@ class _MfaLockerTransaction implements LockerTransaction {
     }
 
     _closed = true;
-    _keys.erase();
+    _masterKey.erase();
     if (identical(_locker._activeTransaction, this)) {
       _locker._activeTransaction = null;
     }

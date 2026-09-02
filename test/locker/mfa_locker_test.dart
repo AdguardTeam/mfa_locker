@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:biometric_cipher/data/biometric_status.dart';
 import 'package:biometric_cipher/data/tpm_status.dart';
 import 'package:locker/erasable/erasable.dart';
+import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/locker/locker.dart';
 import 'package:locker/locker/mfa_locker.dart';
 import 'package:locker/locker/models/biometric_state.dart';
@@ -16,7 +17,6 @@ import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
-import 'package:locker/storage/models/unlocked_keys.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -44,7 +44,7 @@ void main() {
     registerFallbackValue(EntryUpdateInput(id: EntryId('fallback')));
     registerFallbackValue(MockBioCipherFunc());
     registerFallbackValue(MockPasswordCipherFunc());
-    registerFallbackValue(UnlockedKeys(masterKey: _StorageHelpers.createErasable()));
+    registerFallbackValue(_StorageHelpers.createErasable());
   });
 
   group('MFALocker', () {
@@ -336,18 +336,18 @@ void main() {
 
     group('transaction', () {
       late MockBioCipherFunc cipher;
-      late UnlockedKeys keys;
+      late ErasableByteArray masterKey;
       late Map<EntryId, EntryMeta> metas;
 
       setUp(() {
         cipher = _Helpers.createMockBioCipherFunc();
-        keys = UnlockedKeys(masterKey: _StorageHelpers.createErasable([1]));
+        masterKey = _StorageHelpers.createErasable([1]);
         metas = {
           EntryId('a'): _StorageHelpers.createEntryMeta([1]),
         };
 
-        when(() => storage.unlockKeys(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async => keys);
-        when(() => storage.readAllMetaWithKeys(any())).thenAnswer((_) async => metas);
+        when(() => storage.getMasterKey(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async => masterKey);
+        when(() => storage.readAllMetaWithMasterKey(any())).thenAnswer((_) async => metas);
       });
 
       test('beginTransaction unlocks once, loads meta and returns an open transaction', () async {
@@ -359,9 +359,9 @@ void main() {
         // Assert
         expect(txn.isClosed, isFalse);
         expect(locker.stateStream.value, LockerState.unlocked);
-        verify(() => storage.unlockKeys(cipherFunc: cipher)).called(1);
-        final captured = verify(() => storage.readAllMetaWithKeys(captureAny())).captured;
-        expect(captured.single, same(keys));
+        verify(() => storage.getMasterKey(cipherFunc: cipher)).called(1);
+        final captured = verify(() => storage.readAllMetaWithMasterKey(captureAny())).captured;
+        expect(captured.single, same(masterKey));
       });
 
       test('beginTransaction throws when a transaction is already open', () async {
@@ -379,15 +379,15 @@ void main() {
 
         // Act & Assert
         await expectLater(locker.beginTransaction(cipher), throwsStateError);
-        verifyNever(() => storage.unlockKeys(cipherFunc: any(named: 'cipherFunc')));
+        verifyNever(() => storage.getMasterKey(cipherFunc: any(named: 'cipherFunc')));
       });
 
       test('operations reuse the unlocked keys without a second unlock', () async {
         // Arrange
         final value = _StorageHelpers.createEntryValue([9]);
-        when(() => storage.readValueWithKeys(id: any(named: 'id'), keys: any(named: 'keys')))
+        when(() => storage.readValueWithMasterKey(id: any(named: 'id'), masterKey: any(named: 'masterKey')))
             .thenAnswer((_) async => value);
-        when(() => storage.updateEntryWithKeys(input: any(named: 'input'), keys: any(named: 'keys')))
+        when(() => storage.updateEntryWithMasterKey(input: any(named: 'input'), masterKey: any(named: 'masterKey')))
             .thenAnswer((_) async {});
 
         final txn = await locker.beginTransaction(cipher);
@@ -397,22 +397,22 @@ void main() {
         await txn.update(EntryUpdateInput(id: EntryId('a'), value: _StorageHelpers.createEntryValue([2])));
 
         // Assert
-        verify(() => storage.unlockKeys(cipherFunc: cipher)).called(1);
+        verify(() => storage.getMasterKey(cipherFunc: cipher)).called(1);
         final readKeys = verify(
-          () => storage.readValueWithKeys(id: EntryId('a'), keys: captureAny(named: 'keys')),
+          () => storage.readValueWithMasterKey(id: EntryId('a'), masterKey: captureAny(named: 'masterKey')),
         ).captured;
         final updateKeys = verify(
-          () => storage.updateEntryWithKeys(input: any(named: 'input'), keys: captureAny(named: 'keys')),
+          () => storage.updateEntryWithMasterKey(input: any(named: 'input'), masterKey: captureAny(named: 'masterKey')),
         ).captured;
-        expect(readKeys.single, same(keys));
-        expect(updateKeys.single, same(keys));
+        expect(readKeys.single, same(masterKey));
+        expect(updateKeys.single, same(masterKey));
       });
 
       test('write caches meta under the returned id', () async {
         // Arrange
         final expectedId = EntryId('new');
         final metaToAdd = _StorageHelpers.createEntryMeta([5]);
-        when(() => storage.addEntryWithKeys(input: any(named: 'input'), keys: any(named: 'keys')))
+        when(() => storage.addEntryWithMasterKey(input: any(named: 'input'), masterKey: any(named: 'masterKey')))
             .thenAnswer((_) async => expectedId);
 
         final txn = await locker.beginTransaction(cipher);
@@ -426,16 +426,16 @@ void main() {
         expect(id, expectedId);
         expect(locker.allMeta[expectedId], same(metaToAdd));
         final writeKeys = verify(
-          () => storage.addEntryWithKeys(input: any(named: 'input'), keys: captureAny(named: 'keys')),
+          () => storage.addEntryWithMasterKey(input: any(named: 'input'), masterKey: captureAny(named: 'masterKey')),
         ).captured;
-        expect(writeKeys.single, same(keys));
+        expect(writeKeys.single, same(masterKey));
       });
 
       test('write erases the input value but keeps the cached meta', () async {
         // Arrange
         final meta = _StorageHelpers.createEntryMeta([5]);
         final value = _StorageHelpers.createEntryValue([1]);
-        when(() => storage.addEntryWithKeys(input: any(named: 'input'), keys: any(named: 'keys')))
+        when(() => storage.addEntryWithMasterKey(input: any(named: 'input'), masterKey: any(named: 'masterKey')))
             .thenAnswer((_) async => EntryId('new'));
 
         final txn = await locker.beginTransaction(cipher);
@@ -452,7 +452,7 @@ void main() {
         // Arrange
         final meta = _StorageHelpers.createEntryMeta([5]);
         final value = _StorageHelpers.createEntryValue([1]);
-        when(() => storage.addEntryWithKeys(input: any(named: 'input'), keys: any(named: 'keys')))
+        when(() => storage.addEntryWithMasterKey(input: any(named: 'input'), masterKey: any(named: 'masterKey')))
             .thenThrow(StorageException.other('boom'));
 
         final txn = await locker.beginTransaction(cipher);
@@ -467,7 +467,7 @@ void main() {
         // Arrange
         final meta = _StorageHelpers.createEntryMeta([5]);
         final value = _StorageHelpers.createEntryValue([1]);
-        when(() => storage.updateEntryWithKeys(input: any(named: 'input'), keys: any(named: 'keys')))
+        when(() => storage.updateEntryWithMasterKey(input: any(named: 'input'), masterKey: any(named: 'masterKey')))
             .thenAnswer((_) async {});
 
         final txn = await locker.beginTransaction(cipher);
@@ -484,7 +484,7 @@ void main() {
         // Arrange
         final meta = _StorageHelpers.createEntryMeta([5]);
         final value = _StorageHelpers.createEntryValue([1]);
-        when(() => storage.updateEntryWithKeys(input: any(named: 'input'), keys: any(named: 'keys')))
+        when(() => storage.updateEntryWithMasterKey(input: any(named: 'input'), masterKey: any(named: 'masterKey')))
             .thenThrow(StorageException.other('boom'));
 
         final txn = await locker.beginTransaction(cipher);
@@ -500,7 +500,7 @@ void main() {
 
       test('delete removes meta and tolerates a missing entry', () async {
         // Arrange
-        when(() => storage.deleteEntryWithKeys(id: any(named: 'id'), keys: any(named: 'keys')))
+        when(() => storage.deleteEntryWithMasterKey(id: any(named: 'id'), masterKey: any(named: 'masterKey')))
             .thenAnswer((_) async {});
 
         final txn = await locker.beginTransaction(cipher);
@@ -511,14 +511,14 @@ void main() {
         // Assert
         expect(locker.allMeta, isNot(contains(EntryId('a'))));
         final deleteKeys = verify(
-          () => storage.deleteEntryWithKeys(id: EntryId('a'), keys: captureAny(named: 'keys')),
+          () => storage.deleteEntryWithMasterKey(id: EntryId('a'), masterKey: captureAny(named: 'masterKey')),
         ).captured;
-        expect(deleteKeys.single, same(keys));
+        expect(deleteKeys.single, same(masterKey));
       });
 
       test('delete ignores a not-found entry', () async {
         // Arrange
-        when(() => storage.deleteEntryWithKeys(id: any(named: 'id'), keys: any(named: 'keys')))
+        when(() => storage.deleteEntryWithMasterKey(id: any(named: 'id'), masterKey: any(named: 'masterKey')))
             .thenThrow(StorageException.entryNotFound());
 
         final txn = await locker.beginTransaction(cipher);
@@ -536,10 +536,10 @@ void main() {
 
         // Assert
         expect(txn.isClosed, isTrue);
-        expect(keys.isErased, isTrue);
+        expect(masterKey.isErased, isTrue);
 
-        final keys2 = UnlockedKeys(masterKey: _StorageHelpers.createErasable([2]));
-        when(() => storage.unlockKeys(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async => keys2);
+        final masterKey2 = _StorageHelpers.createErasable([2]);
+        when(() => storage.getMasterKey(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async => masterKey2);
         await expectLater(locker.beginTransaction(cipher), completes);
       });
 
@@ -561,7 +561,7 @@ void main() {
 
         // Assert
         expect(txn.isClosed, isTrue);
-        expect(keys.isErased, isTrue);
+        expect(masterKey.isErased, isTrue);
       });
 
       test('beginTransaction skips metadata reload when already unlocked', () async {
@@ -570,18 +570,49 @@ void main() {
         await first.close();
 
         // Re-arm the mock so the second begin starts from a clean slate.
-        final keys2 = UnlockedKeys(masterKey: _StorageHelpers.createErasable([2]));
+        final masterKey2 = _StorageHelpers.createErasable([2]);
         reset(storage);
         when(() => storage.isInitialized).thenAnswer((_) async => true);
-        when(() => storage.unlockKeys(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async => keys2);
+        when(() => storage.getMasterKey(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async => masterKey2);
 
         // Act
         final second = await locker.beginTransaction(cipher);
 
         // Assert
         expect(second.isClosed, isFalse);
-        verifyNever(() => storage.readAllMetaWithKeys(any()));
+        verifyNever(() => storage.readAllMetaWithMasterKey(any()));
         await second.close();
+      });
+
+      test('withTransaction runs the body and closes the transaction', () async {
+        // Arrange
+        when(() => storage.readValueWithMasterKey(id: any(named: 'id'), masterKey: any(named: 'masterKey')))
+            .thenAnswer((_) async => _StorageHelpers.createEntryValue([9]));
+
+        // Act
+        final result = await locker.withTransaction(cipher, (txn) async {
+          await txn.readValue(EntryId('a'));
+
+          return 'done';
+        });
+
+        // Assert
+        expect(result, 'done');
+        verify(() => storage.getMasterKey(cipherFunc: cipher)).called(1);
+        expect(masterKey.isErased, isTrue);
+      });
+
+      test('withTransaction closes the transaction when the body throws', () async {
+        // Arrange
+        when(() => storage.readValueWithMasterKey(id: any(named: 'id'), masterKey: any(named: 'masterKey')))
+            .thenThrow(StorageException.other('boom'));
+
+        // Act & Assert
+        await expectLater(
+          locker.withTransaction(cipher, (txn) async => txn.readValue(EntryId('a'))),
+          throwsA(isA<StorageException>()),
+        );
+        expect(masterKey.isErased, isTrue);
       });
     });
 

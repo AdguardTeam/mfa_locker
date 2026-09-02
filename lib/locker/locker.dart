@@ -75,24 +75,20 @@ abstract interface class Locker {
   /// Throws [StateError] if storage is not initialized.
   Future<void> loadAllMeta(CipherFunc cipherFunc);
 
-  /// Opens a scoped transaction.
-  ///
-  /// Authenticates exactly once using [cipherFunc] — for biometrics this is the
-  /// single system prompt — and returns a [LockerTransaction] that reuses the
-  /// unwrapped master key for all of its operations. A composite action such as
-  /// "read + modify + write" therefore performs a single authentication instead
-  /// of one per operation.
-  ///
-  /// If the locker is locked it is unlocked as part of opening the transaction,
-  /// without an additional authentication.
-  ///
-  /// The caller MUST close the returned transaction, preferably in a `finally`
-  /// block, otherwise the key material stays in memory and a subsequent
-  /// [beginTransaction] throws a [StateError].
+  /// Opens a scoped transaction: authenticates once via [cipherFunc] (the
+  /// single biometric prompt) and reuses the unwrapped master key for all
+  /// operations. Caller must close the result, preferably in `finally`.
   ///
   /// Throws [StateError] if storage is not initialized or a transaction is
   /// already open.
   Future<LockerTransaction> beginTransaction(CipherFunc cipherFunc);
+
+  /// Runs [body] inside a transaction and closes it in `finally`, so the key
+  /// material is erased even when [body] throws.
+  Future<R> withTransaction<R>(
+    CipherFunc cipherFunc,
+    Future<R> Function(LockerTransaction txn) body,
+  );
 
   /// Locks the locker and clears all cached data.
   ///

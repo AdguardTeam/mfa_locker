@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:biometric_cipher/data/biometric_status.dart';
 import 'package:biometric_cipher/data/tpm_status.dart';
 import 'package:locker/erasable/erasable.dart';
+import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/locker/locker.dart';
 import 'package:locker/locker/locker_transaction.dart';
 import 'package:locker/locker/models/biometric_state.dart';
@@ -24,7 +25,6 @@ import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
-import 'package:locker/storage/models/unlocked_keys.dart';
 import 'package:locker/utils/sync.dart';
 import 'package:meta/meta.dart';
 import 'package:rxdart/rxdart.dart';
@@ -120,27 +120,40 @@ class MFALocker implements Locker {
               throw StateError('Storage is not initialized');
             }
 
-            final keys = await _storage.unlockKeys(cipherFunc: cipherFunc);
+            final masterKey = await _storage.getMasterKey(cipherFunc: cipherFunc);
 
             try {
-              // Reuse the already-unwrapped keys to load metadata and transition
-              // to unlocked instead of performing a second authentication.
+              // Reuse the already-unwrapped master key to load metadata and
+              // transition to unlocked instead of a second authentication.
               if (_stateController.value != LockerState.unlocked) {
-                _metaCache = await _storage.readAllMetaWithKeys(keys);
+                _metaCache = await _storage.readAllMetaWithMasterKey(masterKey);
                 _stateController.add(LockerState.unlocked);
               }
             } catch (_) {
-              keys.erase();
+              masterKey.erase();
               rethrow;
             }
 
-            final transaction = _MfaLockerTransaction._(this, keys);
+            final transaction = _MfaLockerTransaction._(this, masterKey);
             _activeTransaction = transaction;
 
             return transaction;
           },
         ),
       );
+
+  @override
+  Future<R> withTransaction<R>(
+    CipherFunc cipherFunc,
+    Future<R> Function(LockerTransaction txn) body,
+  ) async {
+    final txn = await beginTransaction(cipherFunc);
+    try {
+      return await body(txn);
+    } finally {
+      await txn.close();
+    }
+  }
 
   @override
   void lock() {
