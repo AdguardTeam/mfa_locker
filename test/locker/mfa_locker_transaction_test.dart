@@ -1,0 +1,172 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:locker/erasable/erasable_byte_array.dart';
+import 'package:locker/locker/mfa_locker.dart';
+import 'package:locker/storage/encrypted_storage_impl.dart';
+import 'package:locker/storage/models/data/key_wrap.dart';
+import 'package:locker/storage/models/data/origin.dart';
+import 'package:locker/storage/models/domain/entry_id.dart';
+import 'package:locker/storage/models/domain/entry_update_input.dart';
+import 'package:locker/utils/cryptography_utils.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:path/path.dart' as p;
+import 'package:test/test.dart';
+
+import '../mocks/mock_bio_cipher_func.dart';
+import '../storage/encrypted_storage_test_helpers.dart';
+
+typedef _Helpers = EncryptedStorageTestHelpers;
+
+/// End-to-end check that a single [LockerTransaction] (read + update) performs
+/// exactly ONE biometric unwrap (`cipherFunc.decrypt`), on a real storage file.
+/// This is the "one biometric prompt for a composite user action" guarantee.
+void main() {
+  late Directory tempDir;
+  late File storageFile;
+  late EncryptedStorageImpl storage;
+  late ErasableByteArray masterKey;
+
+  setUpAll(() {
+    registerFallbackValue(Uint8List(0));
+  });
+
+  setUp(() async {
+    tempDir = await Directory.systemTemp.createTemp('locker_txn_test_');
+    storageFile = File(p.join(tempDir.path, 'storage.json'));
+    storage = EncryptedStorageImpl(file: storageFile);
+
+    masterKey = await CryptographyUtils.generateAESKey();
+    final entry = await _Helpers.createEncryptedEntry(
+      masterKey: masterKey,
+      id: 'a',
+      valueBytes: [2, 3],
+    );
+    final data = await _Helpers.createStorageData(
+      masterKey: masterKey,
+      wraps: [KeyWrap(origin: Origin.bio, encryptedKey: masterKey.bytes)],
+      entries: [entry],
+    );
+    await _Helpers.writeStorageData(storageFile, data);
+  });
+
+  tearDown(() async {
+    if (await tempDir.exists()) {
+      await tempDir.delete(recursive: true);
+    }
+  });
+
+  MockBioCipherFunc createCountingCipher(void Function() onDecrypt) {
+    final cipher = MockBioCipherFunc();
+
+    when(() => cipher.origin).thenReturn(Origin.bio);
+    when(() => cipher.isErased).thenReturn(false);
+    when(() => cipher.erase()).thenAnswer((_) {});
+    when(() => cipher.decrypt(any())).thenAnswer((invocation) {
+      onDecrypt();
+
+      return Future.value(
+        ErasableByteArray(Uint8List.fromList(masterKey.bytes)),
+      );
+    });
+
+    return cipher;
+  }
+
+  test('one transaction performs multiple operations with a single unwrap', () async {
+    // Arrange
+    var decryptCalls = 0;
+    final cipher = createCountingCipher(() => decryptCalls++);
+
+    final locker = MFALocker(file: storageFile, storage: storage);
+
+    // Act
+    final txn = await locker.beginTransaction(cipher);
+    final before = await txn.readValue(EntryId('a'));
+    await txn.update(
+      EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([42])),
+    );
+    final after = await txn.readValue(EntryId('a'));
+    await txn.commit();
+
+    // Assert
+    expect(before.bytes, orderedEquals([2, 3]));
+    expect(after.bytes, orderedEquals([42]));
+    expect(txn.isClosed, isTrue);
+    expect(decryptCalls, 1, reason: 'read + update must reuse a single unwrap (one biometric prompt)');
+  });
+
+  test('changes are buffered and only persisted on commit', () async {
+    // Arrange
+    final cipher = createCountingCipher(() {});
+    final locker = MFALocker(file: storageFile, storage: storage);
+
+    // Act
+    final txn = await locker.beginTransaction(cipher);
+    await txn.update(
+      EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([42])),
+    );
+
+    // The buffered update is visible inside the transaction...
+    expect((await txn.readValue(EntryId('a'))).bytes, orderedEquals([42]));
+
+    // ...but the file on disk is still the original one.
+    final onDisk = await storage.readValue(id: EntryId('a'), cipherFunc: cipher);
+    expect(onDisk.bytes, orderedEquals([2, 3]));
+
+    await txn.commit();
+
+    // After commit the file reflects the update.
+    final committed = await storage.readValue(id: EntryId('a'), cipherFunc: cipher);
+    expect(committed.bytes, orderedEquals([42]));
+  });
+
+  test('abort discards all buffered changes', () async {
+    // Arrange
+    final cipher = createCountingCipher(() {});
+    final locker = MFALocker(file: storageFile, storage: storage);
+
+    // Act
+    final txn = await locker.beginTransaction(cipher);
+    await txn.update(
+      EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([42])),
+    );
+    await txn.abort();
+
+    // Assert: nothing was persisted.
+    expect(txn.isClosed, isTrue);
+    final onDisk = await storage.readValue(id: EntryId('a'), cipherFunc: cipher);
+    expect(onDisk.bytes, orderedEquals([2, 3]));
+  });
+
+  test('baseline: two standalone operations unwrap twice', () async {
+    // Arrange
+    var decryptCalls = 0;
+    final cipher = createCountingCipher(() => decryptCalls++);
+
+    // Act: each operation performs its own unwrap, as today (two prompts).
+    await storage.readValue(id: EntryId('a'), cipherFunc: cipher);
+    await storage.updateEntry(
+      input: EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([42])),
+      cipherFunc: cipher,
+    );
+
+    // Assert
+    expect(decryptCalls, 2, reason: 'without a transaction every operation unwraps again');
+  });
+
+  test('committing a transaction erases the keys', () async {
+    // Arrange
+    final cipher = createCountingCipher(() {});
+    final locker = MFALocker(file: storageFile, storage: storage);
+    final txn = await locker.beginTransaction(cipher);
+
+    // Act
+    await txn.commit();
+
+    // Assert
+    expect(txn.isClosed, isTrue);
+    expect(txn.isErased, isTrue);
+    await expectLater(txn.readValue(EntryId('a')), throwsStateError);
+  });
+}

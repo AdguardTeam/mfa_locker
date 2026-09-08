@@ -32,6 +32,11 @@ class StorageException implements Exception {
         message: 'Duplicate entry',
       );
 
+  factory StorageException.conflict() => const StorageException(
+        type: StorageExceptionType.conflict,
+        message: 'Storage changed since the transaction was opened',
+      );
+
   factory StorageException.other(String message) => StorageException(
         type: StorageExceptionType.other,
         message: message,
@@ -47,5 +52,6 @@ enum StorageExceptionType {
   invalidStorage,
   entryNotFound,
   duplicateEntry,
+  conflict,
   other,
 }

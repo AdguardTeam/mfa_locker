@@ -4,9 +4,9 @@ import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 
-/// A scoped vault transaction: the master key is unwrapped once (a single
-/// biometric prompt) and reused by every operation. Must be closed via
-/// [close]; after that every method throws a [StateError].
+/// A scoped vault transaction: master key unwrapped once (single biometric
+/// prompt), changes buffered and persisted atomically by [commit] or dropped
+/// by [abort]. After closing every method throws a [StateError].
 abstract interface class LockerTransaction implements Erasable {
   /// Whether the transaction has been closed.
   bool get isClosed;
@@ -19,6 +19,11 @@ abstract interface class LockerTransaction implements Erasable {
 
   Future<void> delete(EntryId id);
 
-  /// Erases the key material and releases the transaction.
-  Future<void> close();
+  /// Persists all buffered changes atomically (one write) and closes the
+  /// transaction, erasing the key material.
+  Future<void> commit();
+
+  /// Discards all buffered changes and closes the transaction, erasing the
+  /// key material.
+  Future<void> abort();
 }

@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:collection/collection.dart';
 import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/security/models/cipher_func.dart';
 import 'package:locker/security/models/password_cipher_func.dart';
@@ -20,6 +19,7 @@ import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
+import 'package:locker/storage/storage_change_set.dart';
 import 'package:locker/utils/cryptography_utils.dart';
 import 'package:locker/utils/sync.dart';
 import 'package:path/path.dart' as p;
@@ -149,11 +149,64 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
       });
 
   @override
-  Future<ErasableByteArray> getMasterKey({required CipherFunc cipherFunc}) => _sync(() async {
+  Future<StorageChangeSet> openChangeSet({required CipherFunc cipherFunc}) => _sync(() async {
         final data = await _loadData();
+        final masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
 
-        return _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
+        return StorageChangeSet(data: data, masterKey: masterKey);
       });
+
+  @override
+  Future<void> commitChangeSet(StorageChangeSet changeSet) => _sync(
+        () => _persistChangeSet(changeSet, checkConflict: true),
+      );
+
+  /// Runs a single entry [operation] over an ephemeral change set and persists
+  /// it atomically. The change set (and its key) is always erased.
+  Future<T> _withChangeSet<T>({
+    required CipherFunc cipherFunc,
+    required Future<T> Function(StorageChangeSet changeSet) operation,
+  }) async {
+    final changeSet = await openChangeSet(cipherFunc: cipherFunc);
+    try {
+      final result = await operation(changeSet);
+      await _persistChangeSet(changeSet, checkConflict: false);
+
+      return result;
+    } finally {
+      changeSet.erase();
+    }
+  }
+
+  /// Persists [changeSet] if it has any changes.
+  ///
+  /// When [checkConflict] is true performs a compare-and-swap against the file
+  /// (used for long-lived transactions); one-shot operations skip it because
+  /// they run under the storage lock, so the file cannot have changed.
+  Future<void> _persistChangeSet(
+    StorageChangeSet changeSet, {
+    required bool checkConflict,
+  }) async {
+    if (changeSet.isCommitted) {
+      return;
+    }
+    if (changeSet.isErased) {
+      throw StateError('Change set is erased');
+    }
+
+    if (changeSet.isDirty) {
+      if (checkConflict) {
+        final current = await _loadData();
+        if (!_storageDataEquals(current, changeSet.baseData)) {
+          throw StorageException.conflict();
+        }
+      }
+
+      await _signDataWithHmacAndSave(changeSet.data, changeSet.masterKey);
+    }
+
+    changeSet.markCommitted();
+  }
 
   @override
   Future<void> addOrReplaceWrap({
@@ -234,153 +287,56 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
     required EntryId id,
     required CipherFunc cipherFunc,
   }) =>
-      _sync(() async {
-        ErasableByteArray? masterKey;
-
-        try {
-          final data = await _loadData();
-
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
-          await _deleteEntryWithMasterKey(data, id, masterKey);
-        } finally {
-          masterKey?.erase();
-        }
-      });
-
-  @override
-  Future<void> deleteEntryWithMasterKey({
-    required EntryId id,
-    required ErasableByteArray masterKey,
-  }) =>
-      _sync(() async {
-        final data = await _loadData();
-
-        await _deleteEntryWithMasterKey(data, id, masterKey);
-      });
+      _sync(
+        () => _withChangeSet(
+          cipherFunc: cipherFunc,
+          operation: (changeSet) => changeSet.deleteEntry(id),
+        ),
+      );
 
   @override
   Future<EntryId> addEntry({
     required EntryAddInput input,
     required CipherFunc cipherFunc,
   }) =>
-      _sync(() async {
-        ErasableByteArray? masterKey;
-        try {
-          final data = await _loadData();
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
-
-          return await _addEntryWithMasterKey(data, input, masterKey);
-        } finally {
-          masterKey?.erase();
-        }
-      });
-
-  @override
-  Future<EntryId> addEntryWithMasterKey({
-    required EntryAddInput input,
-    required ErasableByteArray masterKey,
-  }) =>
-      _sync(() async {
-        final data = await _loadData();
-
-        return _addEntryWithMasterKey(data, input, masterKey);
-      });
+      _sync(
+        () => _withChangeSet(
+          cipherFunc: cipherFunc,
+          operation: (changeSet) => changeSet.addEntry(input),
+        ),
+      );
 
   @override
   Future<void> updateEntry({
     required EntryUpdateInput input,
     required CipherFunc cipherFunc,
   }) =>
-      _sync(() async {
-        if (input.meta == null && input.value == null) {
-          throw StorageException.other('Either entryMeta or entryValue must be provided');
-        }
-        ErasableByteArray? masterKey;
-
-        try {
-          final data = await _loadData();
-          final entry = data.entries.firstWhereOrNull((e) => e.id == input.id);
-
-          if (entry == null) {
-            throw StorageException.entryNotFound();
-          }
-
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
-          await _updateEntryWithMasterKey(data, input, masterKey);
-        } finally {
-          masterKey?.erase();
-        }
-      });
+      _sync(
+        () => _withChangeSet(
+          cipherFunc: cipherFunc,
+          operation: (changeSet) => changeSet.updateEntry(input),
+        ),
+      );
 
   @override
-  Future<void> updateEntryWithMasterKey({
-    required EntryUpdateInput input,
-    required ErasableByteArray masterKey,
-  }) =>
-      _sync(() async {
-        if (input.meta == null && input.value == null) {
-          throw StorageException.other('Either entryMeta or entryValue must be provided');
-        }
-
-        final data = await _loadData();
-        final entry = data.entries.firstWhereOrNull((e) => e.id == input.id);
-
-        if (entry == null) {
-          throw StorageException.entryNotFound();
-        }
-
-        await _updateEntryWithMasterKey(data, input, masterKey);
-      });
-
-  @override
-  Future<Map<EntryId, EntryMeta>> readAllMeta({required CipherFunc cipherFunc}) => _sync(() async {
-        ErasableByteArray? masterKey;
-
-        try {
-          final data = await _loadData();
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
-
-          return await _readAllMetaWithMasterKey(data, masterKey);
-        } finally {
-          masterKey?.erase();
-        }
-      });
-
-  @override
-  Future<Map<EntryId, EntryMeta>> readAllMetaWithMasterKey(ErasableByteArray masterKey) => _sync(() async {
-        final data = await _loadData();
-
-        return _readAllMetaWithMasterKey(data, masterKey);
-      });
+  Future<Map<EntryId, EntryMeta>> readAllMeta({required CipherFunc cipherFunc}) => _sync(
+        () => _withChangeSet(
+          cipherFunc: cipherFunc,
+          operation: (changeSet) => changeSet.readAllMeta(),
+        ),
+      );
 
   @override
   Future<EntryValue> readValue({
     required EntryId id,
     required CipherFunc cipherFunc,
   }) =>
-      _sync(() async {
-        ErasableByteArray? masterKey;
-
-        try {
-          final data = await _loadData();
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
-
-          return await _readValueWithMasterKey(data, id, masterKey);
-        } finally {
-          masterKey?.erase();
-        }
-      });
-
-  @override
-  Future<EntryValue> readValueWithMasterKey({
-    required EntryId id,
-    required ErasableByteArray masterKey,
-  }) =>
-      _sync(() async {
-        final data = await _loadData();
-
-        return _readValueWithMasterKey(data, id, masterKey);
-      });
+      _sync(
+        () => _withChangeSet(
+          cipherFunc: cipherFunc,
+          operation: (changeSet) => changeSet.readValue(id),
+        ),
+      );
 
   @override
   Future<void> updateLockTimeout({
@@ -474,146 +430,15 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
     }
   }
 
-  Future<Map<EntryId, EntryMeta>> _readAllMetaWithMasterKey(
-    StorageData data,
-    ErasableByteArray masterKey,
-  ) async {
-    final result = <EntryId, EntryMeta>{};
-
-    for (final e in data.entries) {
-      final decryptedMeta = await CryptographyUtils.decrypt(
-        key: masterKey,
-        data: e.encryptedMeta,
-      );
-
-      result[e.id] = EntryMeta.fromErasable(erasable: decryptedMeta);
-    }
-
-    return result;
-  }
-
-  Future<EntryValue> _readValueWithMasterKey(
-    StorageData data,
-    EntryId id,
-    ErasableByteArray masterKey,
-  ) async {
-    final entry = data.entries.firstWhereOrNull(
-      (e) => e.id == id,
-    );
-
-    if (entry == null || entry.id.isEmpty) {
-      throw StorageException.entryNotFound();
-    }
-
-    final decryptedValue = await CryptographyUtils.decrypt(
-      key: masterKey,
-      data: entry.encryptedValue,
-    );
-
-    return EntryValue.fromErasable(erasable: decryptedValue);
-  }
-
-  Future<EntryId> _addEntryWithMasterKey(
-    StorageData data,
-    EntryAddInput input,
-    ErasableByteArray masterKey,
-  ) async {
-    final idString = input.id?.value ?? _generateEntryId();
-    final entryId = EntryId(idString);
-
-    if (input.id != null) {
-      _validateNoDuplicateIds([entryId, ...data.entries.map((e) => e.id)]);
-    }
-
-    final encryptedMeta = await CryptographyUtils.encrypt(
-      key: masterKey,
-      data: input.meta,
-    );
-
-    final encryptedValue = await CryptographyUtils.encrypt(
-      key: masterKey,
-      data: input.value,
-    );
-
-    final newEntry = StorageEntry(
-      id: entryId,
-      encryptedMeta: encryptedMeta,
-      encryptedValue: encryptedValue,
-    );
-
-    final newEntries = [...data.entries, newEntry];
-    final newData = data.copyWith(entries: newEntries);
-
-    await _signDataWithHmacAndSave(newData, masterKey);
-
-    return entryId;
-  }
-
-  Future<void> _updateEntryWithMasterKey(
-    StorageData data,
-    EntryUpdateInput input,
-    ErasableByteArray masterKey,
-  ) async {
-    final entry = data.entries.firstWhereOrNull(
-      (e) => e.id == input.id,
-    );
-
-    if (entry == null) {
-      throw StorageException.entryNotFound();
-    }
-
-    Uint8List? encryptedMeta;
-    Uint8List? encryptedValue;
-
-    if (input.meta != null) {
-      encryptedMeta = await CryptographyUtils.encrypt(
-        key: masterKey,
-        data: input.meta!,
-      );
-    }
-
-    if (input.value != null) {
-      encryptedValue = await CryptographyUtils.encrypt(
-        key: masterKey,
-        data: input.value!,
-      );
-    }
-
-    final updatedEntry = entry.copyWith(
-      encryptedMeta: encryptedMeta,
-      encryptedValue: encryptedValue,
-    );
-
-    final entriesWithoutUpdated = data.entries.where((e) => e.id != input.id).toList();
-    final newEntries = [...entriesWithoutUpdated, updatedEntry];
-    final newData = data.copyWith(entries: newEntries);
-
-    await _signDataWithHmacAndSave(newData, masterKey);
-  }
-
-  Future<void> _deleteEntryWithMasterKey(
-    StorageData data,
-    EntryId id,
-    ErasableByteArray masterKey,
-  ) async {
-    final originalLength = data.entries.length;
-    final newEntries = data.entries.where((e) => e.id != id).toList();
-
-    if (newEntries.length == originalLength) {
-      throw StorageException.entryNotFound();
-    }
-
-    final newData = data.copyWith(entries: newEntries);
-
-    await _signDataWithHmacAndSave(newData, masterKey);
-  }
-
   /// Saves [data] to the file, generating new hmacKey/hmacSignature
   Future<void> _signDataWithHmacAndSave(StorageData data, ErasableByteArray masterKey) async {
     final signedData = await signDataWithHmac(data: data, masterKey: masterKey);
 
     await _writeDataToFile(signedData);
   }
+
+  /// Compares two snapshots by their canonical JSON form.
+  bool _storageDataEquals(StorageData a, StorageData b) => jsonEncode(a.toJson()) == jsonEncode(b.toJson());
 
   // TODO(m.semenov): investigate if this will work on all operating systems. ChatGPT told this could be a problem on Windows
 

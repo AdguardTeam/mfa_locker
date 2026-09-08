@@ -6,7 +6,6 @@ import 'dart:typed_data';
 import 'package:biometric_cipher/data/biometric_status.dart';
 import 'package:biometric_cipher/data/tpm_status.dart';
 import 'package:locker/erasable/erasable.dart';
-import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/locker/locker.dart';
 import 'package:locker/locker/locker_transaction.dart';
 import 'package:locker/locker/models/biometric_state.dart';
@@ -25,6 +24,7 @@ import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
+import 'package:locker/storage/storage_change_set.dart';
 import 'package:locker/utils/sync.dart';
 import 'package:meta/meta.dart';
 import 'package:rxdart/rxdart.dart';
@@ -49,6 +49,11 @@ class MFALocker implements Locker {
   final _sync = Sync();
 
   _MfaLockerTransaction? _activeTransaction;
+
+  /// Gate that lets one-shot methods wait for the active transaction to finish
+  /// before touching the storage file (isolation, variant B).
+  Completer<void>? _transactionGateCompleter;
+  Future<void>? _transactionGate;
 
   @override
   ValueStream<LockerState> get stateStream => _stateController.stream;
@@ -85,6 +90,8 @@ class MFALocker implements Locker {
         () => _executeWithCleanup(
           erasables: [passwordCipherFunc, ...initialEntries],
           callback: () async {
+            await _waitForTransactionIfActive();
+
             if (await isStorageInitialized) {
               throw StateError('Storage is already initialized');
             }
@@ -120,22 +127,26 @@ class MFALocker implements Locker {
               throw StateError('Storage is not initialized');
             }
 
-            final masterKey = await _storage.getMasterKey(cipherFunc: cipherFunc);
+            final changeSet = await _storage.openChangeSet(cipherFunc: cipherFunc);
 
             try {
               // Reuse the already-unwrapped master key to load metadata and
               // transition to unlocked instead of a second authentication.
               if (_stateController.value != LockerState.unlocked) {
-                _metaCache = await _storage.readAllMetaWithMasterKey(masterKey);
+                _metaCache = await changeSet.readAllMeta();
                 _stateController.add(LockerState.unlocked);
               }
             } catch (_) {
-              masterKey.erase();
+              changeSet.erase();
               rethrow;
             }
 
-            final transaction = _MfaLockerTransaction._(this, masterKey);
+            final transaction = _MfaLockerTransaction._(this, changeSet);
             _activeTransaction = transaction;
+
+            final gate = Completer<void>();
+            _transactionGateCompleter = gate;
+            _transactionGate = gate.future;
 
             return transaction;
           },
@@ -148,10 +159,18 @@ class MFALocker implements Locker {
     Future<R> Function(LockerTransaction txn) body,
   ) async {
     final txn = await beginTransaction(cipherFunc);
+    var succeeded = false;
     try {
-      return await body(txn);
+      final result = await body(txn);
+      succeeded = true;
+
+      return result;
     } finally {
-      await txn.close();
+      if (succeeded) {
+        await txn.commit();
+      } else {
+        await txn.abort();
+      }
     }
   }
 
@@ -302,6 +321,7 @@ class MFALocker implements Locker {
 
   @override
   Future<void> eraseStorage() => _sync(() async {
+        await _waitForTransactionIfActive();
         await _storage.erase();
         _cleanupState();
         _stateController.add(LockerState.locked);
@@ -316,6 +336,8 @@ class MFALocker implements Locker {
 
   @visibleForTesting
   Future<void> loadAllMetaIfLocked(CipherFunc cipherFunc) async {
+    await _waitForTransactionIfActive();
+
     if (!(await isStorageInitialized)) {
       throw StateError('Storage is not initialized');
     }
@@ -336,6 +358,23 @@ class MFALocker implements Locker {
     }
 
     _metaCache = {};
+  }
+
+  /// Releases the transaction gate so that one-shot methods waiting for the
+  /// active transaction to finish can proceed.
+  void _releaseTransactionGate() {
+    _transactionGateCompleter?.complete();
+    _transactionGateCompleter = null;
+    _transactionGate = null;
+  }
+
+  /// Waits for the active transaction to finish so a one-shot operation never
+  /// races with the in-memory transaction buffer.
+  Future<void> _waitForTransactionIfActive() async {
+    final gate = _transactionGate;
+    if (gate != null) {
+      await gate;
+    }
   }
 
   @override

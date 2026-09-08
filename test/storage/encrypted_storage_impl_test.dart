@@ -1062,9 +1062,12 @@ void main() {
       test('throws when entry missing', () async {
         // Arrange
         final masterKey = await CryptographyUtils.generateAESKey();
-        final signedData = await _Helpers.createStorageData(masterKey: masterKey);
         final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKey.bytes);
-
+        final wrapPwd = KeyWrap(origin: Origin.pwd, encryptedKey: masterKey.bytes);
+        final signedData = await _Helpers.createStorageData(
+          wraps: [wrapPwd],
+          masterKey: masterKey,
+        );
         await _Helpers.writeStorageData(storageFile, signedData);
 
         // Act & Assert
@@ -1682,7 +1685,7 @@ void main() {
       });
     });
 
-    group('getMasterKey and master-key operations', () {
+    group('change set operations', () {
       late Uint8List masterKeyBytes;
 
       setUp(() async {
@@ -1714,76 +1717,125 @@ void main() {
         await _Helpers.writeStorageData(storageFile, data);
       });
 
-      test('getMasterKey returns a key that decodes entries via master-key operations', () async {
+      test('openChangeSet returns a change set that decodes entries', () async {
         // Arrange
         final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
 
         // Act
-        final masterKey = await storage.getMasterKey(cipherFunc: cipher);
+        final changeSet = await storage.openChangeSet(cipherFunc: cipher);
 
         // Assert
-        expect(masterKey.isErased, isFalse);
+        expect(changeSet.isErased, isFalse);
 
-        final metas = await storage.readAllMetaWithMasterKey(masterKey);
+        final metas = await changeSet.readAllMeta();
         expect(metas.keys, contains(EntryId('a')));
 
-        final value = await storage.readValueWithMasterKey(id: EntryId('a'), masterKey: masterKey);
+        final value = await changeSet.readValue(EntryId('a'));
         expect(value.bytes, orderedEquals([2, 3]));
+
+        changeSet.erase();
       });
 
-      test('read/update/add/delete via master key round-trip without re-authentication', () async {
+      test('read/update/add/delete round-trip and commit persists once', () async {
         // Arrange
         final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
-        final masterKey = await storage.getMasterKey(cipherFunc: cipher);
+        final changeSet = await storage.openChangeSet(cipherFunc: cipher);
 
         // Act
-        await storage.updateEntryWithMasterKey(
-          input: EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([9, 9])),
-          masterKey: masterKey,
+        await changeSet.updateEntry(
+          EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([9, 9])),
         );
-        final updated = await storage.readValueWithMasterKey(id: EntryId('a'), masterKey: masterKey);
+        final updated = await changeSet.readValue(EntryId('a'));
 
-        final newId = await storage.addEntryWithMasterKey(
+        final newId = await changeSet.addEntry(
+          EntryAddInput(
+            meta: _Helpers.createEntryMeta([7]),
+            value: _Helpers.createEntryValue([8]),
+            id: EntryId('b'),
+          ),
+        );
+
+        // Assert (in-memory before commit)
+        expect(updated.bytes, orderedEquals([9, 9]));
+        expect(newId, EntryId('b'));
+
+        var all = await changeSet.readAllMeta();
+        expect(all.keys, containsAll([EntryId('a'), EntryId('b')]));
+
+        await changeSet.deleteEntry(EntryId('b'));
+        all = await changeSet.readAllMeta();
+        expect(all.keys, isNot(contains(EntryId('b'))));
+
+        // Commit and verify from a fresh change set.
+        await storage.commitChangeSet(changeSet);
+        changeSet.erase();
+
+        final fresh = await storage.openChangeSet(cipherFunc: cipher);
+        expect((await fresh.readValue(EntryId('a'))).bytes, orderedEquals([9, 9]));
+        expect((await fresh.readAllMeta()).keys, contains(EntryId('a')));
+        fresh.erase();
+      });
+
+      test('a read-only change set commit does not rewrite the file', () async {
+        // Arrange
+        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
+        final changeSet = await storage.openChangeSet(cipherFunc: cipher);
+        await changeSet.readAllMeta();
+
+        // Act
+        await storage.commitChangeSet(changeSet);
+
+        // Assert: not dirty, so nothing was written.
+        expect(changeSet.isCommitted, isTrue);
+        changeSet.erase();
+      });
+
+      test('commit fails with conflict when the file changed since opening', () async {
+        // Arrange
+        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
+        final changeSet = await storage.openChangeSet(cipherFunc: cipher);
+        await changeSet.updateEntry(
+          EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([5, 5])),
+        );
+
+        // A concurrent write changes the file while the change set is open.
+        await storage.addEntry(
           input: EntryAddInput(
             meta: _Helpers.createEntryMeta([7]),
             value: _Helpers.createEntryValue([8]),
             id: EntryId('b'),
           ),
-          masterKey: masterKey,
+          cipherFunc: cipher,
         );
 
-        // Assert
-        expect(updated.bytes, orderedEquals([9, 9]));
-        expect(newId, EntryId('b'));
-
-        var all = await storage.readAllMetaWithMasterKey(masterKey);
-        expect(all.keys, containsAll([EntryId('a'), EntryId('b')]));
-
-        await storage.deleteEntryWithMasterKey(id: EntryId('b'), masterKey: masterKey);
-        all = await storage.readAllMetaWithMasterKey(masterKey);
-        expect(all.keys, isNot(contains(EntryId('b'))));
+        // Act & Assert
+        await expectLater(
+          storage.commitChangeSet(changeSet),
+          throwsA(isA<StorageException>().having((e) => e.type, 'type', StorageExceptionType.conflict)),
+        );
+        changeSet.erase();
       });
 
-      test('getMasterKey with a failing cipher throws', () async {
+      test('openChangeSet with a failing cipher throws', () async {
         // Arrange
         final cipher = _Helpers.createDecryptFailingPasswordCipherFunc();
 
         // Act & Assert
         await expectLater(
-          storage.getMasterKey(cipherFunc: cipher),
+          storage.openChangeSet(cipherFunc: cipher),
           throwsA(isA<DecryptFailedException>()),
         );
       });
 
-      test('master-key operations throw after the key is erased', () async {
+      test('operations throw after the change set is erased', () async {
         // Arrange
         final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
-        final masterKey = await storage.getMasterKey(cipherFunc: cipher);
-        masterKey.erase();
+        final changeSet = await storage.openChangeSet(cipherFunc: cipher);
+        changeSet.erase();
 
         // Act & Assert
-        expect(masterKey.isErased, isTrue);
-        await expectLater(storage.readAllMetaWithMasterKey(masterKey), throwsStateError);
+        expect(changeSet.isErased, isTrue);
+        await expectLater(changeSet.readAllMeta(), throwsStateError);
       });
     });
   });

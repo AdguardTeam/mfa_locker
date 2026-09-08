@@ -60,6 +60,7 @@ mfa_locker/
 │   ├── storage/
 │   │   ├── encrypted_storage.dart       # EncryptedStorage interface
 │   │   ├── encrypted_storage_impl.dart  # JSON file-backed implementation with atomic writes
+│   │   ├── storage_change_set.dart      # In-memory working copy for transactions (buffer + commit/abort)
 │   │   ├── hmac_storage_mixin.dart      # HMAC-SHA256 integrity verification
 │   │   └── models/
 │   │       ├── data/
@@ -212,7 +213,7 @@ Layered architecture: **Locker (API) → Security (auth) → Storage (persistenc
 - **Metadata cache**: After unlock, `EntryMeta` objects are cached in `_metaCache`. Values (`EntryValue`) are never cached — fetched and erased on demand.
 - **Storage format**: JSON file containing `salt`, `lockTimeout`, `masterKey` (wrapped key list), `entries` (array of encrypted meta+value), `hmacKey`, `hmacSignature`.
 - **Atomic writes**: Storage writes to a temp file first, then atomically renames to target path. macOS restricts file permissions via `chmod 600`.
-- **Scoped transactions**: `MFALocker.beginTransaction` authenticates exactly once (the single biometric prompt on a composite user action) and returns a `LockerTransaction` that reuses the unwrapped master key for all of its operations with no further native calls. Prefer `withTransaction`, which closes the transaction automatically in `finally`; `lock()`, auto-lock and `dispose()` also close the active transaction.
+- **Scoped transactions**: `MFALocker.beginTransaction` authenticates exactly once (the single biometric prompt on a composite user action) and returns a `LockerTransaction`. All operations run against an in-memory `StorageChangeSet` (working copy) and the file is written **once, atomically** on `commit()`; `abort()` discards the buffer. Prefer `withTransaction`, which commits on success and aborts on error automatically. `lock()`, auto-lock and `dispose()` also abort the active transaction. **Isolation**: while a transaction is open, one-shot methods wait on a transaction gate (they never race the in-memory buffer); `commitChangeSet` additionally performs a compare-and-swap check (throws `StorageException.conflict`) as a safety net.
 
 #### Example App Layer (`example/lib/`)
 

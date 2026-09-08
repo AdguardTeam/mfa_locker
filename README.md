@@ -151,36 +151,38 @@ await locker.delete(id: entryId, cipherFunc: passwordCipherFunc);
 await locker.eraseStorage();
 ```
 
-#### Scoped Transactions (single biometric prompt)
+#### Scoped Transactions (single biometric prompt + atomicity)
 
-Operations that together form one user-intent action (e.g. *read a seed phrase → derive an account → save the updated entry*) can be grouped in a **scoped transaction**: the master key is unwrapped exactly once (the single biometric prompt) and reused by every operation inside it.
+Operations that together form one user-intent action (e.g. *read a seed phrase → derive an account → save the updated entry*) can be grouped in a **scoped transaction**: the master key is unwrapped exactly once (the single biometric prompt), all changes are buffered in memory, and the file is written **once, atomically** on commit — so the whole action is "all or nothing".
 
 ```dart
 import 'package:locker/locker/locker_transaction.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 
-// withTransaction closes the transaction automatically (also on error)
+// withTransaction commits on success and aborts on error
 await locker.withTransaction(bioCipherFunc, (txn) async {
   final seed = await txn.readValue(seedEntryId); // no extra prompt
   // ... derive the new account ...
   await txn.update(
     EntryUpdateInput(id: walletEntryId, value: newWalletValue),
-  ); // no extra prompt
+  ); // no extra prompt, buffered until commit
 });
 ```
 
-For full control use `beginTransaction` / `close()` (you must close in a `finally` block):
+For full control use `beginTransaction` / `commit()` / `abort()`:
 
 ```dart
 final txn = await locker.beginTransaction(bioCipherFunc);
 try {
-  // ... operations, each reusing the single unwrap ...
-} finally {
-  await txn.close(); // erases the master key from memory
+  // ... operations, each reusing the single unwrap, buffered in memory ...
+  await txn.commit(); // one atomic write; erases the key material
+} catch (_) {
+  await txn.abort(); // discards buffered changes; erases the key material
+  rethrow;
 }
 ```
 
-Only one transaction can be open at a time; a second `beginTransaction` throws a `StateError`. `lock()`, auto-lock, and `dispose()` close the active transaction and erase its key material.
+Only one transaction can be open at a time; a second `beginTransaction` throws a `StateError`. `lock()`, auto-lock, and `dispose()` abort the active transaction and erase its key material.
 
 ### 4. Configure Biometric Authentication
 
