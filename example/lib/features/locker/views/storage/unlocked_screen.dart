@@ -7,10 +7,12 @@ import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:mfa_demo/core/extensions/context_extensions.dart';
 import 'package:mfa_demo/features/locker/bloc/locker_bloc.dart';
 import 'package:mfa_demo/features/locker/data/models/authentication_result.dart';
+import 'package:mfa_demo/features/locker/data/models/duplicate_entry_result.dart';
 import 'package:mfa_demo/features/locker/views/storage/add_entry_screen.dart';
 import 'package:mfa_demo/features/locker/views/widgets/authentication_bottom_sheet.dart';
 import 'package:mfa_demo/features/locker/views/widgets/confirmation_dialog.dart';
 import 'package:mfa_demo/features/locker/views/widgets/confirmation_style.dart';
+import 'package:mfa_demo/features/locker/views/widgets/duplicate_entry_dialog.dart';
 import 'package:mfa_demo/features/locker/views/widgets/entries_list_view.dart';
 import 'package:mfa_demo/features/locker/views/widgets/entry_value_dialog.dart';
 import 'package:mfa_demo/features/locker/views/widgets/loading_overlay.dart';
@@ -75,6 +77,7 @@ class UnlockedScreen extends StatelessWidget {
                       entries: entries,
                       onDeleteEntry: (entryId, entryName) => _deleteEntry(context, entryId, entryName),
                       onViewEntry: (entryId, entryName) => _viewEntry(context, entryId, entryName),
+                      onCopyEntry: (entryId, entryName) => _copyEntry(context, entryId, entryName),
                     ),
                   ),
                 ],
@@ -86,6 +89,34 @@ class UnlockedScreen extends StatelessWidget {
       ),
     ),
   );
+
+  Future<void> _copyEntry(BuildContext context, EntryId entryId, String entryName) async {
+    final bloc = context.read<LockerBloc>();
+    final result = await showDialog<DuplicateEntryResult>(
+      context: context,
+      builder: (context) => DuplicateEntryDialog(sourceName: entryName),
+    );
+
+    if (result == null || !context.mounted) {
+      return;
+    }
+
+    if (result.useTransaction) {
+      bloc.add(
+        LockerEvent.duplicateEntryTransactionWithBiometricRequested(
+          sourceId: entryId,
+          newName: result.newName,
+        ),
+      );
+    } else {
+      bloc.add(
+        LockerEvent.duplicateEntryNaiveWithBiometricRequested(
+          sourceId: entryId,
+          newName: result.newName,
+        ),
+      );
+    }
+  }
 
   Future<void> _viewEntry(BuildContext context, EntryId entryId, String entryName) async {
     final bloc = context.read<LockerBloc>();

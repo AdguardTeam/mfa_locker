@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:locker/locker/locker_transaction.dart';
 import 'package:locker/locker/models/biometric_state.dart';
 import 'package:locker/security/models/bio_cipher_func.dart';
 import 'package:locker/security/models/biometric_config.dart';
@@ -73,6 +74,21 @@ abstract interface class Locker {
   ///
   /// Throws [StateError] if storage is not initialized.
   Future<void> loadAllMeta(CipherFunc cipherFunc);
+
+  /// Opens a scoped transaction: authenticates once via [cipherFunc] (the
+  /// single biometric prompt) and reuses the unwrapped master key for all
+  /// operations. Caller must close the result, preferably in `finally`.
+  ///
+  /// Throws [StateError] if storage is not initialized or a transaction is
+  /// already open.
+  Future<LockerTransaction> beginTransaction(CipherFunc cipherFunc);
+
+  /// Runs [body] inside a transaction and closes it in `finally`, so the key
+  /// material is erased even when [body] throws.
+  Future<R> withTransaction<R>(
+    CipherFunc cipherFunc,
+    Future<R> Function(LockerTransaction txn) body,
+  );
 
   /// Locks the locker and clears all cached data.
   ///

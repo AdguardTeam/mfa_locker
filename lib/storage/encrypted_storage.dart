@@ -1,6 +1,7 @@
 import 'dart:core';
 import 'dart:typed_data';
 
+import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/security/models/cipher_func.dart';
 import 'package:locker/security/models/password_cipher_func.dart';
 import 'package:locker/storage/models/data/origin.dart';
@@ -54,6 +55,12 @@ abstract interface class EncryptedStorage {
     required int lockTimeout,
   });
 
+  /// Unwraps the master key via [cipherFunc] — the single authentication point
+  /// (one biometric prompt). Caller must erase the returned key.
+  Future<ErasableByteArray> getMasterKey({
+    required CipherFunc cipherFunc,
+  });
+
   /// Adds an additional authentication method or replaces an existing one.
   ///
   /// Creates a new wrap for the master key using [newWrapFunc], allowing
@@ -85,6 +92,12 @@ abstract interface class EncryptedStorage {
     required CipherFunc cipherFunc,
   });
 
+  /// Like [deleteEntry] but reuses an already-unwrapped master key.
+  Future<void> deleteEntryWithMasterKey({
+    required EntryId id,
+    required ErasableByteArray masterKey,
+  });
+
   /// Adds an entry to the storage.
   ///
   /// [input] - Entry data (meta, value, optional fixed ID). When [input.id] is
@@ -99,6 +112,12 @@ abstract interface class EncryptedStorage {
     required CipherFunc cipherFunc,
   });
 
+  /// Like [addEntry] but reuses an already-unwrapped master key.
+  Future<EntryId> addEntryWithMasterKey({
+    required EntryAddInput input,
+    required ErasableByteArray masterKey,
+  });
+
   /// Updates an entry by its id.
   ///
   /// [input] - Update data (id, optional meta, optional value). At least one of
@@ -111,12 +130,21 @@ abstract interface class EncryptedStorage {
     required CipherFunc cipherFunc,
   });
 
+  /// Like [updateEntry] but reuses an already-unwrapped master key.
+  Future<void> updateEntryWithMasterKey({
+    required EntryUpdateInput input,
+    required ErasableByteArray masterKey,
+  });
+
   /// Retrieves and decrypts all entries metadata and maps them to their ids.
   ///
   /// Requires [cipherFunc] to decrypt the master key.
   Future<Map<EntryId, EntryMeta>> readAllMeta({
     required CipherFunc cipherFunc,
   });
+
+  /// Like [readAllMeta] but reuses an already-unwrapped master key.
+  Future<Map<EntryId, EntryMeta>> readAllMetaWithMasterKey(ErasableByteArray masterKey);
 
   /// Retrieves and decrypts an entry value by id.
   ///
@@ -127,6 +155,12 @@ abstract interface class EncryptedStorage {
   Future<EntryValue> readValue({
     required EntryId id,
     required CipherFunc cipherFunc,
+  });
+
+  /// Like [readValue] but reuses an already-unwrapped master key.
+  Future<EntryValue> readValueWithMasterKey({
+    required EntryId id,
+    required ErasableByteArray masterKey,
   });
 
   /// Updates the storage lock timeout value.

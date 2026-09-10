@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:locker/storage/encrypted_storage_impl.dart';
 import 'package:locker/storage/models/data/key_wrap.dart';
 import 'package:locker/storage/models/data/origin.dart';
+import 'package:locker/storage/models/data/storage_entry.dart';
 import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
@@ -1678,6 +1679,111 @@ void main() {
         expect(deleteCalls, greaterThanOrEqualTo(1), reason: 'there must be at least one deletion');
         expect(await storageFile.exists(), isFalse, reason: 'file must not exist after erase');
         expect(readCalls, 1, reason: 'erase does not trigger a read; the only read was from addEntry');
+      });
+    });
+
+    group('getMasterKey and master-key operations', () {
+      late Uint8List masterKeyBytes;
+
+      setUp(() async {
+        // Storage with a single pwd-wrapped entry encrypted under masterKeyBytes.
+        final masterKey = await CryptographyUtils.generateAESKey();
+        masterKeyBytes = masterKey.bytes;
+
+        final encryptedMeta = await CryptographyUtils.encrypt(
+          key: masterKey,
+          data: _Helpers.createEntryMeta([1]),
+        );
+        final encryptedValue = await CryptographyUtils.encrypt(
+          key: masterKey,
+          data: _Helpers.createEntryValue([2, 3]),
+        );
+
+        final data = await _Helpers.createStorageData(
+          masterKey: masterKey,
+          wraps: [KeyWrap(origin: Origin.pwd, encryptedKey: masterKeyBytes)],
+          entries: [
+            StorageEntry(
+              id: EntryId('a'),
+              encryptedMeta: encryptedMeta,
+              encryptedValue: encryptedValue,
+            ),
+          ],
+        );
+
+        await _Helpers.writeStorageData(storageFile, data);
+      });
+
+      test('getMasterKey returns a key that decodes entries via master-key operations', () async {
+        // Arrange
+        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
+
+        // Act
+        final masterKey = await storage.getMasterKey(cipherFunc: cipher);
+
+        // Assert
+        expect(masterKey.isErased, isFalse);
+
+        final metas = await storage.readAllMetaWithMasterKey(masterKey);
+        expect(metas.keys, contains(EntryId('a')));
+
+        final value = await storage.readValueWithMasterKey(id: EntryId('a'), masterKey: masterKey);
+        expect(value.bytes, orderedEquals([2, 3]));
+      });
+
+      test('read/update/add/delete via master key round-trip without re-authentication', () async {
+        // Arrange
+        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
+        final masterKey = await storage.getMasterKey(cipherFunc: cipher);
+
+        // Act
+        await storage.updateEntryWithMasterKey(
+          input: EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([9, 9])),
+          masterKey: masterKey,
+        );
+        final updated = await storage.readValueWithMasterKey(id: EntryId('a'), masterKey: masterKey);
+
+        final newId = await storage.addEntryWithMasterKey(
+          input: EntryAddInput(
+            meta: _Helpers.createEntryMeta([7]),
+            value: _Helpers.createEntryValue([8]),
+            id: EntryId('b'),
+          ),
+          masterKey: masterKey,
+        );
+
+        // Assert
+        expect(updated.bytes, orderedEquals([9, 9]));
+        expect(newId, EntryId('b'));
+
+        var all = await storage.readAllMetaWithMasterKey(masterKey);
+        expect(all.keys, containsAll([EntryId('a'), EntryId('b')]));
+
+        await storage.deleteEntryWithMasterKey(id: EntryId('b'), masterKey: masterKey);
+        all = await storage.readAllMetaWithMasterKey(masterKey);
+        expect(all.keys, isNot(contains(EntryId('b'))));
+      });
+
+      test('getMasterKey with a failing cipher throws', () async {
+        // Arrange
+        final cipher = _Helpers.createDecryptFailingPasswordCipherFunc();
+
+        // Act & Assert
+        await expectLater(
+          storage.getMasterKey(cipherFunc: cipher),
+          throwsA(isA<DecryptFailedException>()),
+        );
+      });
+
+      test('master-key operations throw after the key is erased', () async {
+        // Arrange
+        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
+        final masterKey = await storage.getMasterKey(cipherFunc: cipher);
+        masterKey.erase();
+
+        // Act & Assert
+        expect(masterKey.isErased, isTrue);
+        await expectLater(storage.readAllMetaWithMasterKey(masterKey), throwsStateError);
       });
     });
   });

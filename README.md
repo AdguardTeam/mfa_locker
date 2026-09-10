@@ -12,6 +12,7 @@ A secure storage library for Dart/Flutter applications that provides encrypted k
 - **Auto-Lock** — Automatic locking after configurable inactivity timeout
 - **Secure Memory Management** — Erasable byte arrays that securely wipe sensitive data from memory
 - **Atomic Writes** — Safe file operations to prevent data corruption
+- **Scoped Transactions** — Group multiple operations (read + write) under one authentication; the master key is unwrapped once (a single biometric prompt) and reused for the whole transaction
 - **Reactive State** — RxDart streams for monitoring lock/unlock state
 - **No Logging or Telemetry** — The library never logs, prints, or transmits secrets, keys, or errors; it carries no logging dependency and surfaces failures by throwing exceptions to the caller
 
@@ -24,7 +25,7 @@ dependencies:
   locker:
     git:
       url: https://github.com/AdguardTeam/mfa_locker.git
-      ref: v1.0.4  # Use the latest tag
+      ref: v1.1.0  # Use the latest tag
 ```
 
 Or for local development:
@@ -149,6 +150,37 @@ await locker.delete(id: entryId, cipherFunc: passwordCipherFunc);
 // Erase all storage data (irreversible)
 await locker.eraseStorage();
 ```
+
+#### Scoped Transactions (single biometric prompt)
+
+Operations that together form one user-intent action (e.g. *read a seed phrase → derive an account → save the updated entry*) can be grouped in a **scoped transaction**: the master key is unwrapped exactly once (the single biometric prompt) and reused by every operation inside it.
+
+```dart
+import 'package:locker/locker/locker_transaction.dart';
+import 'package:locker/storage/models/domain/entry_update_input.dart';
+
+// withTransaction closes the transaction automatically (also on error)
+await locker.withTransaction(bioCipherFunc, (txn) async {
+  final seed = await txn.readValue(seedEntryId); // no extra prompt
+  // ... derive the new account ...
+  await txn.update(
+    EntryUpdateInput(id: walletEntryId, value: newWalletValue),
+  ); // no extra prompt
+});
+```
+
+For full control use `beginTransaction` / `close()` (you must close in a `finally` block):
+
+```dart
+final txn = await locker.beginTransaction(bioCipherFunc);
+try {
+  // ... operations, each reusing the single unwrap ...
+} finally {
+  await txn.close(); // erases the master key from memory
+}
+```
+
+Only one transaction can be open at a time; a second `beginTransaction` throws a `StateError`. `lock()`, auto-lock, and `dispose()` close the active transaction and erase its key material.
 
 ### 4. Configure Biometric Authentication
 
@@ -300,7 +332,7 @@ try {
 ```
 locker/
 ├── lib/
-│   ├── locker/           # Core locker interface (Locker) and implementation (MFALocker)
+│   ├── locker/           # Locker interface, MFALocker, LockerTransaction (single-auth transactions)
 │   ├── security/         # Cipher functions, biometric config, BiometricCipherProvider
 │   ├── storage/          # Encrypted storage interface and JSON file-backed implementation
 │   ├── erasable/         # Secure memory management (ErasableByteArray)
