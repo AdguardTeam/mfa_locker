@@ -9,7 +9,6 @@ import 'package:locker/storage/models/data/storage_entry.dart';
 import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
-import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/decrypt_failed_exception.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
 import 'package:locker/utils/cryptography_utils.dart';
@@ -19,13 +18,14 @@ import 'package:test/test.dart';
 
 import '../mocks/mock_file.dart';
 import 'encrypted_storage_test_helpers.dart';
+import 'one_shot_storage.dart';
 
 typedef _Helpers = EncryptedStorageTestHelpers;
 
 void main() {
   late Directory tempDir;
   late File storageFile;
-  late EncryptedStorageImpl storage;
+  late OneShotStorage storage;
 
   setUpAll(() async {
     registerFallbackValue(_Helpers.createErasable());
@@ -35,7 +35,7 @@ void main() {
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('locker_test_');
     storageFile = File(p.join(tempDir.path, 'storage.json'));
-    storage = EncryptedStorageImpl(file: storageFile);
+    storage = OneShotStorage(EncryptedStorageImpl(file: storageFile));
   });
 
   tearDown(() async {
@@ -1310,9 +1310,13 @@ void main() {
 
       test('throws and keeps file unchanged when lockTimeout is zero', () async {
         // Arrange
-        final signed = await _Helpers.createStorageData();
+        final masterKey = await CryptographyUtils.generateAESKey();
+        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKey.bytes);
+        final signed = await _Helpers.createStorageData(
+          wraps: [KeyWrap(origin: Origin.pwd, encryptedKey: masterKey.bytes)],
+          masterKey: masterKey,
+        );
         await _Helpers.writeStorageData(storageFile, signed);
-        final cipher = _Helpers.createMockPasswordCipherFunc();
 
         // Act & Assert
         await _Helpers.expectFileUnchanged(
@@ -1326,9 +1330,13 @@ void main() {
 
       test('throws and keeps file unchanged when lockTimeout is negative', () async {
         // Arrange
-        final signed = await _Helpers.createStorageData();
+        final masterKey = await CryptographyUtils.generateAESKey();
+        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKey.bytes);
+        final signed = await _Helpers.createStorageData(
+          wraps: [KeyWrap(origin: Origin.pwd, encryptedKey: masterKey.bytes)],
+          masterKey: masterKey,
+        );
         await _Helpers.writeStorageData(storageFile, signed);
-        final cipher = _Helpers.createMockPasswordCipherFunc();
 
         // Act & Assert
         await _Helpers.expectFileUnchanged(
@@ -1385,11 +1393,11 @@ void main() {
       const delayDuration = Duration(milliseconds: 25);
 
       late MockFile gateFile;
-      late EncryptedStorageImpl storage;
+      late OneShotStorage storage;
 
       setUp(() {
         gateFile = MockFile();
-        storage = EncryptedStorageImpl(file: gateFile);
+        storage = OneShotStorage(EncryptedStorageImpl(file: gateFile));
         when(() => gateFile.path).thenReturn(storageFile.path);
         when(() => gateFile.parent).thenReturn(storageFile.parent);
         when(() => gateFile.exists()).thenAnswer((_) => storageFile.exists());
@@ -1412,231 +1420,13 @@ void main() {
         }
       });
 
-      test('two concurrent addEntry calls are serialized', () async {
-        // Arrange
-        final masterKey = await CryptographyUtils.generateAESKey();
-        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKey.bytes);
-        final wrapPwd = KeyWrap(origin: Origin.pwd, encryptedKey: masterKey.bytes);
-        final initial = await _Helpers.createEncryptedEntry(masterKey: masterKey, id: 'initial');
-        final signed = await _Helpers.createStorageData(
-          wraps: [wrapPwd],
-          entries: [initial],
-          masterKey: masterKey,
-        );
-        await _Helpers.writeStorageData(storageFile, signed);
-
-        final gate = Completer<void>();
-        var readCalls = 0;
-
-        when(() => gateFile.readAsString()).thenAnswer((_) async {
-          readCalls++;
-          if (readCalls == 1 && !gate.isCompleted) {
-            await gate.future;
-          }
-          return storageFile.readAsString();
-        });
-
-        final m1 = _Helpers.createEntryMeta([1]);
-        final v1 = _Helpers.createEntryValue([1]);
-        final m2 = _Helpers.createEntryMeta([2]);
-        final v2 = _Helpers.createEntryValue([2]);
-
-        // Act:
-        final f1 = storage.addEntry(
-          input: EntryAddInput(meta: m1, value: v1),
-          cipherFunc: cipher,
-        );
-        await Future<void>.delayed(delayDuration);
-        expect(readCalls, 1, reason: 'the first operation entered and is waiting at the gate');
-
-        final f2 = storage.addEntry(
-          input: EntryAddInput(meta: m2, value: v2),
-          cipherFunc: cipher,
-        );
-        await Future<void>.delayed(delayDuration);
-        expect(readCalls, 1, reason: 'the second operation must not enter until the lock is released');
-
-        gate.complete();
-        final ids = await Future.wait([f1, f2]);
-
-        // Assert
-        final updated = await _Helpers.readStorageData(storageFile);
-        final entryIds = updated.entries.map((e) => e.id.value).toList();
-        expect(entryIds, containsAll(ids.map((e) => e.value)));
-        expect(updated.entries.length, 3, reason: 'initial + 2 new entries');
-        expect(ids[0] != ids[1], isTrue, reason: 'EntryIds must be different');
-        expect(readCalls, greaterThanOrEqualTo(2), reason: 'after releasing the lock, a second read cycle occurred');
-      });
-
-      test('concurrent addEntry and deleteEntry are serialized', () async {
-        // Arrange
-        const id1 = 'id1';
-        const deleteId = 'deleteId';
-        final masterKey = await CryptographyUtils.generateAESKey();
-        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKey.bytes);
-        final wrapPwd = KeyWrap(origin: Origin.pwd, encryptedKey: masterKey.bytes);
-        final entry1 = await _Helpers.createEncryptedEntry(masterKey: masterKey, id: id1);
-        final entryDelete = await _Helpers.createEncryptedEntry(masterKey: masterKey, id: deleteId);
-        final signed = await _Helpers.createStorageData(
-          wraps: [wrapPwd],
-          entries: [entry1, entryDelete],
-          masterKey: masterKey,
-        );
-        await _Helpers.writeStorageData(storageFile, signed);
-
-        final gate = Completer<void>();
-        var readCalls = 0;
-
-        when(() => gateFile.readAsString()).thenAnswer((_) async {
-          readCalls++;
-          if (readCalls == 1 && !gate.isCompleted) {
-            await gate.future;
-          }
-          return storageFile.readAsString();
-        });
-
-        // Act
-        final addIdFuture = storage.addEntry(
-          input: EntryAddInput(meta: _Helpers.createEntryMeta([3]), value: _Helpers.createEntryValue([3])),
-          cipherFunc: cipher,
-        );
-        await Future<void>.delayed(delayDuration);
-        expect(readCalls, 1);
-
-        final delFuture = storage.deleteEntry(id: EntryId(deleteId), cipherFunc: cipher);
-        await Future<void>.delayed(delayDuration);
-        expect(readCalls, 1, reason: 'delete must await');
-
-        gate.complete();
-        final newId = (await addIdFuture).value;
-        await delFuture;
-
-        // Assert
-        final data = await _Helpers.readStorageData(storageFile);
-        final ids = data.entries.map((e) => e.id.value).toList();
-        expect(ids, contains(id1));
-        expect(ids, contains(newId));
-        expect(ids, isNot(contains(deleteId)));
-        expect(readCalls, greaterThanOrEqualTo(2));
-      });
-
-      test('concurrent updateEntry and readValue are serialized: read sees updated value', () async {
-        // Arrange
-        const entryId = 'entryId';
-        final masterKey = await CryptographyUtils.generateAESKey();
-        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKey.bytes);
-        final wrapPwd = KeyWrap(origin: Origin.pwd, encryptedKey: masterKey.bytes);
-        final entry = await _Helpers.createEncryptedEntry(
-          masterKey: masterKey,
-          id: entryId,
-          valueBytes: [1],
-        );
-        final signed = await _Helpers.createStorageData(
-          wraps: [wrapPwd],
-          entries: [entry],
-          masterKey: masterKey,
-        );
-        await _Helpers.writeStorageData(storageFile, signed);
-
-        final gate = Completer<void>();
-        var readCalls = 0;
-
-        when(() => gateFile.readAsString()).thenAnswer((_) async {
-          readCalls++;
-          if (readCalls == 1 && !gate.isCompleted) {
-            await gate.future;
-          }
-          return storageFile.readAsString();
-        });
-
-        final newVal = _Helpers.createEntryValue(const [2]);
-
-        // Act:
-        final update = storage.updateEntry(
-          input: EntryUpdateInput(id: EntryId(entryId), value: newVal),
-          cipherFunc: cipher,
-        );
-        await Future<void>.delayed(delayDuration);
-        expect(readCalls, 1);
-
-        final read = storage.readValue(id: EntryId(entryId), cipherFunc: cipher);
-        await Future<void>.delayed(delayDuration);
-        expect(readCalls, 1);
-
-        gate.complete();
-        await update;
-        final readValue = await read;
-
-        // Assert
-        expect(readValue.bytes, orderedEquals(const [2]));
-
-        final persisted = await storage.readValue(id: EntryId(entryId), cipherFunc: cipher);
-        expect(persisted.bytes, orderedEquals(const [2]));
-      });
-
-      test('concurrent addOrReplaceWrap and readValue are serialized', () async {
-        // Arrange
-        const entryId = 'entryId';
-        const valueBytes = [2];
-        final masterKey = await CryptographyUtils.generateAESKey();
-        final pwd = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKey.bytes);
-        final bio = _Helpers.createMockBioCipherFunc(masterKeyBytes: masterKey.bytes);
-        final wrapPwd = KeyWrap(origin: Origin.pwd, encryptedKey: masterKey.bytes);
-        final entry = await _Helpers.createEncryptedEntry(
-          masterKey: masterKey,
-          id: entryId,
-          valueBytes: valueBytes,
-        );
-        final signed = await _Helpers.createStorageData(
-          wraps: [wrapPwd],
-          entries: [entry],
-          masterKey: masterKey,
-        );
-        await _Helpers.writeStorageData(storageFile, signed);
-
-        final gate = Completer<void>();
-        var readCalls = 0;
-
-        when(() => gateFile.readAsString()).thenAnswer((_) async {
-          readCalls++;
-          if (readCalls == 1 && !gate.isCompleted) {
-            await gate.future;
-          }
-          return storageFile.readAsString();
-        });
-
-        // Act:
-        final addWrapF = storage.addOrReplaceWrap(newWrapFunc: bio, existingWrapFunc: pwd);
-        await Future<void>.delayed(delayDuration);
-        expect(readCalls, 1);
-
-        final readPwdF = storage.readValue(id: EntryId(entryId), cipherFunc: pwd);
-        await Future<void>.delayed(delayDuration);
-        expect(readCalls, 1, reason: 'read must await addOrReplaceWrap');
-
-        gate.complete();
-        final results = await Future.wait([addWrapF, readPwdF]);
-
-        // Assert
-        final value = results[1] as EntryValue;
-        expect(value.bytes, orderedEquals(valueBytes));
-
-        final after = await _Helpers.readStorageData(storageFile);
-        final origins = after.masterKey.wraps.map((w) => w.origin).toList();
-        expect(origins, containsAll([Origin.pwd, Origin.bio]));
-
-        final v2 = await storage.readValue(id: EntryId(entryId), cipherFunc: bio);
-        expect(v2.bytes, orderedEquals(valueBytes));
-      });
-
-      test('concurrent erase and addEntry are serialized: erase runs after addEntry finishes', () async {
+      test('commitChangeSet and erase are serialized: erase waits for the commit', () async {
         // Arrange
         const entryId = 'entryId';
         final masterKey = await CryptographyUtils.generateAESKey();
         final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKey.bytes);
         final wrapPwd = KeyWrap(origin: Origin.pwd, encryptedKey: masterKey.bytes);
         final entry = await _Helpers.createEncryptedEntry(masterKey: masterKey, id: entryId);
-
         final signed = await _Helpers.createStorageData(
           wraps: [wrapPwd],
           entries: [entry],
@@ -1654,34 +1444,37 @@ void main() {
         });
         when(() => gateFile.readAsString()).thenAnswer((_) async {
           readCalls++;
-          if (readCalls == 1 && !gate.isCompleted) {
+          // The second read is the compare-and-swap check inside the commit.
+          if (readCalls == 2 && !gate.isCompleted) {
             await gate.future;
           }
           return storageFile.readAsString();
         });
 
-        // Act: addEntry enters and blocks; erase is queued.
-        final addF = storage.addEntry(
-          input: EntryAddInput(meta: _Helpers.createEntryMeta([1]), value: _Helpers.createEntryValue([1])),
-          cipherFunc: cipher,
+        // Act: open and mutate a change set, then commit (blocked at the gate)
+        // and issue erase while the commit is still in flight.
+        final changeSet = await storage.openChangeSet(cipherFunc: cipher);
+        await changeSet.updateEntry(
+          EntryUpdateInput(id: EntryId(entryId), value: _Helpers.createEntryValue([5])),
         );
+
+        final commitF = storage.commitChangeSet(changeSet);
         await Future<void>.delayed(delayDuration);
-        expect(readCalls, 1, reason: 'addEntry must enter and block at the gate');
+        expect(readCalls, 2, reason: 'the commit entered and is waiting at the gate');
 
         final eraseF = storage.erase();
         await Future<void>.delayed(delayDuration);
-        expect(readCalls, 1, reason: 'erase must wait for addEntry to finish');
-        expect(deleteCalls, 0, reason: 'there must be no deletions before addEntry finishes');
+        expect(deleteCalls, 0, reason: 'erase must wait for the commit to finish');
 
-        // Unblock addEntry — then erase will run.
+        // Unblock the commit — then erase runs and removes the file.
         gate.complete();
-        await addF;
+        await commitF;
+        changeSet.erase();
         await eraseF;
 
         // Assert
-        expect(deleteCalls, greaterThanOrEqualTo(1), reason: 'there must be at least one deletion');
+        expect(deleteCalls, greaterThanOrEqualTo(1));
         expect(await storageFile.exists(), isFalse, reason: 'file must not exist after erase');
-        expect(readCalls, 1, reason: 'erase does not trigger a read; the only read was from addEntry');
       });
     });
 

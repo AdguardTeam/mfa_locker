@@ -15,9 +15,6 @@ import 'package:locker/storage/models/data/storage_entry.dart';
 import 'package:locker/storage/models/data/wrapped_key.dart';
 import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
-import 'package:locker/storage/models/domain/entry_meta.dart';
-import 'package:locker/storage/models/domain/entry_update_input.dart';
-import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
 import 'package:locker/storage/storage_change_set.dart';
 import 'package:locker/utils/cryptography_utils.dart';
@@ -158,35 +155,16 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
 
   @override
   Future<void> commitChangeSet(StorageChangeSet changeSet) => _sync(
-        () => _persistChangeSet(changeSet, checkConflict: true),
+        () => _persistChangeSet(changeSet),
       );
-
-  /// Runs a single entry [operation] over an ephemeral change set and persists
-  /// it atomically. The change set (and its key) is always erased.
-  Future<T> _withChangeSet<T>({
-    required CipherFunc cipherFunc,
-    required Future<T> Function(StorageChangeSet changeSet) operation,
-  }) async {
-    final changeSet = await openChangeSet(cipherFunc: cipherFunc);
-    try {
-      final result = await operation(changeSet);
-      await _persistChangeSet(changeSet, checkConflict: false);
-
-      return result;
-    } finally {
-      changeSet.erase();
-    }
-  }
 
   /// Persists [changeSet] if it has any changes.
   ///
-  /// When [checkConflict] is true performs a compare-and-swap against the file
-  /// (used for long-lived transactions); one-shot operations skip it because
-  /// they run under the storage lock, so the file cannot have changed.
-  Future<void> _persistChangeSet(
-    StorageChangeSet changeSet, {
-    required bool checkConflict,
-  }) async {
+  /// The snapshot taken when the change set was opened is compared with the
+  /// current file (compare-and-swap), so a write from outside this instance
+  /// fails with [StorageException.conflict] instead of being silently
+  /// overwritten. A change set without mutations is not written at all.
+  Future<void> _persistChangeSet(StorageChangeSet changeSet) async {
     if (changeSet.isCommitted) {
       return;
     }
@@ -195,11 +173,9 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
     }
 
     if (changeSet.isDirty) {
-      if (checkConflict) {
-        final current = await _loadData();
-        if (!_storageDataEquals(current, changeSet.baseData)) {
-          throw StorageException.conflict();
-        }
+      final current = await _loadData();
+      if (!_storageDataEquals(current, changeSet.baseData)) {
+        throw StorageException.conflict();
       }
 
       await _signDataWithHmacAndSave(changeSet.data, changeSet.masterKey);
@@ -207,159 +183,6 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
 
     changeSet.markCommitted();
   }
-
-  @override
-  Future<void> addOrReplaceWrap({
-    required CipherFunc newWrapFunc,
-    required CipherFunc existingWrapFunc,
-  }) =>
-      _sync(() async {
-        ErasableByteArray? masterKey;
-
-        try {
-          final data = await _loadData();
-          final wrappedKey = data.masterKey;
-
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: existingWrapFunc);
-
-          final encryptedMasterKey = await newWrapFunc.encrypt(masterKey);
-          final newWrap = KeyWrap(
-            origin: newWrapFunc.origin,
-            encryptedKey: encryptedMasterKey,
-          );
-
-          final currentWraps = [...wrappedKey.wraps];
-          final index = currentWraps.indexWhere((w) => w.origin == newWrap.origin);
-
-          if (index >= 0) {
-            currentWraps[index] = newWrap;
-          } else {
-            currentWraps.add(newWrap);
-          }
-
-          Uint8List? newSalt;
-          if (newWrapFunc is PasswordCipherFunc) {
-            newSalt = newWrapFunc.salt;
-          }
-
-          final updatedKey = WrappedKey(wraps: currentWraps);
-          final newData = data.copyWith(masterKey: updatedKey, salt: newSalt);
-
-          await _signDataWithHmacAndSave(newData, masterKey);
-        } finally {
-          masterKey?.erase();
-        }
-      });
-
-  @override
-  Future<void> deleteWrap({
-    required Origin originToDelete,
-    required CipherFunc cipherFunc,
-  }) =>
-      _sync(() async {
-        ErasableByteArray? masterKey;
-        try {
-          final data = await _loadData();
-
-          final currentWraps = data.masterKey.wraps;
-          final updatedWraps = currentWraps.where((w) => w.origin != originToDelete).toList();
-
-          if (updatedWraps.length == currentWraps.length) {
-            throw StorageException.other('The wrap to delete was not found');
-          }
-
-          if (updatedWraps.isEmpty) {
-            throw StorageException.other('The wraps list would be empty after deletion, not allowed');
-          }
-
-          final updatedWrappedKey = WrappedKey(wraps: updatedWraps);
-          final newData = data.copyWith(masterKey: updatedWrappedKey);
-
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
-          await _signDataWithHmacAndSave(newData, masterKey);
-        } finally {
-          masterKey?.erase();
-        }
-      });
-
-  @override
-  Future<void> deleteEntry({
-    required EntryId id,
-    required CipherFunc cipherFunc,
-  }) =>
-      _sync(
-        () => _withChangeSet(
-          cipherFunc: cipherFunc,
-          operation: (changeSet) => changeSet.deleteEntry(id),
-        ),
-      );
-
-  @override
-  Future<EntryId> addEntry({
-    required EntryAddInput input,
-    required CipherFunc cipherFunc,
-  }) =>
-      _sync(
-        () => _withChangeSet(
-          cipherFunc: cipherFunc,
-          operation: (changeSet) => changeSet.addEntry(input),
-        ),
-      );
-
-  @override
-  Future<void> updateEntry({
-    required EntryUpdateInput input,
-    required CipherFunc cipherFunc,
-  }) =>
-      _sync(
-        () => _withChangeSet(
-          cipherFunc: cipherFunc,
-          operation: (changeSet) => changeSet.updateEntry(input),
-        ),
-      );
-
-  @override
-  Future<Map<EntryId, EntryMeta>> readAllMeta({required CipherFunc cipherFunc}) => _sync(
-        () => _withChangeSet(
-          cipherFunc: cipherFunc,
-          operation: (changeSet) => changeSet.readAllMeta(),
-        ),
-      );
-
-  @override
-  Future<EntryValue> readValue({
-    required EntryId id,
-    required CipherFunc cipherFunc,
-  }) =>
-      _sync(
-        () => _withChangeSet(
-          cipherFunc: cipherFunc,
-          operation: (changeSet) => changeSet.readValue(id),
-        ),
-      );
-
-  @override
-  Future<void> updateLockTimeout({
-    required int lockTimeout,
-    required CipherFunc cipherFunc,
-  }) =>
-      _sync(() async {
-        if (lockTimeout <= 0) {
-          throw StorageException.other('Lock timeout must be greater than 0');
-        }
-
-        ErasableByteArray? masterKey;
-
-        try {
-          final data = await _loadData();
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
-
-          final newData = data.copyWith(lockTimeout: lockTimeout);
-          await _signDataWithHmacAndSave(newData, masterKey);
-        } finally {
-          masterKey?.erase();
-        }
-      });
 
   @override
   Future<void> erase() => _sync(() async {

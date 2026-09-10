@@ -29,8 +29,7 @@ abstract class _Helpers {
   }
 
   static Map<EntryId, EntryMeta> stubReadAllMeta(
-    MockEncryptedStorage storage,
-    CipherFunc cipher, {
+    MockStorageChangeSet changeSet, {
     String id = 'a',
     List<int> metaBytes = const [1],
   }) {
@@ -38,9 +37,7 @@ abstract class _Helpers {
       EntryId(id): _StorageHelpers.createEntryMeta(metaBytes),
     };
 
-    when(() => storage.readAllMeta(cipherFunc: cipher)).thenAnswer(
-      (_) async => result,
-    );
+    when(() => changeSet.readAllMeta()).thenAnswer((_) async => result);
 
     return result;
   }

@@ -3,8 +3,13 @@ import 'dart:typed_data';
 import 'package:collection/collection.dart';
 import 'package:locker/erasable/erasable.dart';
 import 'package:locker/erasable/erasable_byte_array.dart';
+import 'package:locker/security/models/cipher_func.dart';
+import 'package:locker/security/models/password_cipher_func.dart';
+import 'package:locker/storage/models/data/key_wrap.dart';
+import 'package:locker/storage/models/data/origin.dart';
 import 'package:locker/storage/models/data/storage_data.dart';
 import 'package:locker/storage/models/data/storage_entry.dart';
+import 'package:locker/storage/models/data/wrapped_key.dart';
 import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_meta.dart';
@@ -183,6 +188,71 @@ class StorageChangeSet implements Erasable {
   /// Marks the change set as committed (persisted).
   void markCommitted() {
     _committed = true;
+  }
+
+  /// Updates the auto-lock timeout in milliseconds.
+  Future<void> updateLockTimeout(int lockTimeout) async {
+    _ensureActive();
+
+    if (lockTimeout <= 0) {
+      throw StorageException.other('Lock timeout must be greater than 0');
+    }
+
+    _data = _data.copyWith(lockTimeout: lockTimeout);
+    _dirty = true;
+  }
+
+  /// Adds a wrap for the master key or replaces the wrap with the same origin.
+  Future<void> addOrReplaceWrap({required CipherFunc newWrapFunc}) async {
+    _ensureActive();
+
+    final encryptedMasterKey = await newWrapFunc.encrypt(masterKey);
+    final newWrap = KeyWrap(
+      origin: newWrapFunc.origin,
+      encryptedKey: encryptedMasterKey,
+    );
+
+    final currentWraps = [..._data.masterKey.wraps];
+    final index = currentWraps.indexWhere((w) => w.origin == newWrap.origin);
+
+    if (index >= 0) {
+      currentWraps[index] = newWrap;
+    } else {
+      currentWraps.add(newWrap);
+    }
+
+    Uint8List? newSalt;
+    if (newWrapFunc is PasswordCipherFunc) {
+      newSalt = newWrapFunc.salt;
+    }
+
+    _data = _data.copyWith(
+      masterKey: WrappedKey(wraps: currentWraps),
+      salt: newSalt,
+    );
+    _dirty = true;
+  }
+
+  /// Removes the wrap of [originToDelete].
+  ///
+  /// Throws [StorageException] if there is no such wrap or if it is the last
+  /// remaining one.
+  Future<void> deleteWrap({required Origin originToDelete}) async {
+    _ensureActive();
+
+    final currentWraps = _data.masterKey.wraps;
+    final updatedWraps = currentWraps.where((w) => w.origin != originToDelete).toList();
+
+    if (updatedWraps.length == currentWraps.length) {
+      throw StorageException.other('The wrap to delete was not found');
+    }
+
+    if (updatedWraps.isEmpty) {
+      throw StorageException.other('The wraps list would be empty after deletion, not allowed');
+    }
+
+    _data = _data.copyWith(masterKey: WrappedKey(wraps: updatedWraps));
+    _dirty = true;
   }
 
   @override

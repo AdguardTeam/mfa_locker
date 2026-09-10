@@ -3,11 +3,14 @@ import 'dart:typed_data';
 
 import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/locker/mfa_locker.dart';
+import 'package:locker/security/models/cipher_func.dart';
+import 'package:locker/storage/encrypted_storage.dart';
 import 'package:locker/storage/encrypted_storage_impl.dart';
 import 'package:locker/storage/models/data/key_wrap.dart';
 import 'package:locker/storage/models/data/origin.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
+import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/utils/cryptography_utils.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path/path.dart' as p;
@@ -17,6 +20,34 @@ import '../mocks/mock_bio_cipher_func.dart';
 import '../storage/encrypted_storage_test_helpers.dart';
 
 typedef _Helpers = EncryptedStorageTestHelpers;
+
+/// Reads an entry value the way a single public operation does: open a change
+/// set, read and close without writing (a read-only commit persists nothing).
+Future<EntryValue> readValueFromFile(EncryptedStorage storage, CipherFunc cipher, EntryId id) async {
+  final changeSet = await storage.openChangeSet(cipherFunc: cipher);
+  try {
+    return await changeSet.readValue(id);
+  } finally {
+    changeSet.erase();
+  }
+}
+
+/// Updates an entry value the way a single public operation does:
+/// open → mutate → commit (one unwrap, one atomic write).
+Future<void> updateValueInFile(
+  EncryptedStorage storage,
+  CipherFunc cipher,
+  EntryId id,
+  List<int> bytes,
+) async {
+  final changeSet = await storage.openChangeSet(cipherFunc: cipher);
+  try {
+    await changeSet.updateEntry(EntryUpdateInput(id: id, value: _Helpers.createEntryValue(bytes)));
+    await storage.commitChangeSet(changeSet);
+  } finally {
+    changeSet.erase();
+  }
+}
 
 /// End-to-end check that a single [LockerTransaction] (read + update) performs
 /// exactly ONE biometric unwrap (`cipherFunc.decrypt`), on a real storage file.
@@ -111,13 +142,13 @@ void main() {
     expect((await txn.readValue(EntryId('a'))).bytes, orderedEquals([42]));
 
     // ...but the file on disk is still the original one.
-    final onDisk = await storage.readValue(id: EntryId('a'), cipherFunc: cipher);
+    final onDisk = await readValueFromFile(storage, cipher, EntryId('a'));
     expect(onDisk.bytes, orderedEquals([2, 3]));
 
     await txn.commit();
 
     // After commit the file reflects the update.
-    final committed = await storage.readValue(id: EntryId('a'), cipherFunc: cipher);
+    final committed = await readValueFromFile(storage, cipher, EntryId('a'));
     expect(committed.bytes, orderedEquals([42]));
   });
 
@@ -135,7 +166,7 @@ void main() {
 
     // Assert: nothing was persisted.
     expect(txn.isClosed, isTrue);
-    final onDisk = await storage.readValue(id: EntryId('a'), cipherFunc: cipher);
+    final onDisk = await readValueFromFile(storage, cipher, EntryId('a'));
     expect(onDisk.bytes, orderedEquals([2, 3]));
   });
 
@@ -144,12 +175,9 @@ void main() {
     var decryptCalls = 0;
     final cipher = createCountingCipher(() => decryptCalls++);
 
-    // Act: each operation performs its own unwrap, as today (two prompts).
-    await storage.readValue(id: EntryId('a'), cipherFunc: cipher);
-    await storage.updateEntry(
-      input: EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([42])),
-      cipherFunc: cipher,
-    );
+    // Act: each operation performs its own unwrap, as a public one-shot call does.
+    await updateValueInFile(storage, cipher, EntryId('a'), [42]);
+    await readValueFromFile(storage, cipher, EntryId('a'));
 
     // Assert
     expect(decryptCalls, 2, reason: 'without a transaction every operation unwraps again');
