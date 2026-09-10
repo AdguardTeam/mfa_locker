@@ -84,6 +84,7 @@ mfa_locker/
 │   │   └── erasable_byte_array.dart   # Zeroes memory on erase(), throws on post-erase access
 │   └── utils/
 │       ├── cryptography_utils.dart    # AES-GCM encrypt/decrypt, Argon2id, HMAC-SHA256, key gen
+│       ├── operation_lane.dart        # FIFO queue serializing transactions and standalone operations
 │       ├── sync.dart                  # Reentrant lock wrapper (Sync)
 │       └── list_extensions.dart       # toUint8List() extension
 ├── packages/
@@ -209,11 +210,14 @@ Layered architecture: **Locker (API) → Security (auth) → Storage (persistenc
 - **Master key wrapping**: A random master key encrypts all entries. The master key itself is encrypted ("wrapped") per authentication method (password or biometric), stored as `WrappedKey` with multiple `KeyWrap` entries identified by `Origin` (`pwd` or `bio`).
 - **`CipherFunc`**: Abstraction over an authentication method. `PasswordCipherFunc` derives a key via Argon2id on every encrypt/decrypt call (intentional — minimizes derived key lifetime in memory). `BioCipherFunc` delegates to the TPM/Secure Enclave and performs key validity checks before decrypt operations via `_checkKeyValidity`, translating TPM key-invalidated errors to `BiometricExceptionType.keyInvalidated`.
 - **`ErasableByteArray`**: Overwrites bytes to zero on `erase()`. All sensitive data implements `Erasable`. Every `MFALocker` operation calls `erase()` on its arguments in `finally` via `_executeWithCleanup`.
-- **`Sync`**: Reentrant `synchronized` lock guards all `MFALocker` and `EncryptedStorageImpl` state mutations.
-- **Metadata cache**: After unlock, `EntryMeta` objects are cached in `_metaCache`. Values (`EntryValue`) are never cached — fetched and erased on demand.
+- **`Sync`**: Reentrant `synchronized` lock guards short critical sections of `MFALocker` state and every call of `EncryptedStorageImpl`. Never wait while holding it.
+- **`OperationLane`**: FIFO queue with a single holder — the only way operations are serialized. A transaction holds the lane from `beginTransaction` to `commit()`/`abort()`; every other operation holds it for the duration of its execution. Waiting never blocks the event loop, so no lock is held while waiting.
+- **Metadata cache**: After unlock, `EntryMeta` objects are cached in `_metaCache`. The cache holds **committed** state only; an open transaction keeps its uncommitted metadata in an overlay and applies it on commit. Values (`EntryValue`) are never cached — fetched and erased on demand.
 - **Storage format**: JSON file containing `salt`, `lockTimeout`, `masterKey` (wrapped key list), `entries` (array of encrypted meta+value), `hmacKey`, `hmacSignature`.
 - **Atomic writes**: Storage writes to a temp file first, then atomically renames to target path. macOS restricts file permissions via `chmod 600`.
-- **Scoped transactions**: `MFALocker.beginTransaction` authenticates exactly once (the single biometric prompt on a composite user action) and returns a `LockerTransaction`. All operations run against an in-memory `StorageChangeSet` (working copy) and the file is written **once, atomically** on `commit()`; `abort()` discards the buffer. Prefer `withTransaction`, which commits on success and aborts on error automatically. `lock()`, auto-lock and `dispose()` also abort the active transaction. **Isolation**: while a transaction is open, one-shot methods wait on a transaction gate (they never race the in-memory buffer); `commitChangeSet` additionally performs a compare-and-swap check (throws `StorageException.conflict`) as a safety net.
+- **Scoped transactions**: `MFALocker.beginTransaction` authenticates exactly once (the single biometric prompt on a composite user action) and returns a `LockerTransaction`. All operations run against an in-memory `StorageChangeSet` (working copy) and the file is written **once, atomically** on `commit()`; `abort()` discards the buffer. Prefer `withTransaction`, which commits on success and aborts on error automatically. `lock()`, auto-lock and `dispose()` also abort the active transaction.
+- **Everything is a transaction**: every public one-shot method is an *implicit* transaction over the same change set (one unwrap, one atomic commit) — there is no second write path. `EncryptedStorage` exposes only `isInitialized`, `isBiometricEnabled`, `salt`, `lockTimeout`, `init`, `openChangeSet`, `commitChangeSet`, `erase`; all mutations go through `StorageChangeSet`.
+- **Isolation**: the FIFO lane serializes operations, so a second `beginTransaction` waits for the current one instead of failing. Every commit compares the snapshot taken at open with the file (compare-and-swap) and throws `StorageException.conflict` if it changed. `_epoch` is incremented by `lock()`/`dispose()`/`eraseStorage()`: whatever was waiting fails with a `StateError` instead of resurrecting the unlocked state. Calling a locker method from a `withTransaction` body throws a `StateError` (use the `LockerTransaction` methods).
 
 #### Example App Layer (`example/lib/`)
 

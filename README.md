@@ -182,7 +182,9 @@ try {
 }
 ```
 
-Only one transaction can be open at a time; a second `beginTransaction` throws a `StateError`. `lock()`, auto-lock, and `dispose()` abort the active transaction and erase its key material.
+Only one transaction runs at a time: operations are serialized by a FIFO queue, so a second `beginTransaction` waits for the first one to finish instead of failing. `lock()`, auto-lock, and `dispose()` abort the active transaction (and fail the queued operations) and erase its key material.
+
+`locker.allMeta` exposes only committed metadata outside a transaction; inside a `withTransaction` body it also shows the uncommitted changes of that transaction (`LockerTransaction.allMeta` gives the same view). Every single public operation is an implicit transaction: one master-key unwrap and one atomic write, unchanged from the outside. Within a `withTransaction` body use only the `LockerTransaction` methods — calling a locker method there throws a `StateError` instead of deadlocking.
 
 ### 4. Configure Biometric Authentication
 
