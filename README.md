@@ -173,7 +173,11 @@ The transaction lives only inside the `withTransaction` body: it commits when th
 
 Only one transaction runs at a time: operations are serialized by a FIFO queue, so a second `withTransaction` waits for the first one to finish instead of failing. `lock()`, auto-lock, and `dispose()` abort the active transaction (and fail the queued operations) and erase its key material.
 
+Because auto-lock aborts the active transaction, apps that run background work inside a `withTransaction` body (e.g. a migration) should suppress the auto-lock timer for the whole duration of the call — the wait in the FIFO queue plus the body — not only for the body.
+
 `locker.allMeta` exposes only committed metadata outside a transaction; inside a `withTransaction` body it also shows the uncommitted changes of that transaction (`LockerTransaction.allMeta` gives the same view). Every single public operation is an implicit transaction: one master-key unwrap and one atomic write, unchanged from the outside. Within a `withTransaction` body use only the `LockerTransaction` methods — calling a locker method there throws a `StateError` instead of deadlocking.
+
+Values returned by `txn.readValue` are owned by the caller: erase them with `value.erase()` as soon as they are no longer needed (e.g. in a migration loop that reads and transforms every entry). Metadata from `txn.allMeta` (or `locker.allMeta` inside the body) is shared with the locker cache — treat it as read-only and never erase or mutate it.
 
 ### 4. Configure Biometric Authentication
 
