@@ -6,6 +6,7 @@ import 'package:biometric_cipher/data/biometric_status.dart';
 import 'package:biometric_cipher/data/tpm_status.dart';
 import 'package:locker/erasable/erasable.dart';
 import 'package:locker/locker/locker.dart';
+import 'package:locker/locker/locker_transaction.dart';
 import 'package:locker/locker/mfa_locker.dart';
 import 'package:locker/locker/models/biometric_state.dart';
 import 'package:locker/security/models/exceptions/biometric_exception.dart';
@@ -253,6 +254,114 @@ void main() {
         expect(locker.stateStream.value, LockerState.locked);
         _Helpers.verifyErasedAll([pwd, meta, value]);
       });
+
+      test('erases the inputs when the locker is locked while init is queued', () async {
+        // Arrange: a transaction occupies the lane, init queues behind it.
+        final laneCipher = _Helpers.createMockBioCipherFunc();
+        final laneGate = Completer<void>();
+        final txnFuture = locker.withTransaction(laneCipher, (txn) => laneGate.future);
+
+        final pwd = _Helpers.createMockPasswordCipherFunc();
+        final meta = _StorageHelpers.createEntryMeta();
+        final value = _StorageHelpers.createEntryValue();
+
+        final initFuture = locker.init(
+          passwordCipherFunc: pwd,
+          initialEntries: [EntryAddInput(meta: meta, value: value)],
+          lockTimeout: _Helpers.lockTimeout,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+
+        // Act
+        locker.lock();
+        laneGate.complete();
+
+        // Assert: the queued init fails and its inputs are erased.
+        await expectLater(initFuture, throwsStateError);
+        await expectLater(txnFuture, throwsStateError);
+        _Helpers.verifyErasedAll([pwd, meta, value]);
+      });
+
+      test('does not unlock the locker locked while the storage is being written', () async {
+        // Arrange
+        final pwd = _Helpers.createMockPasswordCipherFunc();
+        final meta = _StorageHelpers.createEntryMeta();
+        final value = _StorageHelpers.createEntryValue();
+        final entry = EntryAddInput(meta: meta, value: value);
+        final writeCompleter = Completer<void>();
+
+        when(() => storage.isInitialized).thenAnswer((_) async => false);
+        when(
+          () => storage.init(
+            passwordCipherFunc: pwd,
+            initialEntries: [entry],
+            lockTimeout: _Helpers.lockTimeout.inMilliseconds,
+          ),
+        ).thenAnswer((_) {
+          // The write is in flight and the file is already there, so the
+          // continuation would load metadata if it were not cancelled.
+          when(() => storage.isInitialized).thenAnswer((_) async => true);
+
+          return writeCompleter.future;
+        });
+
+        final initFuture = locker.init(
+          passwordCipherFunc: pwd,
+          initialEntries: [entry],
+          lockTimeout: _Helpers.lockTimeout,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+
+        // Act: the user locks the locker while the storage write is in flight.
+        locker.lock();
+        writeCompleter.complete();
+
+        // Assert: lock() wins, the locker is never unlocked and the inputs are erased.
+        await expectLater(initFuture, throwsStateError);
+        expect(locker.stateStream.value, LockerState.locked);
+        verifyNever(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc')));
+        _Helpers.verifyErasedAll([pwd, meta, value]);
+      });
+
+      test('does not cache metadata when the locker is disposed while the storage is being written', () async {
+        // Arrange
+        final pwd = _Helpers.createMockPasswordCipherFunc();
+        final meta = _StorageHelpers.createEntryMeta();
+        final value = _StorageHelpers.createEntryValue();
+        final entry = EntryAddInput(meta: meta, value: value);
+        final writeCompleter = Completer<void>();
+
+        when(() => storage.isInitialized).thenAnswer((_) async => false);
+        when(
+          () => storage.init(
+            passwordCipherFunc: pwd,
+            initialEntries: [entry],
+            lockTimeout: _Helpers.lockTimeout.inMilliseconds,
+          ),
+        ).thenAnswer((_) {
+          // The write is in flight and the file is already there, so the
+          // continuation would load metadata if it were not cancelled.
+          when(() => storage.isInitialized).thenAnswer((_) async => true);
+
+          return writeCompleter.future;
+        });
+
+        final initFuture = locker.init(
+          passwordCipherFunc: pwd,
+          initialEntries: [entry],
+          lockTimeout: _Helpers.lockTimeout,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+
+        // Act: the locker is disposed while the storage write is in flight.
+        locker.dispose();
+        writeCompleter.complete();
+
+        // Assert: no metadata is loaded into the disposed locker and nothing leaks.
+        await expectLater(initFuture, throwsStateError);
+        verifyNever(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc')));
+        _Helpers.verifyErasedAll([pwd, meta, value]);
+      });
     });
 
     group('loadAllMeta', () {
@@ -360,21 +469,23 @@ void main() {
         when(() => changeSet.readAllMeta()).thenAnswer((_) async => metas);
       });
 
-      test('beginTransaction unlocks once, loads meta and returns an open transaction', () async {
+      test('withTransaction unlocks once, loads meta and runs the body', () async {
         // Arrange
+        var bodyRan = false;
 
         // Act
-        final txn = await locker.beginTransaction(cipher);
+        await locker.withTransaction(cipher, (txn) async {
+          bodyRan = true;
+        });
 
         // Assert
-        expect(txn.isClosed, isFalse);
+        expect(bodyRan, isTrue);
         expect(locker.stateStream.value, LockerState.unlocked);
         verify(() => storage.openChangeSet(cipherFunc: cipher)).called(1);
         verify(() => changeSet.readAllMeta()).called(1);
-        await txn.abort();
       });
 
-      test('the second beginTransaction waits for the first one to finish', () async {
+      test('the second withTransaction waits for the first one to finish', () async {
         // Arrange
         var openCalls = 0;
         when(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async {
@@ -383,37 +494,34 @@ void main() {
           return changeSet;
         });
 
-        final txn = await locker.beginTransaction(cipher);
-        var secondCompleted = false;
+        final firstGate = Completer<void>();
+        var secondRan = false;
 
-        // Act: the second transaction queues up behind the first one.
-        final secondFuture = locker.beginTransaction(cipher);
-        unawaited(
-          secondFuture.then<void>(
-            (_) => secondCompleted = true,
-          ),
-        );
+        // Act: the second body queues up behind the first one.
+        final firstFuture = locker.withTransaction(cipher, (txn) => firstGate.future);
+        final secondFuture = locker.withTransaction(cipher, (txn) async {
+          secondRan = true;
+        });
         await Future<void>.delayed(const Duration(milliseconds: 25));
 
         // Assert: it is still waiting and did not open a second change set.
-        expect(secondCompleted, isFalse);
+        expect(secondRan, isFalse);
         expect(openCalls, 1);
 
-        await txn.commit();
+        firstGate.complete();
+        await firstFuture;
+        await secondFuture;
 
-        final second = await secondFuture;
-        expect(second.isClosed, isFalse);
+        expect(secondRan, isTrue);
         expect(openCalls, 2);
-
-        await second.abort();
       });
 
-      test('beginTransaction throws when storage is not initialized', () async {
+      test('withTransaction throws when storage is not initialized', () async {
         // Arrange
         when(() => storage.isInitialized).thenAnswer((_) async => false);
 
         // Act & Assert
-        await expectLater(locker.beginTransaction(cipher), throwsStateError);
+        await expectLater(locker.withTransaction(cipher, (_) async {}), throwsStateError);
         verifyNever(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc')));
       });
 
@@ -422,12 +530,11 @@ void main() {
         when(() => changeSet.readValue(any())).thenAnswer((_) async => _StorageHelpers.createEntryValue([9]));
         when(() => changeSet.updateEntry(any())).thenAnswer((_) async {});
 
-        final txn = await locker.beginTransaction(cipher);
-
         // Act
-        await txn.readValue(EntryId('a'));
-        await txn.update(EntryUpdateInput(id: EntryId('a'), value: _StorageHelpers.createEntryValue([2])));
-        await txn.abort();
+        await locker.withTransaction(cipher, (txn) async {
+          await txn.readValue(EntryId('a'));
+          await txn.update(EntryUpdateInput(id: EntryId('a'), value: _StorageHelpers.createEntryValue([2])));
+        });
 
         // Assert
         verify(() => storage.openChangeSet(cipherFunc: cipher)).called(1);
@@ -435,29 +542,30 @@ void main() {
         verify(() => changeSet.updateEntry(any())).called(1);
       });
 
-      test('write exposes meta inside the transaction and erases it on abort', () async {
+      test('write exposes meta inside the body and erases it when the body throws', () async {
         // Arrange
         final expectedId = EntryId('new');
         final metaToAdd = _StorageHelpers.createEntryMeta([5]);
         when(() => changeSet.addEntry(any())).thenAnswer((_) async => expectedId);
 
-        final txn = await locker.beginTransaction(cipher);
+        // Act & Assert
+        await expectLater(
+          locker.withTransaction(cipher, (txn) async {
+            final id = await txn.write(
+              EntryAddInput(meta: metaToAdd, value: _StorageHelpers.createEntryValue([1])),
+            );
 
-        // Act
-        final id = await txn.write(
-          EntryAddInput(meta: metaToAdd, value: _StorageHelpers.createEntryValue([1])),
+            expect(id, expectedId);
+            expect(txn.allMeta[expectedId], same(metaToAdd));
+            verify(() => changeSet.addEntry(any())).called(1);
+
+            throw StorageException.other('boom');
+          }),
+          throwsA(isA<StorageException>()),
         );
-
-        // Assert: visible inside the transaction, invisible outside of it.
-        expect(id, expectedId);
-        expect(txn.allMeta[expectedId], same(metaToAdd));
-        expect(locker.allMeta, isNot(contains(expectedId)));
-
-        await txn.abort();
 
         expect(locker.allMeta, isNot(contains(expectedId)));
         expect(metaToAdd.isErased, isTrue);
-        verify(() => changeSet.addEntry(any())).called(1);
       });
 
       test('write applies meta to the cache on commit', () async {
@@ -466,13 +574,12 @@ void main() {
         final metaToAdd = _StorageHelpers.createEntryMeta([5]);
         when(() => changeSet.addEntry(any())).thenAnswer((_) async => expectedId);
 
-        final txn = await locker.beginTransaction(cipher);
-
         // Act
-        await txn.write(
-          EntryAddInput(meta: metaToAdd, value: _StorageHelpers.createEntryValue([1])),
-        );
-        await txn.commit();
+        await locker.withTransaction(cipher, (txn) async {
+          await txn.write(
+            EntryAddInput(meta: metaToAdd, value: _StorageHelpers.createEntryValue([1])),
+          );
+        });
 
         // Assert
         expect(locker.allMeta[expectedId], same(metaToAdd));
@@ -485,17 +592,18 @@ void main() {
         final value = _StorageHelpers.createEntryValue([1]);
         when(() => changeSet.addEntry(any())).thenAnswer((_) async => EntryId('new'));
 
-        final txn = await locker.beginTransaction(cipher);
-
         // Act
-        await txn.write(EntryAddInput(meta: meta, value: value));
+        await locker.withTransaction(cipher, (txn) async {
+          await txn.write(EntryAddInput(meta: meta, value: value));
 
-        // Assert: the value is consumed immediately, the meta is owned by the
-        // transaction until it is committed or aborted.
-        expect(value.isErased, isTrue);
+          // The value is consumed immediately, the meta is owned by the
+          // transaction until the body finishes.
+          expect(value.isErased, isTrue);
+          expect(meta.isErased, isFalse);
+        });
+
+        // Assert: the committed meta is not erased.
         expect(meta.isErased, isFalse);
-
-        await txn.abort();
       });
 
       test('write erases both value and meta when the operation fails', () async {
@@ -504,13 +612,13 @@ void main() {
         final value = _StorageHelpers.createEntryValue([1]);
         when(() => changeSet.addEntry(any())).thenThrow(StorageException.other('boom'));
 
-        final txn = await locker.beginTransaction(cipher);
-
         // Act & Assert
-        await expectLater(txn.write(EntryAddInput(meta: meta, value: value)), throwsA(isA<StorageException>()));
+        await expectLater(
+          locker.withTransaction(cipher, (txn) => txn.write(EntryAddInput(meta: meta, value: value))),
+          throwsA(isA<StorageException>()),
+        );
         expect(value.isErased, isTrue);
         expect(meta.isErased, isTrue);
-        await txn.abort();
       });
 
       test('update erases the value and hands the meta over to the transaction', () async {
@@ -519,18 +627,17 @@ void main() {
         final value = _StorageHelpers.createEntryValue([1]);
         when(() => changeSet.updateEntry(any())).thenAnswer((_) async {});
 
-        final txn = await locker.beginTransaction(cipher);
-
         // Act
-        await txn.update(EntryUpdateInput(id: EntryId('a'), meta: meta, value: value));
+        await locker.withTransaction(cipher, (txn) async {
+          await txn.update(EntryUpdateInput(id: EntryId('a'), meta: meta, value: value));
 
-        // Assert: the value is consumed immediately, the meta is owned by the
-        // transaction until it is committed or aborted.
-        expect(value.isErased, isTrue);
+          expect(value.isErased, isTrue);
+          expect(meta.isErased, isFalse);
+          expect(txn.allMeta[EntryId('a')], same(meta));
+        });
+
+        // Assert: the committed meta is not erased.
         expect(meta.isErased, isFalse);
-        expect(txn.allMeta[EntryId('a')], same(meta));
-
-        await txn.abort();
       });
 
       test('update erases both value and meta when the operation fails', () async {
@@ -539,52 +646,58 @@ void main() {
         final value = _StorageHelpers.createEntryValue([1]);
         when(() => changeSet.updateEntry(any())).thenThrow(StorageException.other('boom'));
 
-        final txn = await locker.beginTransaction(cipher);
-
         // Act & Assert
         await expectLater(
-          txn.update(EntryUpdateInput(id: EntryId('a'), meta: meta, value: value)),
+          locker.withTransaction(
+            cipher,
+            (txn) => txn.update(EntryUpdateInput(id: EntryId('a'), meta: meta, value: value)),
+          ),
           throwsA(isA<StorageException>()),
         );
         expect(value.isErased, isTrue);
         expect(meta.isErased, isTrue);
-        await txn.abort();
       });
 
-      test('delete hides the entry inside the transaction and removes it on commit', () async {
+      test('delete hides the entry inside the body and removes it on commit', () async {
         // Arrange
         when(() => changeSet.deleteEntry(any())).thenAnswer((_) async {});
-
-        final txn = await locker.beginTransaction(cipher);
-        final committedMeta = locker.allMeta[EntryId('a')];
+        Map<EntryId, EntryMeta>? insideMeta;
+        EntryMeta? committedMeta;
 
         // Act
-        await txn.delete(EntryId('a'));
+        await locker.withTransaction(cipher, (txn) async {
+          committedMeta = locker.allMeta[EntryId('a')];
 
-        // Assert: hidden inside the transaction, still visible outside.
-        expect(txn.allMeta, isNot(contains(EntryId('a'))));
-        expect(locker.allMeta, contains(EntryId('a')));
-        expect(committedMeta?.isErased, isFalse);
+          await txn.delete(EntryId('a'));
 
-        await txn.commit();
+          // Hidden inside the transaction...
+          expect(txn.allMeta, isNot(contains(EntryId('a'))));
+          insideMeta = locker.allMeta;
+        });
 
+        // Assert: ...and gone from the cache after the commit.
+        expect(insideMeta, isNot(contains(EntryId('a'))));
         expect(locker.allMeta, isNot(contains(EntryId('a'))));
         expect(committedMeta?.isErased, isTrue);
         verify(() => changeSet.deleteEntry(EntryId('a'))).called(1);
       });
 
-      test('delete keeps the committed meta when the transaction is aborted', () async {
+      test('delete keeps the committed meta when the body throws', () async {
         // Arrange
         when(() => changeSet.deleteEntry(any())).thenAnswer((_) async {});
+        EntryMeta? committedMeta;
 
-        final txn = await locker.beginTransaction(cipher);
-        final committedMeta = locker.allMeta[EntryId('a')];
+        // Act & Assert
+        await expectLater(
+          locker.withTransaction(cipher, (txn) async {
+            committedMeta = locker.allMeta[EntryId('a')];
+            await txn.delete(EntryId('a'));
 
-        // Act
-        await txn.delete(EntryId('a'));
-        await txn.abort();
+            throw StorageException.other('boom');
+          }),
+          throwsA(isA<StorageException>()),
+        );
 
-        // Assert
         expect(locker.allMeta, contains(EntryId('a')));
         expect(committedMeta?.isErased, isFalse);
       });
@@ -593,16 +706,16 @@ void main() {
         // Arrange
         final newMeta = _StorageHelpers.createEntryMeta([5]);
         when(() => changeSet.updateEntry(any())).thenAnswer((_) async {});
-
-        final txn = await locker.beginTransaction(cipher);
-        final replacedMeta = locker.allMeta[EntryId('a')];
+        EntryMeta? replacedMeta;
 
         // Act
-        await txn.update(EntryUpdateInput(id: EntryId('a'), meta: newMeta));
+        await locker.withTransaction(cipher, (txn) async {
+          replacedMeta = locker.allMeta[EntryId('a')];
 
-        expect(locker.allMeta[EntryId('a')], same(replacedMeta));
+          await txn.update(EntryUpdateInput(id: EntryId('a'), meta: newMeta));
 
-        await txn.commit();
+          expect(txn.allMeta[EntryId('a')], same(newMeta));
+        });
 
         // Assert
         expect(locker.allMeta[EntryId('a')], same(newMeta));
@@ -610,19 +723,23 @@ void main() {
         expect(newMeta.isErased, isFalse);
       });
 
-      test('update erases the new meta when the transaction is aborted', () async {
+      test('update erases the new meta when the body throws', () async {
         // Arrange
         final newMeta = _StorageHelpers.createEntryMeta([5]);
         when(() => changeSet.updateEntry(any())).thenAnswer((_) async {});
+        EntryMeta? committedMeta;
 
-        final txn = await locker.beginTransaction(cipher);
-        final committedMeta = locker.allMeta[EntryId('a')];
+        // Act & Assert
+        await expectLater(
+          locker.withTransaction(cipher, (txn) async {
+            committedMeta = locker.allMeta[EntryId('a')];
+            await txn.update(EntryUpdateInput(id: EntryId('a'), meta: newMeta));
 
-        // Act
-        await txn.update(EntryUpdateInput(id: EntryId('a'), meta: newMeta));
-        await txn.abort();
+            throw StorageException.other('boom');
+          }),
+          throwsA(isA<StorageException>()),
+        );
 
-        // Assert
         expect(locker.allMeta[EntryId('a')], same(committedMeta));
         expect(committedMeta?.isErased, isFalse);
         expect(newMeta.isErased, isTrue);
@@ -632,22 +749,18 @@ void main() {
         // Arrange
         when(() => changeSet.deleteEntry(any())).thenThrow(StorageException.entryNotFound());
 
-        final txn = await locker.beginTransaction(cipher);
-
         // Act & Assert
-        await expectLater(txn.delete(EntryId('a')), completes);
-        await txn.abort();
+        await expectLater(
+          locker.withTransaction(cipher, (txn) => txn.delete(EntryId('a'))),
+          completes,
+        );
       });
 
       test('commit persists the change set and erases keys', () async {
-        // Arrange
-        final txn = await locker.beginTransaction(cipher);
-
         // Act
-        await txn.commit();
+        await locker.withTransaction(cipher, (_) async {});
 
         // Assert
-        expect(txn.isClosed, isTrue);
         verify(() => storage.commitChangeSet(changeSet)).called(1);
         verify(() => changeSet.erase()).called(1);
 
@@ -655,40 +768,49 @@ void main() {
         final changeSet2 = MockStorageChangeSet();
         when(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async => changeSet2);
         when(() => changeSet2.erase()).thenAnswer((_) {});
-        await expectLater(locker.beginTransaction(cipher), completes);
+        await expectLater(locker.withTransaction(cipher, (_) async {}), completes);
       });
 
       test('abort discards the change set without committing', () async {
-        // Arrange
-        final txn = await locker.beginTransaction(cipher);
-
-        // Act
-        await txn.abort();
-
-        // Assert
-        expect(txn.isClosed, isTrue);
+        // Act & Assert
+        await expectLater(
+          locker.withTransaction(cipher, (txn) async {
+            throw StorageException.other('boom');
+          }),
+          throwsA(isA<StorageException>()),
+        );
         verifyNever(() => storage.commitChangeSet(any()));
         verify(() => changeSet.erase()).called(1);
       });
 
-      test('operations after close throw StateError', () async {
+      test('operations after the body throw StateError', () async {
         // Arrange
-        final txn = await locker.beginTransaction(cipher);
-        await txn.abort();
+        late LockerTransaction captured;
+        await locker.withTransaction(cipher, (txn) async {
+          captured = txn;
+        });
 
         // Act & Assert
-        await expectLater(txn.readValue(EntryId('a')), throwsStateError);
+        await expectLater(captured.readValue(EntryId('a')), throwsStateError);
       });
 
-      test('lock closes the active transaction', () async {
+      test('lock aborts the active transaction', () async {
         // Arrange
-        final txn = await locker.beginTransaction(cipher);
+        final gate = Completer<void>();
+        final bodyStarted = Completer<void>();
+        final future = locker.withTransaction(cipher, (txn) {
+          bodyStarted.complete();
+
+          return gate.future;
+        });
+        await bodyStarted.future;
 
         // Act
         locker.lock();
+        gate.complete();
 
         // Assert
-        expect(txn.isClosed, isTrue);
+        await expectLater(future, throwsStateError);
         verify(() => changeSet.erase()).called(1);
       });
 
@@ -701,38 +823,43 @@ void main() {
           return _StorageHelpers.createEntryValue([1]);
         });
 
-        final txn = await locker.beginTransaction(cipher);
+        final gate = Completer<void>();
+        final txnFuture = locker.withTransaction(cipher, (txn) => gate.future);
 
         // Act: the one-shot queues behind the transaction, then the user locks.
         final readFuture = locker.readValue(id: EntryId('a'), cipherFunc: cipher);
         await Future<void>.delayed(const Duration(milliseconds: 25));
         locker.lock();
+        gate.complete();
 
         // Assert: the queued operation fails instead of resurrecting the locker.
         await expectLater(readFuture, throwsStateError);
+        await expectLater(txnFuture, throwsStateError);
         expect(storageRead, isFalse, reason: 'a queued operation must not reach storage after lock()');
         expect(locker.stateStream.value, LockerState.locked);
-        expect(txn.isClosed, isTrue);
       });
 
       test('a queued transaction fails and does not run when the locker is disposed', () async {
         // Arrange
-        final txn = await locker.beginTransaction(cipher);
+        final gate = Completer<void>();
+        final firstFuture = locker.withTransaction(cipher, (txn) => gate.future);
 
         // Act
-        final secondFuture = locker.beginTransaction(cipher);
+        final secondFuture = locker.withTransaction(cipher, (_) async {});
         await Future<void>.delayed(const Duration(milliseconds: 25));
         locker.dispose();
+        gate.complete();
 
         // Assert
         await expectLater(secondFuture, throwsStateError);
+        await expectLater(firstFuture, throwsStateError);
         verify(() => storage.openChangeSet(cipherFunc: cipher)).called(1);
-        expect(txn.isClosed, isTrue);
       });
 
       test('standalone operations are executed in FIFO order with a transaction', () async {
         // Arrange
         final order = <String>[];
+        final gate = Completer<void>();
         when(() => changeSet.readValue(EntryId('b'))).thenAnswer((_) async {
           order.add('second');
 
@@ -749,7 +876,10 @@ void main() {
           return _StorageHelpers.createEntryValue([2]);
         });
 
-        final txn = await locker.beginTransaction(cipher);
+        final txnFuture = locker.withTransaction(cipher, (txn) async {
+          await txn.readValue(EntryId('a'));
+          await gate.future;
+        });
 
         // Act: enqueue a one-shot read and a write behind the open transaction.
         final readFuture = locker.readValue(id: EntryId('b'), cipherFunc: cipher);
@@ -762,8 +892,8 @@ void main() {
         );
         await Future<void>.delayed(const Duration(milliseconds: 25));
 
-        await txn.readValue(EntryId('a'));
-        await txn.abort();
+        gate.complete();
+        await txnFuture;
         await readFuture;
         await writeFuture;
 
@@ -771,25 +901,24 @@ void main() {
         expect(order, ['first', 'second', 'third']);
       });
 
-      test('beginTransaction skips metadata reload when already unlocked', () async {
+      test('withTransaction skips metadata reload when already unlocked', () async {
         // Arrange
-        final first = await locker.beginTransaction(cipher);
-        await first.abort();
+        await locker.withTransaction(cipher, (_) async {});
 
-        // Re-arm the mock so the second begin starts from a clean slate.
+        // Re-arm the mock so the second transaction starts from a clean slate.
         final changeSet2 = MockStorageChangeSet();
         reset(storage);
         when(() => storage.isInitialized).thenAnswer((_) async => true);
         when(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async => changeSet2);
+        when(() => storage.commitChangeSet(any())).thenAnswer((_) async {});
         when(() => changeSet2.readAllMeta()).thenAnswer((_) async => metas);
+        when(() => changeSet2.erase()).thenAnswer((_) {});
 
         // Act
-        final second = await locker.beginTransaction(cipher);
+        await locker.withTransaction(cipher, (_) async {});
 
         // Assert
-        expect(second.isClosed, isFalse);
         verifyNever(() => changeSet2.readAllMeta());
-        await second.abort();
       });
 
       test('withTransaction runs the body and commits the transaction', () async {
@@ -911,7 +1040,8 @@ void main() {
           return _StorageHelpers.createEntryValue([1]);
         });
 
-        final txn = await locker.beginTransaction(cipher);
+        final gate = Completer<void>();
+        final txnFuture = locker.withTransaction(cipher, (txn) => gate.future);
 
         // Act: a one-shot read starts while the transaction is open — it must
         // not reach storage until the transaction is finished.
@@ -919,11 +1049,84 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 25));
         expect(storageRead, isFalse, reason: 'one-shot read must wait for the transaction to finish');
 
-        await txn.commit();
+        gate.complete();
+        await txnFuture;
         await readFuture;
 
         // Assert
         expect(storageRead, isTrue, reason: 'after the transaction finishes the one-shot read proceeds');
+      });
+
+      test('a queued transaction erases its cipher when the locker is locked', () async {
+        // Arrange
+        final queuedCipher = _Helpers.createMockBioCipherFunc();
+        final gate = Completer<void>();
+        final firstFuture = locker.withTransaction(cipher, (txn) => gate.future);
+
+        // Act: the second transaction queues behind the first one, then the locker is locked.
+        final secondFuture = locker.withTransaction(queuedCipher, (_) async {});
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+        locker.lock();
+        gate.complete();
+
+        // Assert: the queued transaction fails and its cipher is erased.
+        await expectLater(secondFuture, throwsStateError);
+        await expectLater(firstFuture, throwsStateError);
+        _Helpers.verifyErased(queuedCipher);
+      });
+
+      test('withTransaction does not mask the body error when the locker is locked meanwhile', () async {
+        // Act & Assert: lock() aborts the transaction, but the original body
+        // error must still be the reported one.
+        await expectLater(
+          locker.withTransaction(cipher, (txn) async {
+            locker.lock();
+
+            throw StorageException.other('boom');
+          }),
+          throwsA(isA<StorageException>().having((e) => e.message, 'message', 'boom')),
+        );
+      });
+
+      test('withTransaction reports the lock when the body completes but the locker was locked', () async {
+        // Act & Assert
+        await expectLater(
+          locker.withTransaction(cipher, (txn) async {
+            locker.lock();
+
+            return 'done';
+          }),
+          throwsA(isA<StateError>().having((e) => e.message, 'message', contains('locked'))),
+        );
+      });
+
+      test('a method of another locker can be called from a transaction body', () async {
+        // Arrange: the second locker owns its own lane, so the zone of the
+        // first locker's transaction must not block it.
+        final otherStorage = MockEncryptedStorage();
+        final otherChangeSet = MockStorageChangeSet();
+        final otherLocker = MFALocker(file: MockFile(), storage: otherStorage);
+
+        when(() => otherStorage.isInitialized).thenAnswer((_) async => true);
+        when(() => otherStorage.openChangeSet(cipherFunc: any(named: 'cipherFunc')))
+            .thenAnswer((_) async => otherChangeSet);
+        when(() => otherStorage.commitChangeSet(any())).thenAnswer((_) async {});
+        when(() => otherChangeSet.readAllMeta()).thenAnswer((_) async => <EntryId, EntryMeta>{});
+        when(() => otherChangeSet.readValue(any())).thenAnswer((_) async => _StorageHelpers.createEntryValue([7]));
+        when(() => otherChangeSet.erase()).thenAnswer((_) {});
+        addTearDown(otherLocker.dispose);
+
+        when(() => changeSet.readValue(any())).thenAnswer((_) async => _StorageHelpers.createEntryValue([1]));
+
+        // Act
+        final value = await locker.withTransaction(cipher, (txn) async {
+          await txn.readValue(EntryId('a'));
+
+          return otherLocker.readValue(id: EntryId('b'), cipherFunc: _Helpers.createMockBioCipherFunc());
+        });
+
+        // Assert
+        expect(value.bytes, orderedEquals([7]));
       });
     });
 
@@ -1411,6 +1614,34 @@ void main() {
       });
     });
 
+    group('updateLockTimeout', () {
+      test('rejects a zero timeout before unwrapping', () async {
+        // Arrange
+        final cipher = _Helpers.createMockPasswordCipherFunc();
+
+        // Act & Assert: an invalid value must not open a change set (no prompt).
+        await expectLater(
+          locker.updateLockTimeout(lockTimeout: Duration.zero, cipherFunc: cipher),
+          throwsA(isA<StorageException>()),
+        );
+        verifyNever(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc')));
+        _Helpers.verifyErased(cipher);
+      });
+
+      test('rejects a sub-millisecond timeout before unwrapping', () async {
+        // Arrange
+        final cipher = _Helpers.createMockPasswordCipherFunc();
+
+        // Act & Assert
+        await expectLater(
+          locker.updateLockTimeout(lockTimeout: const Duration(microseconds: 999), cipherFunc: cipher),
+          throwsA(isA<StorageException>()),
+        );
+        verifyNever(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc')));
+        _Helpers.verifyErased(cipher);
+      });
+    });
+
     group('setupBiometry', () {
       const biometricKeyTag = 'test-bio-key-tag';
 
@@ -1684,6 +1915,37 @@ void main() {
         expect(locker.allMeta, equals(meta));
 
         _Helpers.verifyErased(cipher);
+      });
+
+      test('completes when the locker is locked while the erase is in flight', () async {
+        // Arrange
+        final eraseCompleter = Completer<void>();
+        when(() => storage.erase()).thenAnswer((_) => eraseCompleter.future);
+
+        // Act
+        final eraseFuture = locker.eraseStorage();
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+        locker.lock();
+        eraseCompleter.complete();
+
+        // Assert: the erase completed, a concurrent lock is not reported as a failure.
+        await expectLater(eraseFuture, completes);
+        expect(locker.stateStream.value, LockerState.locked);
+      });
+
+      test('completes when the locker is disposed while the erase is in flight', () async {
+        // Arrange
+        final eraseCompleter = Completer<void>();
+        when(() => storage.erase()).thenAnswer((_) => eraseCompleter.future);
+
+        // Act
+        final eraseFuture = locker.eraseStorage();
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+        locker.dispose();
+        eraseCompleter.complete();
+
+        // Assert
+        await expectLater(eraseFuture, completes);
       });
     });
 

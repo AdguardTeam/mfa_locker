@@ -144,12 +144,13 @@ class MFALocker implements Locker {
       return;
     }
 
-    // Opening a transaction loads the metadata, an empty commit persists nothing.
+    // Opening a transaction loads the metadata; an empty body persists nothing.
     await withTransaction(cipherFunc, (_) async {});
   }
 
-  @override
-  Future<LockerTransaction> beginTransaction(CipherFunc cipherFunc) =>
+  /// Opens a transaction for [withTransaction]: acquires the lane, unwraps the
+  /// master key via [cipherFunc] and transitions to unlocked.
+  Future<_MfaLockerTransaction> _beginTransaction(CipherFunc cipherFunc) =>
       // Erase the cipher function even if the call never runs (cancelled while queued).
       _executeWithCleanup(
         erasables: [cipherFunc],
@@ -158,7 +159,7 @@ class MFALocker implements Locker {
 
           final epoch = _epoch;
 
-          // The transaction holds the lane until commit/abort, so a second one waits.
+          // The transaction holds the lane until the body finishes, so a second one waits.
           await _lane.acquire();
 
           try {
@@ -209,8 +210,7 @@ class MFALocker implements Locker {
     CipherFunc cipherFunc,
     Future<R> Function(LockerTransaction txn) body,
   ) async {
-    // The concrete transaction: its open epoch is needed below.
-    final txn = await beginTransaction(cipherFunc) as _MfaLockerTransaction;
+    final txn = await _beginTransaction(cipherFunc);
     var succeeded = false;
     try {
       // Run the body in a child zone so [allMeta] exposes the uncommitted
@@ -222,17 +222,15 @@ class MFALocker implements Locker {
     } finally {
       if (succeeded) {
         if (txn.isClosed) {
-          // Closed by lock()/dispose() (or by the body): report the lock, not
-          // the opaque "Transaction is closed".
+          // Closed by lock()/dispose() while the body was running: report the
+          // lock, not the opaque "Transaction is closed".
           _ensureFreshEpoch(txn._epochAtOpen);
-
-          throw StateError('Transaction is closed');
         }
 
-        await txn.commit();
+        await txn._commit();
       } else {
         try {
-          await txn.abort();
+          await txn._abort();
         } on StateError {
           // Already closed by lock()/dispose(): never mask the body error.
         }

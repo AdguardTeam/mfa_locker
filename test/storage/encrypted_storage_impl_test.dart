@@ -1569,6 +1569,33 @@ void main() {
         fresh.erase();
       });
 
+      test('an update keeps the entry position in the file', () async {
+        // Arrange: two entries in a known order ('a' was created by setUp).
+        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
+        final changeSet = await storage.openChangeSet(cipherFunc: cipher);
+        await changeSet.addEntry(
+          EntryAddInput(
+            meta: _Helpers.createEntryMeta([7]),
+            value: _Helpers.createEntryValue([8]),
+            id: EntryId('b'),
+          ),
+        );
+        await storage.commitChangeSet(changeSet);
+        changeSet.erase();
+
+        // Act: update the first entry.
+        final second = await storage.openChangeSet(cipherFunc: cipher);
+        await second.updateEntry(
+          EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([9, 9])),
+        );
+        await storage.commitChangeSet(second);
+        second.erase();
+
+        // Assert
+        final data = await _Helpers.readStorageData(storageFile);
+        expect(data.entries.map((e) => e.id), orderedEquals([EntryId('a'), EntryId('b')]));
+      });
+
       test('a read-only change set commit does not rewrite the file', () async {
         // Arrange
         final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);

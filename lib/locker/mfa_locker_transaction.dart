@@ -1,7 +1,8 @@
 part of 'mfa_locker.dart';
 
-/// Concrete [LockerTransaction] held by [MFALocker]: operations go to a
-/// [StorageChangeSet]; metadata is overlaid on the locker cache at commit.
+/// Concrete [LockerTransaction] held by [MFALocker] for the duration of a
+/// `withTransaction` body: operations go to a [StorageChangeSet]; metadata is
+/// overlaid on the locker cache at commit.
 class _MfaLockerTransaction implements LockerTransaction {
   final MFALocker _locker;
   final StorageChangeSet _changeSet;
@@ -20,11 +21,8 @@ class _MfaLockerTransaction implements LockerTransaction {
 
   _MfaLockerTransaction._(this._locker, this._changeSet, this._epochAtOpen);
 
-  @override
+  /// Whether the transaction is already closed by `lock()`/`dispose()`.
   bool get isClosed => _closed;
-
-  @override
-  bool get isErased => _changeSet.isErased;
 
   @override
   Map<EntryId, EntryMeta> get allMeta {
@@ -133,8 +131,9 @@ class _MfaLockerTransaction implements LockerTransaction {
     await _changeSet.deleteWrap(originToDelete: originToDelete);
   }
 
-  @override
-  Future<void> commit() async {
+  /// Persists the buffered changes and closes the transaction; called by
+  /// `withTransaction` when the body returns.
+  Future<void> _commit() async {
     _ensureOpen();
 
     try {
@@ -149,14 +148,12 @@ class _MfaLockerTransaction implements LockerTransaction {
     }
   }
 
-  @override
-  Future<void> abort() async {
+  /// Discards the buffered changes and closes the transaction; called by
+  /// `withTransaction` when the body throws.
+  Future<void> _abort() async {
     _ensureOpen();
     _detachAndErase();
   }
-
-  @override
-  void erase() => _detachAndErase();
 
   /// Marks the transaction closed, erases the key material and the uncommitted
   /// metadata, and releases the lane.

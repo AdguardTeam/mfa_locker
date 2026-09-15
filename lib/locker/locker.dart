@@ -75,20 +75,14 @@ abstract interface class Locker {
   /// Throws [StateError] if storage is not initialized.
   Future<void> loadAllMeta(CipherFunc cipherFunc);
 
-  /// Opens a scoped transaction: authenticates once via [cipherFunc] and reuses
-  /// the unwrapped key. Close it in `finally`; prefer [withTransaction].
+  /// Runs [body] inside a scoped transaction: the key is unwrapped once (the
+  /// single biometric prompt), changes are buffered and persisted atomically.
   ///
-  /// While it is open, use only the transaction: any other storage operation of
-  /// this locker queues behind it and never completes.
-  ///
-  /// Throws [StateError] if storage is not initialized.
-  Future<LockerTransaction> beginTransaction(CipherFunc cipherFunc);
-
-  /// Runs [body] inside a transaction and closes it in `finally`, so the key
-  /// material is erased even when [body] throws.
-  ///
-  /// Inside [body] use only the [LockerTransaction] methods: a locker call fails
-  /// with a [StateError] instead of deadlocking.
+  /// The transaction lives only inside [body]: it commits when [body] returns
+  /// and aborts when [body] throws. There is no separate begin/commit/abort
+  /// API, so a transaction can never outlive its body. Inside [body] use only
+  /// the [LockerTransaction] methods: a locker call fails with a [StateError]
+  /// instead of deadlocking.
   Future<R> withTransaction<R>(
     CipherFunc cipherFunc,
     Future<R> Function(LockerTransaction txn) body,

@@ -11,6 +11,7 @@ import 'package:locker/storage/models/data/origin.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
+import 'package:locker/storage/models/exceptions/storage_exception.dart';
 import 'package:locker/utils/cryptography_utils.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path/path.dart' as p;
@@ -108,64 +109,68 @@ void main() {
     // Arrange
     var decryptCalls = 0;
     final cipher = createCountingCipher(() => decryptCalls++);
+    EntryValue? before;
+    EntryValue? after;
 
     final locker = MFALocker(file: storageFile, storage: storage);
 
     // Act
-    final txn = await locker.beginTransaction(cipher);
-    final before = await txn.readValue(EntryId('a'));
-    await txn.update(
-      EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([42])),
-    );
-    final after = await txn.readValue(EntryId('a'));
-    await txn.commit();
+    await locker.withTransaction(cipher, (txn) async {
+      before = await txn.readValue(EntryId('a'));
+      await txn.update(
+        EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([42])),
+      );
+      after = await txn.readValue(EntryId('a'));
+    });
 
     // Assert
-    expect(before.bytes, orderedEquals([2, 3]));
-    expect(after.bytes, orderedEquals([42]));
-    expect(txn.isClosed, isTrue);
+    expect(before?.bytes, orderedEquals([2, 3]));
+    expect(after?.bytes, orderedEquals([42]));
     expect(decryptCalls, 1, reason: 'read + update must reuse a single unwrap (one biometric prompt)');
   });
 
-  test('changes are buffered and only persisted on commit', () async {
+  test('changes are buffered and only persisted after the body returns', () async {
     // Arrange
     final cipher = createCountingCipher(() {});
     final locker = MFALocker(file: storageFile, storage: storage);
 
-    // Act
-    final txn = await locker.beginTransaction(cipher);
-    await txn.update(
-      EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([42])),
-    );
+    // Act & Assert
+    await locker.withTransaction(cipher, (txn) async {
+      await txn.update(
+        EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([42])),
+      );
 
-    // The buffered update is visible inside the transaction...
-    expect((await txn.readValue(EntryId('a'))).bytes, orderedEquals([42]));
+      // The buffered update is visible inside the body...
+      expect((await txn.readValue(EntryId('a'))).bytes, orderedEquals([42]));
 
-    // ...but the file on disk is still the original one.
-    final onDisk = await readValueFromFile(storage, cipher, EntryId('a'));
-    expect(onDisk.bytes, orderedEquals([2, 3]));
+      // ...but the file on disk is still the original one.
+      final onDisk = await readValueFromFile(storage, cipher, EntryId('a'));
+      expect(onDisk.bytes, orderedEquals([2, 3]));
+    });
 
-    await txn.commit();
-
-    // After commit the file reflects the update.
+    // After the body returns the transaction is committed.
     final committed = await readValueFromFile(storage, cipher, EntryId('a'));
     expect(committed.bytes, orderedEquals([42]));
   });
 
-  test('abort discards all buffered changes', () async {
+  test('a throwing body discards all buffered changes', () async {
     // Arrange
     final cipher = createCountingCipher(() {});
     final locker = MFALocker(file: storageFile, storage: storage);
 
-    // Act
-    final txn = await locker.beginTransaction(cipher);
-    await txn.update(
-      EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([42])),
-    );
-    await txn.abort();
+    // Act & Assert
+    await expectLater(
+      locker.withTransaction(cipher, (txn) async {
+        await txn.update(
+          EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([42])),
+        );
 
-    // Assert: nothing was persisted.
-    expect(txn.isClosed, isTrue);
+        throw StorageException.other('boom');
+      }),
+      throwsA(isA<StorageException>()),
+    );
+
+    // Nothing was persisted.
     final onDisk = await readValueFromFile(storage, cipher, EntryId('a'));
     expect(onDisk.bytes, orderedEquals([2, 3]));
   });
@@ -183,18 +188,21 @@ void main() {
     expect(decryptCalls, 2, reason: 'without a transaction every operation unwraps again');
   });
 
-  test('committing a transaction erases the keys', () async {
+  test('the lane is released when the body returns', () async {
     // Arrange
     final cipher = createCountingCipher(() {});
     final locker = MFALocker(file: storageFile, storage: storage);
-    final txn = await locker.beginTransaction(cipher);
 
-    // Act
-    await txn.commit();
+    // Act: a second transaction body starts only after the first one finished.
+    await locker.withTransaction(cipher, (txn) async {
+      await txn.update(
+        EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([42])),
+      );
+    });
+
+    final value = await locker.withTransaction(cipher, (txn) => txn.readValue(EntryId('a')));
 
     // Assert
-    expect(txn.isClosed, isTrue);
-    expect(txn.isErased, isTrue);
-    await expectLater(txn.readValue(EntryId('a')), throwsStateError);
+    expect(value.bytes, orderedEquals([42]));
   });
 }

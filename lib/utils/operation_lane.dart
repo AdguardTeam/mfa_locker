@@ -3,8 +3,8 @@ import 'dart:collection';
 
 import 'package:meta/meta.dart';
 
-/// FIFO queue with a single holder that serializes locker operations: a
-/// transaction holds it from `beginTransaction` until `commit`/`abort`.
+/// FIFO queue with a single holder that serializes locker operations; a
+/// transaction holds it for the whole body of `withTransaction`.
 class OperationLane {
   final Queue<Completer<void>> _waiters = Queue();
 

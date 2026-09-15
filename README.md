@@ -169,22 +169,11 @@ await locker.withTransaction(bioCipherFunc, (txn) async {
 });
 ```
 
-For full control use `beginTransaction` / `commit()` / `abort()`:
+The transaction lives only inside the `withTransaction` body: it commits when the body returns and aborts when the body throws. There is no separate `beginTransaction`/`commit`/`abort` API, so a transaction can never be held open by the caller — a single safe entry point keeps the invariant in the type system instead of the docs.
 
-```dart
-final txn = await locker.beginTransaction(bioCipherFunc);
-try {
-  // ... operations, each reusing the single unwrap, buffered in memory ...
-  await txn.commit(); // one atomic write; erases the key material
-} catch (_) {
-  await txn.abort(); // discards buffered changes; erases the key material
-  rethrow;
-}
-```
+Only one transaction runs at a time: operations are serialized by a FIFO queue, so a second `withTransaction` waits for the first one to finish instead of failing. `lock()`, auto-lock, and `dispose()` abort the active transaction (and fail the queued operations) and erase its key material.
 
-Only one transaction runs at a time: operations are serialized by a FIFO queue, so a second `beginTransaction` waits for the first one to finish instead of failing. `lock()`, auto-lock, and `dispose()` abort the active transaction (and fail the queued operations) and erase its key material.
-
-`locker.allMeta` exposes only committed metadata outside a transaction; inside a `withTransaction` body it also shows the uncommitted changes of that transaction (`LockerTransaction.allMeta` gives the same view). Every single public operation is an implicit transaction: one master-key unwrap and one atomic write, unchanged from the outside. Within a `withTransaction` body use only the `LockerTransaction` methods — calling a locker method there throws a `StateError` instead of deadlocking. The same rule applies to a transaction opened manually: while it is open, any storage operation started on the same locker queues behind it and never completes, so use only the `txn` methods until `commit()`/`abort()`.
+`locker.allMeta` exposes only committed metadata outside a transaction; inside a `withTransaction` body it also shows the uncommitted changes of that transaction (`LockerTransaction.allMeta` gives the same view). Every single public operation is an implicit transaction: one master-key unwrap and one atomic write, unchanged from the outside. Within a `withTransaction` body use only the `LockerTransaction` methods — calling a locker method there throws a `StateError` instead of deadlocking.
 
 ### 4. Configure Biometric Authentication
 
