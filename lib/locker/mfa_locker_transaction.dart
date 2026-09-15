@@ -1,9 +1,7 @@
 part of 'mfa_locker.dart';
 
-/// Concrete [LockerTransaction] held by [MFALocker]. Buffers operations in a
-/// [StorageChangeSet] and keeps the metadata changes of the transaction in an
-/// overlay that is applied to the locker cache on commit and dropped (with
-/// erasing) on abort.
+/// Concrete [LockerTransaction] held by [MFALocker]: operations go to a
+/// [StorageChangeSet]; metadata is overlaid on the locker cache at commit.
 class _MfaLockerTransaction implements LockerTransaction {
   final MFALocker _locker;
   final StorageChangeSet _changeSet;
@@ -62,9 +60,7 @@ class _MfaLockerTransaction implements LockerTransaction {
 
   @override
   Future<EntryId> write(EntryAddInput input) => _locker._executeWithCleanup<EntryId>(
-        // dispose input.meta only on error because the transaction takes
-        // ownership of it on success (applied to the cache on commit, erased
-        // on abort)
+        // Erase meta on error only: on success the transaction owns it.
         erasables: [input.value],
         erasablesOnError: [input.meta],
         callback: () async {
@@ -81,8 +77,7 @@ class _MfaLockerTransaction implements LockerTransaction {
 
   @override
   Future<void> update(EntryUpdateInput input) => _locker._executeWithCleanup(
-        // dispose input.meta only on error because the transaction takes
-        // ownership of it on success
+        // Erase meta on error only: on success the transaction owns it.
         erasables: [if (input.value != null) input.value!],
         erasablesOnError: [if (input.meta != null) input.meta!],
         callback: () async {
@@ -145,8 +140,8 @@ class _MfaLockerTransaction implements LockerTransaction {
     try {
       await _locker._storage.commitChangeSet(_changeSet);
 
-      // The change set was persisted, but the locker may have been locked in
-      // the meantime: never repopulate the cache of a locked locker.
+      // Persisted, but the locker may have been locked meanwhile: do not
+      // repopulate the cache of a locked locker.
       _locker._ensureFreshEpochOrErasePending(_epochAtOpen, this);
       _locker._applyCommittedMeta(this);
     } finally {
@@ -178,9 +173,6 @@ class _MfaLockerTransaction implements LockerTransaction {
       _locker._activeTransaction = null;
     }
   }
-
-  /// Aborts the transaction without throwing, used by `lock()`/`dispose()`.
-  void _abortAndErase() => _detachAndErase();
 
   /// Erases the uncommitted metadata: after a successful commit it was already
   /// moved into the locker cache, after an abort nothing references it.

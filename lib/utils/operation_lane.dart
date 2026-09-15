@@ -3,11 +3,8 @@ import 'dart:collection';
 
 import 'package:meta/meta.dart';
 
-/// FIFO queue with a single holder used to serialize locker operations.
-///
-/// A transaction holds the lane from `beginTransaction` until `commit`/`abort`;
-/// a standalone operation holds it for the duration of its execution. Waiting
-/// never blocks the event loop, so callers simply await [acquire].
+/// FIFO queue with a single holder that serializes locker operations: a
+/// transaction holds it from `beginTransaction` until `commit`/`abort`.
 class OperationLane {
   final Queue<Completer<void>> _waiters = Queue();
 
@@ -33,8 +30,7 @@ class OperationLane {
   /// Releases the lane and hands it to the next waiter, if any.
   void release() {
     if (!_busy) {
-      // Nothing to release: the lane was already discarded by [failPending]
-      // and the holder is finishing up.
+      // Already discarded by [failPending]: the holder is finishing up.
       return;
     }
 
@@ -47,10 +43,8 @@ class OperationLane {
     _waiters.removeFirst().complete();
   }
 
-  /// Completes all pending waiters with [error] without releasing the lane.
-  ///
-  /// Used by `lock()`/`dispose()`: operations queued before the locker was
-  /// locked must fail instead of running afterwards.
+  /// Completes all pending waiters with [error] without releasing the lane, so
+  /// operations queued before `lock()`/`dispose()` fail instead of running.
   void failPending(Object error) {
     while (_waiters.isNotEmpty) {
       _waiters.removeFirst().completeError(error);

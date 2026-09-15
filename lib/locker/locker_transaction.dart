@@ -7,16 +7,15 @@ import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 
-/// A scoped vault transaction: master key unwrapped once (single biometric
-/// prompt), changes buffered and persisted atomically by [commit] or dropped
-/// by [abort]. After closing every method throws a [StateError].
+/// A scoped vault transaction: master key unwrapped once, changes buffered and
+/// persisted atomically by [commit] (dropped by [abort]); after closing, every
+/// method throws. While it is open, use only its methods.
 abstract interface class LockerTransaction implements Erasable {
   /// Whether the transaction has been closed.
   bool get isClosed;
 
   /// Committed entry metadata merged with the uncommitted changes of this
-  /// transaction. Valid while the transaction is open; the returned maps and
-  /// their metadata are owned by the locker and must not be erased by callers.
+  /// transaction; the returned values are owned by the locker, do not erase.
   Map<EntryId, EntryMeta> get allMeta;
 
   Future<EntryValue> readValue(EntryId id);

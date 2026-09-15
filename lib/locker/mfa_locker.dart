@@ -26,7 +26,6 @@ import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
 import 'package:locker/storage/storage_change_set.dart';
 import 'package:locker/utils/operation_lane.dart';
-import 'package:locker/utils/sync.dart';
 import 'package:meta/meta.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -59,8 +58,6 @@ class MFALocker implements Locker {
         _secureProvider = secureProvider ?? BiometricCipherProviderImpl.instance;
 
   Map<EntryId, EntryMeta> _metaCache = {};
-
-  final _sync = Sync();
 
   /// Serializes all locker operations (transactions and standalone ones).
   final _lane = OperationLane();
@@ -113,23 +110,27 @@ class MFALocker implements Locker {
     required List<EntryAddInput> initialEntries,
     required Duration lockTimeout,
   }) =>
-      _runOperation(
-        () => _executeWithCleanup(
-          erasables: [passwordCipherFunc, ...initialEntries],
-          callback: () async {
-            if (await isStorageInitialized) {
-              throw StateError('Storage is already initialized');
-            }
+      // Erase the inputs even if the call never runs (cancelled while queued).
+      _executeWithCleanup(
+        erasables: [passwordCipherFunc, ...initialEntries],
+        callback: () => _runOperation(() async {
+          final epoch = _epoch;
 
-            await _storage.init(
-              passwordCipherFunc: passwordCipherFunc,
-              initialEntries: initialEntries,
-              lockTimeout: lockTimeout.inMilliseconds,
-            );
+          if (await isStorageInitialized) {
+            throw StateError('Storage is already initialized');
+          }
 
-            await loadAllMetaIfLocked(passwordCipherFunc);
-          },
-        ),
+          await _storage.init(
+            passwordCipherFunc: passwordCipherFunc,
+            initialEntries: initialEntries,
+            lockTimeout: lockTimeout.inMilliseconds,
+          );
+
+          // Never unlock a locker that was locked while the storage was written.
+          _ensureFreshEpoch(epoch);
+
+          await loadAllMetaIfLocked(passwordCipherFunc, epoch: epoch);
+        }),
       );
 
   @override
@@ -148,30 +149,32 @@ class MFALocker implements Locker {
   }
 
   @override
-  Future<LockerTransaction> beginTransaction(CipherFunc cipherFunc) async {
-    _assertNotInsideTransaction();
-
-    final epoch = _epoch;
-
-    // The transaction holds the lane until commit/abort, so a second one waits.
-    await _lane.acquire();
-
-    try {
-      _ensureFreshEpoch(epoch);
-
-      return await _executeWithCleanup(
+  Future<LockerTransaction> beginTransaction(CipherFunc cipherFunc) =>
+      // Erase the cipher function even if the call never runs (cancelled while queued).
+      _executeWithCleanup(
         erasables: [cipherFunc],
-        callback: () => _sync(() => _openTransaction(cipherFunc, epoch)),
-      );
-    } catch (_) {
-      _lane.release();
+        callback: () async {
+          _assertNotInsideTransaction();
 
-      rethrow;
-    }
-  }
+          final epoch = _epoch;
+
+          // The transaction holds the lane until commit/abort, so a second one waits.
+          await _lane.acquire();
+
+          try {
+            _ensureFreshEpoch(epoch);
+
+            return await _openTransaction(cipherFunc, epoch);
+          } catch (_) {
+            _lane.release();
+
+            rethrow;
+          }
+        },
+      );
 
   /// Opens the change set (the single key unwrap) and transitions to unlocked
-  /// using the already-unwrapped key. Runs under `_sync` with the lane held.
+  /// using the already-unwrapped key. Runs with the lane held.
   Future<_MfaLockerTransaction> _openTransaction(CipherFunc cipherFunc, int epoch) async {
     if (!(await isStorageInitialized)) {
       throw StateError('Storage is not initialized');
@@ -206,7 +209,8 @@ class MFALocker implements Locker {
     CipherFunc cipherFunc,
     Future<R> Function(LockerTransaction txn) body,
   ) async {
-    final txn = await beginTransaction(cipherFunc);
+    // The concrete transaction: its open epoch is needed below.
+    final txn = await beginTransaction(cipherFunc) as _MfaLockerTransaction;
     var succeeded = false;
     try {
       // Run the body in a child zone so [allMeta] exposes the uncommitted
@@ -217,9 +221,21 @@ class MFALocker implements Locker {
       return result;
     } finally {
       if (succeeded) {
+        if (txn.isClosed) {
+          // Closed by lock()/dispose() (or by the body): report the lock, not
+          // the opaque "Transaction is closed".
+          _ensureFreshEpoch(txn._epochAtOpen);
+
+          throw StateError('Transaction is closed');
+        }
+
         await txn.commit();
       } else {
-        await txn.abort();
+        try {
+          await txn.abort();
+        } on StateError {
+          // Already closed by lock()/dispose(): never mask the body error.
+        }
       }
     }
   }
@@ -228,7 +244,7 @@ class MFALocker implements Locker {
   void lock() {
     _epoch++;
     _lane.failPending(StateError(_lockedWhileWaitingMessage));
-    _activeTransaction?._abortAndErase();
+    _activeTransaction?._detachAndErase();
 
     if (_stateController.value != LockerState.unlocked) {
       return;
@@ -312,9 +328,9 @@ class MFALocker implements Locker {
         _assertNotInsideTransaction();
         _ensureFreshEpoch(epoch);
 
-        // Validate before unwrapping: an invalid value must not trigger an
-        // authentication prompt.
-        if (lockTimeout <= Duration.zero) {
+        // Validate before unwrapping (no prompt for a bad value); the storage
+        // stores whole milliseconds, so anything below 1 ms is invalid too.
+        if (lockTimeout.inMilliseconds <= 0) {
           throw StorageException.other('Lock timeout must be greater than 0');
         }
 
@@ -333,22 +349,28 @@ class MFALocker implements Locker {
 
         await _storage.erase();
 
-        _ensureFreshEpoch(epoch);
+        // A concurrent lock()/dispose() must not turn a completed erase into an error.
         _cleanupState();
-        _stateController.add(LockerState.locked);
+        if (_epoch == epoch && !_stateController.isClosed) {
+          _stateController.add(LockerState.locked);
+        }
       });
 
   @override
   void dispose() {
     _epoch++;
     _lane.failPending(StateError(_lockedWhileWaitingMessage));
-    _activeTransaction?._abortAndErase();
+    _activeTransaction?._detachAndErase();
     _cleanupState();
     _stateController.close();
   }
 
+  /// Unlocks the locker and caches metadata if it is locked. [epoch] is the
+  /// generation captured by the caller before its own awaits (defaults to now).
   @visibleForTesting
-  Future<void> loadAllMetaIfLocked(CipherFunc cipherFunc) async {
+  Future<void> loadAllMetaIfLocked(CipherFunc cipherFunc, {int? epoch}) async {
+    final epochAtStart = epoch ?? _epoch;
+
     if (!(await isStorageInitialized)) {
       throw StateError('Storage is not initialized');
     }
@@ -357,13 +379,12 @@ class MFALocker implements Locker {
       return;
     }
 
-    final epoch = _epoch;
     final changeSet = await _storage.openChangeSet(cipherFunc: cipherFunc);
 
     try {
       // locker is locked, unlock it, cache keys and jump to unlocked state
       final meta = await changeSet.readAllMeta();
-      _ensureFreshEpochOrErase(epoch, meta);
+      _ensureFreshEpochOrErase(epochAtStart, meta);
 
       _metaCache = meta;
       _stateController.add(LockerState.unlocked);
@@ -372,8 +393,7 @@ class MFALocker implements Locker {
     }
   }
 
-  /// Runs [body] as an exclusive operation: takes the FIFO lane, fails if the
-  /// locker was locked while waiting, then runs [body] under `_sync`.
+  /// Runs [body] exclusively on the FIFO lane, failing if the locker was locked meanwhile.
   Future<T> _runOperation<T>(Future<T> Function() body) async {
     _assertNotInsideTransaction();
 
@@ -384,17 +404,17 @@ class MFALocker implements Locker {
     try {
       _ensureFreshEpoch(epoch);
 
-      return await _sync(body);
+      return await body();
     } finally {
       _lane.release();
     }
   }
 
-  /// Throws when the caller is inside a [withTransaction] body, where only the
-  /// transaction itself may touch the storage (otherwise it would deadlock on
-  /// the lane held by its own transaction).
+  /// Throws if the caller is inside a transaction of this locker, which would
+  /// deadlock on its lane. Transactions of other lockers are fine.
   void _assertNotInsideTransaction() {
-    if (Zone.current[_transactionZoneKey] != null) {
+    final zoneTransaction = Zone.current[_transactionZoneKey];
+    if (zoneTransaction is _MfaLockerTransaction && identical(zoneTransaction._locker, this)) {
       throw StateError(_insideTransactionMessage);
     }
   }

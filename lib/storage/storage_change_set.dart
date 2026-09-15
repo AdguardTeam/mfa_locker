@@ -136,10 +136,12 @@ class StorageChangeSet implements Erasable {
       throw StorageException.other('Either entryMeta or entryValue must be provided');
     }
 
-    final entry = _data.entries.firstWhereOrNull((e) => e.id == input.id);
-    if (entry == null) {
+    final index = _data.entries.indexWhere((e) => e.id == input.id);
+    if (index < 0) {
       throw StorageException.entryNotFound();
     }
+
+    final entry = _data.entries[index];
 
     Uint8List? encryptedMeta;
     Uint8List? encryptedValue;
@@ -161,10 +163,9 @@ class StorageChangeSet implements Erasable {
       encryptedMeta: encryptedMeta,
       encryptedValue: encryptedValue,
     );
-    final newEntries = [
-      ..._data.entries.where((e) => e.id != input.id),
-      updatedEntry,
-    ];
+    // Keep the entry in place so an update does not reorder the file.
+    final newEntries = [..._data.entries];
+    newEntries[index] = updatedEntry;
 
     _data = _data.copyWith(entries: newEntries);
     _dirty = true;

@@ -158,12 +158,8 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
         () => _persistChangeSet(changeSet),
       );
 
-  /// Persists [changeSet] if it has any changes.
-  ///
-  /// The snapshot taken when the change set was opened is compared with the
-  /// current file (compare-and-swap), so a write from outside this instance
-  /// fails with [StorageException.conflict] instead of being silently
-  /// overwritten. A change set without mutations is not written at all.
+  /// Persists [changeSet] if it has changes, comparing the snapshot taken at
+  /// open with the current file: an outside write fails with conflict.
   Future<void> _persistChangeSet(StorageChangeSet changeSet) async {
     if (changeSet.isCommitted) {
       return;

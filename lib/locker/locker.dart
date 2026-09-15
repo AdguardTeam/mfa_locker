@@ -48,11 +48,11 @@ abstract interface class Locker {
   /// Whether biometric authentication is enabled.
   Future<bool> get isBiometricEnabled;
 
-  /// Returns a list of all entry metadata currently stored in the locker.
-  /// The locker must be unlocked before calling this method.
+  /// Returns all entry metadata; the locker must be unlocked. Inside a
+  /// [withTransaction] body the uncommitted changes are included.
   ///
-  /// Note: Metadata is cached in-memory while unlocked and is cleared on lock
-  /// or dispose. Holding references beyond the unlocked session is discouraged.
+  /// Metadata is cached in-memory while unlocked and is cleared on lock or
+  /// dispose; do not keep references beyond the unlocked session.
   Map<EntryId, EntryMeta> get allMeta;
 
   /// Initializes the storage and stores the provided initial entries (may be empty)
@@ -75,16 +75,20 @@ abstract interface class Locker {
   /// Throws [StateError] if storage is not initialized.
   Future<void> loadAllMeta(CipherFunc cipherFunc);
 
-  /// Opens a scoped transaction: authenticates once via [cipherFunc] (the
-  /// single biometric prompt) and reuses the unwrapped master key for all
-  /// operations. Caller must close the result, preferably in `finally`.
+  /// Opens a scoped transaction: authenticates once via [cipherFunc] and reuses
+  /// the unwrapped key. Close it in `finally`; prefer [withTransaction].
   ///
-  /// Throws [StateError] if storage is not initialized or a transaction is
-  /// already open.
+  /// While it is open, use only the transaction: any other storage operation of
+  /// this locker queues behind it and never completes.
+  ///
+  /// Throws [StateError] if storage is not initialized.
   Future<LockerTransaction> beginTransaction(CipherFunc cipherFunc);
 
   /// Runs [body] inside a transaction and closes it in `finally`, so the key
   /// material is erased even when [body] throws.
+  ///
+  /// Inside [body] use only the [LockerTransaction] methods: a locker call fails
+  /// with a [StateError] instead of deadlocking.
   Future<R> withTransaction<R>(
     CipherFunc cipherFunc,
     Future<R> Function(LockerTransaction txn) body,

@@ -50,17 +50,13 @@ abstract interface class EncryptedStorage {
   });
 
   /// Opens a change set: reads the storage, unwraps the master key via
-  /// [cipherFunc] (the single biometric prompt) and snapshots the data for a
-  /// compare-and-swap check on commit.
+  /// [cipherFunc] and snapshots the data for the compare-and-swap on commit.
   Future<StorageChangeSet> openChangeSet({
     required CipherFunc cipherFunc,
   });
 
-  /// Persists [changeSet] atomically; throws [StorageException.conflict] if
-  /// the file changed since the change set was opened.
-  ///
-  /// A change set without mutations is marked as committed and nothing is
-  /// written.
+  /// Persists [changeSet] atomically (nothing is written without mutations);
+  /// throws [StorageException.conflict] if the file changed since it was opened.
   Future<void> commitChangeSet(StorageChangeSet changeSet);
 
   /// Completely erases all storage data.
