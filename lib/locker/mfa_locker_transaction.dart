@@ -24,12 +24,12 @@ class _MfaLockerTransaction implements LockerTransaction {
   Map<EntryId, EntryMeta> get allMeta {
     _ensureOpen();
 
-    return UnmodifiableMapView(mergedMeta(_locker._metaCache));
+    return UnmodifiableMapView(_mergedMeta(_locker._metaCache));
   }
 
   /// [committed] metadata merged with the uncommitted changes of this
   /// transaction. The values are not copied; the caller must not erase them.
-  Map<EntryId, EntryMeta> mergedMeta(Map<EntryId, EntryMeta> committed) {
+  Map<EntryId, EntryMeta> _mergedMeta(Map<EntryId, EntryMeta> committed) {
     final result = Map<EntryId, EntryMeta>.of(committed);
     for (final id in _deletedIds) {
       result.remove(id);

@@ -674,7 +674,7 @@ void main() {
 
           // Hidden inside the transaction...
           expect(txn.allMeta, isNot(contains(EntryId('a'))));
-          insideMeta = locker.allMeta;
+          insideMeta = txn.allMeta;
         });
 
         // Assert: ...and gone from the cache after the commit.
@@ -954,14 +954,15 @@ void main() {
         verify(() => changeSet.erase()).called(1);
       });
 
-      test('allMeta inside the withTransaction body exposes uncommitted changes', () async {
+      test('allMeta separates committed and uncommitted views inside the body', () async {
         // Arrange
         final expectedId = EntryId('new');
         final metaToAdd = _StorageHelpers.createEntryMeta([5]);
         when(() => changeSet.addEntry(any())).thenAnswer((_) async => expectedId);
         when(() => changeSet.deleteEntry(any())).thenAnswer((_) async {});
 
-        Map<EntryId, EntryMeta>? insideMeta;
+        Map<EntryId, EntryMeta>? insideTxnMeta;
+        bool? lockerSawNewInside;
 
         // Act
         await locker.withTransaction(cipher, (txn) async {
@@ -969,14 +970,16 @@ void main() {
             EntryAddInput(meta: metaToAdd, value: _StorageHelpers.createEntryValue([1])),
           );
           await txn.delete(EntryId('a'));
-          insideMeta = locker.allMeta;
+          insideTxnMeta = txn.allMeta;
+          lockerSawNewInside = locker.allMeta.containsKey(expectedId);
         });
 
-        // Assert: inside the body the zone-aware view exposes the overlay...
-        expect(insideMeta?[expectedId], same(metaToAdd));
-        expect(insideMeta, isNot(contains(EntryId('a'))));
+        // Assert: txn.allMeta exposes the overlay, locker.allMeta stays committed-only.
+        expect(insideTxnMeta?[expectedId], same(metaToAdd));
+        expect(insideTxnMeta, isNot(contains(EntryId('a'))));
+        expect(lockerSawNewInside, isFalse);
 
-        // ...after the commit the same merged state is the committed one.
+        // ...after the commit the overlay becomes the committed state.
         expect(locker.allMeta[expectedId], same(metaToAdd));
         expect(locker.allMeta, isNot(contains(EntryId('a'))));
       });
@@ -994,7 +997,7 @@ void main() {
             await txn.write(
               EntryAddInput(meta: metaToAdd, value: _StorageHelpers.createEntryValue([1])),
             );
-            expect(locker.allMeta[expectedId], same(metaToAdd));
+            expect(txn.allMeta[expectedId], same(metaToAdd));
 
             throw StorageException.other('boom');
           }),

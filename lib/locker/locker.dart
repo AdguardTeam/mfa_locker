@@ -41,9 +41,10 @@ abstract interface class Locker {
   /// Whether biometric authentication is enabled.
   Future<bool> get isBiometricEnabled;
 
-  /// All entry metadata (cleared on lock/dispose); inside a [withTransaction]
-  /// body the uncommitted changes are included. Do not keep references beyond
-  /// the unlocked session.
+  /// All committed entry metadata (cleared on lock/dispose). Inside a
+  /// [withTransaction] body use [LockerTransaction.allMeta] to see the
+  /// transaction's uncommitted changes. Do not keep references beyond the
+  /// unlocked session.
   Map<EntryId, EntryMeta> get allMeta;
 
   /// Initializes the storage with the given password-derived cipher and

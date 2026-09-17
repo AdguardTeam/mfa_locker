@@ -34,8 +34,7 @@ import 'package:rxdart/rxdart.dart';
 part 'mfa_locker_transaction.dart';
 
 /// Marks the `withTransaction` body zone so locker methods refuse to run
-/// inside it (instead of deadlocking on the lane) and [allMeta] exposes the
-/// uncommitted metadata to the body only.
+/// inside it (instead of deadlocking on the lane).
 class _TransactionZone {
   static final Object _key = Object();
 
@@ -91,13 +90,7 @@ class MFALocker implements Locker {
       throw StateError('Locker is not unlocked');
     }
 
-    final activeTransaction = _activeTransaction;
-    final zoneTransaction = _TransactionZone.current;
-    if (activeTransaction != null && identical(zoneTransaction, activeTransaction) && !activeTransaction.isClosed) {
-      // Inside the transaction body: expose its uncommitted changes.
-      return UnmodifiableMapView(activeTransaction.mergedMeta(_metaCache));
-    }
-
+    // Committed-only: uncommitted changes are visible via LockerTransaction.allMeta.
     return UnmodifiableMapView(_metaCache);
   }
 
