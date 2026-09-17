@@ -9,6 +9,8 @@ import 'package:locker/locker/locker.dart';
 import 'package:locker/locker/locker_transaction.dart';
 import 'package:locker/locker/mfa_locker.dart';
 import 'package:locker/locker/models/biometric_state.dart';
+import 'package:locker/locker/models/exceptions/inside_transaction_exception.dart';
+import 'package:locker/locker/models/exceptions/locker_locked_exception.dart';
 import 'package:locker/security/models/exceptions/biometric_exception.dart';
 import 'package:locker/storage/models/data/origin.dart';
 import 'package:locker/storage/models/domain/entry_add_input.dart';
@@ -17,7 +19,7 @@ import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/exceptions/decrypt_failed_exception.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
-import 'package:locker/storage/storage_change_set.dart';
+import 'package:locker/storage/storage_transaction.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -26,7 +28,7 @@ import '../mocks/mock_biometric_cipher_provider.dart';
 import '../mocks/mock_encrypted_storage.dart';
 import '../mocks/mock_file.dart';
 import '../mocks/mock_password_cipher_func.dart';
-import '../mocks/mock_storage_change_set.dart';
+import '../mocks/mock_storage_transaction.dart';
 import '../storage/encrypted_storage_test_helpers.dart';
 
 part 'mfa_locker_test_helpers.dart';
@@ -48,7 +50,7 @@ void main() {
     registerFallbackValue(MockPasswordCipherFunc());
     registerFallbackValue(_StorageHelpers.createErasable());
     registerFallbackValue(
-      StorageChangeSet(
+      StorageTransaction(
         data: await _StorageHelpers.createStorageData(),
         masterKey: _StorageHelpers.createErasable(),
       ),
@@ -57,12 +59,12 @@ void main() {
 
   group('MFALocker', () {
     late MockEncryptedStorage storage;
-    late MockStorageChangeSet changeSet;
+    late MockStorageTransaction changeSet;
     late MFALocker locker;
 
     setUp(() async {
       storage = MockEncryptedStorage();
-      changeSet = MockStorageChangeSet();
+      changeSet = MockStorageTransaction();
 
       locker = MFALocker(
         file: MockFile(),
@@ -71,8 +73,8 @@ void main() {
 
       when(() => storage.isInitialized).thenAnswer((_) async => true);
       when(() => storage.lockTimeout).thenAnswer((_) async => _Helpers.lockTimeout.inMilliseconds);
-      when(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async => changeSet);
-      when(() => storage.commitChangeSet(any())).thenAnswer((_) async {});
+      when(() => storage.openTransaction(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async => changeSet);
+      when(() => storage.closeTransaction(any())).thenAnswer((_) async {});
       when(() => changeSet.readAllMeta()).thenAnswer((_) async => <EntryId, EntryMeta>{});
       when(() => changeSet.erase()).thenAnswer((_) {});
     });
@@ -277,8 +279,8 @@ void main() {
         laneGate.complete();
 
         // Assert: the queued init fails and its inputs are erased.
-        await expectLater(initFuture, throwsStateError);
-        await expectLater(txnFuture, throwsStateError);
+        await expectLater(initFuture, throwsA(isA<LockerLockedException>()));
+        await expectLater(txnFuture, throwsA(isA<LockerLockedException>()));
         _Helpers.verifyErasedAll([pwd, meta, value]);
       });
 
@@ -317,9 +319,9 @@ void main() {
         writeCompleter.complete();
 
         // Assert: lock() wins, the locker is never unlocked and the inputs are erased.
-        await expectLater(initFuture, throwsStateError);
+        await expectLater(initFuture, throwsA(isA<LockerLockedException>()));
         expect(locker.stateStream.value, LockerState.locked);
-        verifyNever(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc')));
+        verifyNever(() => storage.openTransaction(cipherFunc: any(named: 'cipherFunc')));
         _Helpers.verifyErasedAll([pwd, meta, value]);
       });
 
@@ -358,8 +360,8 @@ void main() {
         writeCompleter.complete();
 
         // Assert: no metadata is loaded into the disposed locker and nothing leaks.
-        await expectLater(initFuture, throwsStateError);
-        verifyNever(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc')));
+        await expectLater(initFuture, throwsA(isA<LockerLockedException>()));
+        verifyNever(() => storage.openTransaction(cipherFunc: any(named: 'cipherFunc')));
         _Helpers.verifyErasedAll([pwd, meta, value]);
       });
     });
@@ -374,7 +376,7 @@ void main() {
         await locker.loadAllMeta(cipher);
 
         // Assert
-        verify(() => storage.openChangeSet(cipherFunc: cipher)).called(1);
+        verify(() => storage.openTransaction(cipherFunc: cipher)).called(1);
         expect(locker.stateStream.value, LockerState.unlocked);
         expect(locker.allMeta, equals(readAllMeta));
 
@@ -409,7 +411,7 @@ void main() {
           throwsA(isA<StateError>()),
         );
 
-        verifyNever(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc')));
+        verifyNever(() => storage.openTransaction(cipherFunc: any(named: 'cipherFunc')));
       });
 
       test('does nothing if already unlocked', () async {
@@ -481,14 +483,14 @@ void main() {
         // Assert
         expect(bodyRan, isTrue);
         expect(locker.stateStream.value, LockerState.unlocked);
-        verify(() => storage.openChangeSet(cipherFunc: cipher)).called(1);
+        verify(() => storage.openTransaction(cipherFunc: cipher)).called(1);
         verify(() => changeSet.readAllMeta()).called(1);
       });
 
       test('the second withTransaction waits for the first one to finish', () async {
         // Arrange
         var openCalls = 0;
-        when(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async {
+        when(() => storage.openTransaction(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async {
           openCalls++;
 
           return changeSet;
@@ -522,7 +524,7 @@ void main() {
 
         // Act & Assert
         await expectLater(locker.withTransaction(cipher, (_) async {}), throwsStateError);
-        verifyNever(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc')));
+        verifyNever(() => storage.openTransaction(cipherFunc: any(named: 'cipherFunc')));
       });
 
       test('operations run on the change set without a second unlock', () async {
@@ -537,7 +539,7 @@ void main() {
         });
 
         // Assert
-        verify(() => storage.openChangeSet(cipherFunc: cipher)).called(1);
+        verify(() => storage.openTransaction(cipherFunc: cipher)).called(1);
         verify(() => changeSet.readValue(EntryId('a'))).called(1);
         verify(() => changeSet.updateEntry(any())).called(1);
       });
@@ -761,12 +763,12 @@ void main() {
         await locker.withTransaction(cipher, (_) async {});
 
         // Assert
-        verify(() => storage.commitChangeSet(changeSet)).called(1);
+        verify(() => storage.closeTransaction(changeSet)).called(1);
         verify(() => changeSet.erase()).called(1);
 
         // A new transaction is possible afterwards.
-        final changeSet2 = MockStorageChangeSet();
-        when(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async => changeSet2);
+        final changeSet2 = MockStorageTransaction();
+        when(() => storage.openTransaction(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async => changeSet2);
         when(() => changeSet2.erase()).thenAnswer((_) {});
         await expectLater(locker.withTransaction(cipher, (_) async {}), completes);
       });
@@ -779,7 +781,7 @@ void main() {
           }),
           throwsA(isA<StorageException>()),
         );
-        verifyNever(() => storage.commitChangeSet(any()));
+        verifyNever(() => storage.closeTransaction(any()));
         verify(() => changeSet.erase()).called(1);
       });
 
@@ -810,7 +812,7 @@ void main() {
         gate.complete();
 
         // Assert
-        await expectLater(future, throwsStateError);
+        await expectLater(future, throwsA(isA<LockerLockedException>()));
         verify(() => changeSet.erase()).called(1);
       });
 
@@ -833,8 +835,8 @@ void main() {
         gate.complete();
 
         // Assert: the queued operation fails instead of resurrecting the locker.
-        await expectLater(readFuture, throwsStateError);
-        await expectLater(txnFuture, throwsStateError);
+        await expectLater(readFuture, throwsA(isA<LockerLockedException>()));
+        await expectLater(txnFuture, throwsA(isA<LockerLockedException>()));
         expect(storageRead, isFalse, reason: 'a queued operation must not reach storage after lock()');
         expect(locker.stateStream.value, LockerState.locked);
       });
@@ -851,9 +853,9 @@ void main() {
         gate.complete();
 
         // Assert
-        await expectLater(secondFuture, throwsStateError);
-        await expectLater(firstFuture, throwsStateError);
-        verify(() => storage.openChangeSet(cipherFunc: cipher)).called(1);
+        await expectLater(secondFuture, throwsA(isA<LockerLockedException>()));
+        await expectLater(firstFuture, throwsA(isA<LockerLockedException>()));
+        verify(() => storage.openTransaction(cipherFunc: cipher)).called(1);
       });
 
       test('standalone operations are executed in FIFO order with a transaction', () async {
@@ -906,11 +908,11 @@ void main() {
         await locker.withTransaction(cipher, (_) async {});
 
         // Re-arm the mock so the second transaction starts from a clean slate.
-        final changeSet2 = MockStorageChangeSet();
+        final changeSet2 = MockStorageTransaction();
         reset(storage);
         when(() => storage.isInitialized).thenAnswer((_) async => true);
-        when(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async => changeSet2);
-        when(() => storage.commitChangeSet(any())).thenAnswer((_) async {});
+        when(() => storage.openTransaction(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async => changeSet2);
+        when(() => storage.closeTransaction(any())).thenAnswer((_) async {});
         when(() => changeSet2.readAllMeta()).thenAnswer((_) async => metas);
         when(() => changeSet2.erase()).thenAnswer((_) {});
 
@@ -934,8 +936,8 @@ void main() {
 
         // Assert
         expect(result, 'done');
-        verify(() => storage.openChangeSet(cipherFunc: cipher)).called(1);
-        verify(() => storage.commitChangeSet(changeSet)).called(1);
+        verify(() => storage.openTransaction(cipherFunc: cipher)).called(1);
+        verify(() => storage.closeTransaction(changeSet)).called(1);
         verify(() => changeSet.erase()).called(1);
       });
 
@@ -948,7 +950,7 @@ void main() {
           locker.withTransaction(cipher, (txn) async => txn.readValue(EntryId('a'))),
           throwsA(isA<StorageException>()),
         );
-        verifyNever(() => storage.commitChangeSet(any()));
+        verifyNever(() => storage.closeTransaction(any()));
         verify(() => changeSet.erase()).called(1);
       });
 
@@ -1019,9 +1021,7 @@ void main() {
             cipher,
             (txn) => locker.readValue(id: EntryId('a'), cipherFunc: cipher),
           ),
-          throwsA(
-            isA<StateError>().having((e) => e.message, 'message', contains('inside a transaction')),
-          ),
+          throwsA(isA<InsideTransactionException>()),
         ).timeout(const Duration(seconds: 1));
 
         expect(storageRead, isFalse);
@@ -1070,8 +1070,8 @@ void main() {
         gate.complete();
 
         // Assert: the queued transaction fails and its cipher is erased.
-        await expectLater(secondFuture, throwsStateError);
-        await expectLater(firstFuture, throwsStateError);
+        await expectLater(secondFuture, throwsA(isA<LockerLockedException>()));
+        await expectLater(firstFuture, throwsA(isA<LockerLockedException>()));
         _Helpers.verifyErased(queuedCipher);
       });
 
@@ -1096,7 +1096,7 @@ void main() {
 
             return 'done';
           }),
-          throwsA(isA<StateError>().having((e) => e.message, 'message', contains('locked'))),
+          throwsA(isA<LockerLockedException>()),
         );
       });
 
@@ -1104,13 +1104,13 @@ void main() {
         // Arrange: the second locker owns its own lane, so the zone of the
         // first locker's transaction must not block it.
         final otherStorage = MockEncryptedStorage();
-        final otherChangeSet = MockStorageChangeSet();
+        final otherChangeSet = MockStorageTransaction();
         final otherLocker = MFALocker(file: MockFile(), storage: otherStorage);
 
         when(() => otherStorage.isInitialized).thenAnswer((_) async => true);
-        when(() => otherStorage.openChangeSet(cipherFunc: any(named: 'cipherFunc')))
+        when(() => otherStorage.openTransaction(cipherFunc: any(named: 'cipherFunc')))
             .thenAnswer((_) async => otherChangeSet);
-        when(() => otherStorage.commitChangeSet(any())).thenAnswer((_) async {});
+        when(() => otherStorage.closeTransaction(any())).thenAnswer((_) async {});
         when(() => otherChangeSet.readAllMeta()).thenAnswer((_) async => <EntryId, EntryMeta>{});
         when(() => otherChangeSet.readValue(any())).thenAnswer((_) async => _StorageHelpers.createEntryValue([7]));
         when(() => otherChangeSet.erase()).thenAnswer((_) {});
@@ -1624,7 +1624,7 @@ void main() {
           locker.updateLockTimeout(lockTimeout: Duration.zero, cipherFunc: cipher),
           throwsA(isA<StorageException>()),
         );
-        verifyNever(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc')));
+        verifyNever(() => storage.openTransaction(cipherFunc: any(named: 'cipherFunc')));
         _Helpers.verifyErased(cipher);
       });
 
@@ -1637,7 +1637,7 @@ void main() {
           locker.updateLockTimeout(lockTimeout: const Duration(microseconds: 999), cipherFunc: cipher),
           throwsA(isA<StorageException>()),
         );
-        verifyNever(() => storage.openChangeSet(cipherFunc: any(named: 'cipherFunc')));
+        verifyNever(() => storage.openTransaction(cipherFunc: any(named: 'cipherFunc')));
         _Helpers.verifyErased(cipher);
       });
     });
@@ -1647,13 +1647,13 @@ void main() {
 
       late MockBiometricCipherProvider secureProvider;
       late MockEncryptedStorage tpStorage;
-      late MockStorageChangeSet tpChangeSet;
+      late MockStorageTransaction tpChangeSet;
       late MFALocker tpLocker;
 
       setUp(() {
         secureProvider = MockBiometricCipherProvider();
         tpStorage = MockEncryptedStorage();
-        tpChangeSet = MockStorageChangeSet();
+        tpChangeSet = MockStorageTransaction();
 
         tpLocker = MFALocker(
           file: MockFile(),
@@ -1663,8 +1663,9 @@ void main() {
 
         when(() => tpStorage.isInitialized).thenAnswer((_) async => true);
         when(() => tpStorage.lockTimeout).thenAnswer((_) async => _Helpers.lockTimeout.inMilliseconds);
-        when(() => tpStorage.openChangeSet(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async => tpChangeSet);
-        when(() => tpStorage.commitChangeSet(any())).thenAnswer((_) async {});
+        when(() => tpStorage.openTransaction(cipherFunc: any(named: 'cipherFunc')))
+            .thenAnswer((_) async => tpChangeSet);
+        when(() => tpStorage.closeTransaction(any())).thenAnswer((_) async {});
         when(() => tpChangeSet.readAllMeta()).thenAnswer((_) async => <EntryId, EntryMeta>{});
         when(() => tpChangeSet.erase()).thenAnswer((_) {});
       });
@@ -1762,13 +1763,13 @@ void main() {
 
       late MockBiometricCipherProvider secureProvider;
       late MockEncryptedStorage tpStorage;
-      late MockStorageChangeSet tpChangeSet;
+      late MockStorageTransaction tpChangeSet;
       late MFALocker tpLocker;
 
       setUp(() {
         secureProvider = MockBiometricCipherProvider();
         tpStorage = MockEncryptedStorage();
-        tpChangeSet = MockStorageChangeSet();
+        tpChangeSet = MockStorageTransaction();
 
         tpLocker = MFALocker(
           file: MockFile(),
@@ -1778,8 +1779,9 @@ void main() {
 
         when(() => tpStorage.isInitialized).thenAnswer((_) async => true);
         when(() => tpStorage.lockTimeout).thenAnswer((_) async => _Helpers.lockTimeout.inMilliseconds);
-        when(() => tpStorage.openChangeSet(cipherFunc: any(named: 'cipherFunc'))).thenAnswer((_) async => tpChangeSet);
-        when(() => tpStorage.commitChangeSet(any())).thenAnswer((_) async {});
+        when(() => tpStorage.openTransaction(cipherFunc: any(named: 'cipherFunc')))
+            .thenAnswer((_) async => tpChangeSet);
+        when(() => tpStorage.closeTransaction(any())).thenAnswer((_) async {});
         when(() => tpChangeSet.readAllMeta()).thenAnswer((_) async => <EntryId, EntryMeta>{});
         when(() => tpChangeSet.erase()).thenAnswer((_) {});
       });
@@ -2069,14 +2071,14 @@ void main() {
 
         // Once the new wrap is stored, the old password can no longer open the
         // storage: unwrapping fails before any entry is read.
-        when(() => storage.openChangeSet(cipherFunc: oldPwd)).thenAnswer((_) async {
+        when(() => storage.openTransaction(cipherFunc: oldPwd)).thenAnswer((_) async {
           if (wrapStored) {
             throw const DecryptFailedException();
           }
 
           return changeSet;
         });
-        when(() => storage.openChangeSet(cipherFunc: newPwd)).thenAnswer((_) async => changeSet);
+        when(() => storage.openTransaction(cipherFunc: newPwd)).thenAnswer((_) async => changeSet);
 
         final expected = _StorageHelpers.createEntryValue([4, 2]);
         when(() => changeSet.readValue(any())).thenAnswer((_) async => expected);
@@ -2103,8 +2105,8 @@ void main() {
         // Assert
         _Helpers.verifyErasedAll([oldPwd, newPwd]);
         verify(() => changeSet.addOrReplaceWrap(newWrapFunc: newPwd)).called(1);
-        verify(() => storage.openChangeSet(cipherFunc: oldPwd)).called(3);
-        verify(() => storage.openChangeSet(cipherFunc: newPwd)).called(1);
+        verify(() => storage.openTransaction(cipherFunc: oldPwd)).called(3);
+        verify(() => storage.openTransaction(cipherFunc: newPwd)).called(1);
       });
     });
 

@@ -1,11 +1,10 @@
 part of 'mfa_locker.dart';
 
-/// Concrete [LockerTransaction] held by [MFALocker] for the duration of a
-/// `withTransaction` body: operations go to a [StorageChangeSet]; metadata is
-/// overlaid on the locker cache at commit.
+/// [LockerTransaction] held during a `withTransaction` body: operations go to a
+/// [StorageTransaction]; metadata is overlaid on the locker cache at commit.
 class _MfaLockerTransaction implements LockerTransaction {
   final MFALocker _locker;
-  final StorageChangeSet _changeSet;
+  final StorageTransaction _changeSet;
 
   /// Locker generation captured when the transaction was opened; used to detect
   /// that the locker was locked/disposed before the commit is applied.
@@ -13,15 +12,12 @@ class _MfaLockerTransaction implements LockerTransaction {
 
   bool _closed = false;
 
-  /// Metadata added or updated by this transaction.
   final Map<EntryId, EntryMeta> _pendingMeta = {};
 
-  /// Ids deleted by this transaction.
   final Set<EntryId> _deletedIds = {};
 
   _MfaLockerTransaction._(this._locker, this._changeSet, this._epochAtOpen);
 
-  /// Whether the transaction is already closed by `lock()`/`dispose()`.
   bool get isClosed => _closed;
 
   @override
@@ -137,11 +133,12 @@ class _MfaLockerTransaction implements LockerTransaction {
     _ensureOpen();
 
     try {
-      await _locker._storage.commitChangeSet(_changeSet);
+      await _locker._storage.closeTransaction(_changeSet);
 
       // Persisted, but the locker may have been locked meanwhile: do not
-      // repopulate the cache of a locked locker.
-      _locker._ensureFreshEpochOrErasePending(_epochAtOpen, this);
+      // repopulate the cache of a locked locker. The uncommitted metadata is
+      // erased by [_detachAndErase] in the finally.
+      _locker._ensureFreshEpoch(_epochAtOpen);
       _locker._applyCommittedMeta(this);
     } finally {
       _detachAndErase();

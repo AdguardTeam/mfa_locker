@@ -23,42 +23,31 @@ enum LockerState {
   unlocked,
 }
 
-/// A secure storage abstraction that manages encrypted key-value pairs.
-///
-/// The locker provides a high-level interface for storing and retrieving
-/// encrypted data with automatic lock/unlock, password rotation and
-/// biometric support. When the locker is locked, methods that require access
-/// to encrypted data will attempt to unlock using the provided `CipherFunc`
-/// and transition to the unlocked state on success.
+/// Encrypted key-value storage with lock/unlock, password rotation and
+/// biometric support; locked methods unlock via the provided [CipherFunc].
 abstract interface class Locker {
-  /// Returns the current state of the locker.
+  /// The current state of the locker.
   ValueStream<LockerState> get stateStream;
 
-  /// Returns the storage salt.
-  ///
-  /// Throws [StorageException] if the storage is not initialized.
+  /// The storage salt; throws [StorageException] if not initialized.
   Future<Uint8List> get salt;
 
-  /// Indicates whether the underlying storage has been initialized.
+  /// Whether the underlying storage has been initialized.
   Future<bool> get isStorageInitialized;
 
-  /// Returns the auto-lock timeout.
+  /// The auto-lock timeout.
   Future<Duration> get lockTimeout;
 
   /// Whether biometric authentication is enabled.
   Future<bool> get isBiometricEnabled;
 
-  /// Returns all entry metadata; the locker must be unlocked. Inside a
-  /// [withTransaction] body the uncommitted changes are included.
-  ///
-  /// Metadata is cached in-memory while unlocked and is cleared on lock or
-  /// dispose; do not keep references beyond the unlocked session.
+  /// All entry metadata (cleared on lock/dispose); inside a [withTransaction]
+  /// body the uncommitted changes are included. Do not keep references beyond
+  /// the unlocked session.
   Map<EntryId, EntryMeta> get allMeta;
 
-  /// Initializes the storage and stores the provided initial entries (may be empty)
-  /// using the provided password-derived cipher function.
-  ///
-  /// On success the locker transitions to the unlocked state, metadata is cached.
+  /// Initializes the storage with the given password-derived cipher and
+  /// entries, then transitions to unlocked.
   ///
   /// Throws [StateError] if storage is already initialized.
   Future<void> init({
@@ -67,146 +56,84 @@ abstract interface class Locker {
     required Duration lockTimeout,
   });
 
-  /// Ensures all entry metadata is loaded and the locker is unlocked.
-  ///
-  /// If the locker is locked, attempts to unlock and load metadata using the
-  /// provided [cipherFunc].
+  /// Unlocks (if locked) and loads all entry metadata.
   ///
   /// Throws [StateError] if storage is not initialized.
   Future<void> loadAllMeta(CipherFunc cipherFunc);
 
-  /// Runs [body] inside a scoped transaction: the key is unwrapped once (the
-  /// single biometric prompt), changes are buffered and persisted atomically.
-  ///
-  /// The transaction lives only inside [body]: it commits when [body] returns
-  /// and aborts when [body] throws. There is no separate begin/commit/abort
-  /// API, so a transaction can never outlive its body. Inside [body] use only
-  /// the [LockerTransaction] methods: a locker call fails with a [StateError]
-  /// instead of deadlocking.
+  /// Runs [body] in a scoped transaction: one key unwrap (single biometric
+  /// prompt), atomic persist on return, abort on throw. The transaction never
+  /// outlives [body]; use only [LockerTransaction] methods inside (a locker
+  /// call throws [StateError] instead of deadlocking).
   Future<R> withTransaction<R>(
     CipherFunc cipherFunc,
     Future<R> Function(LockerTransaction txn) body,
   );
 
   /// Locks the locker and clears all cached data.
-  ///
-  /// After locking, authentication will be required to access the data.
   void lock();
 
-  /// Writes a new entry to storage.
+  /// Writes a new entry and returns its id.
   ///
-  /// [input] - Entry data (meta, value, optional fixed ID). When [input.id] is
-  /// provided, a duplicate check is performed.
   /// Throws [StorageException] if [input.id] already exists.
-  ///
-  /// Returns the id of the stored entry.
-  ///
-  /// Throws [StateError] if storage is not initialized.
   Future<EntryId> write({
     required EntryAddInput input,
     required CipherFunc cipherFunc,
   });
 
-  /// Reads an entry value by id.
-  ///
-  /// If the locker is locked, attempts to unlock using [cipherFunc].
-  /// Returns the entry value if found.
-  ///
-  /// Throws [StateError] if storage is not initialized.
+  /// Reads an entry value by id, unlocking if needed.
   Future<EntryValue> readValue({
     required EntryId id,
     required CipherFunc cipherFunc,
   });
 
-  /// Deletes an entry by id.
-  ///
-  /// If the locker is locked, attempts to unlock using [cipherFunc]. On
-  /// success, deletes the entry and removes its metadata from the cache.
-  ///
-  /// If the entry does not exist, the operation completes without effect.
-  ///
-  /// Throws [StateError] if storage is not initialized.
+  /// Deletes an entry by id (no-op if the entry does not exist).
   Future<void> delete({
     required EntryId id,
     required CipherFunc cipherFunc,
   });
 
-  /// Updates an entry by id.
-  ///
-  /// If the locker is locked, attempts to unlock using [cipherFunc].
-  /// At least one of [input.meta] or [input.value] must be non-null.
-  ///
-  /// Throws [StateError] if storage is not initialized.
+  /// Updates an entry; at least one of [input.meta]/[input.value] is required.
   Future<void> update({
     required EntryUpdateInput input,
     required CipherFunc cipherFunc,
   });
 
-  /// Adds a new password and re-wraps access using an existing credential.
-  ///
-  /// Uses [existingCipherFunc] to authorize and add [newCipherFunc] as a new
-  /// password-based wrap. [existingCipherFunc] can be either a password or
-  /// biometric cipher. If the locker is locked, it will be unlocked using
-  /// [existingCipherFunc].
+  /// Adds a new password wrap, authorized by [existingCipherFunc].
   Future<void> changePassword({
     required PasswordCipherFunc newCipherFunc,
     required CipherFunc existingCipherFunc,
   });
 
-  /// Configures the biometric cipher provider with biometric settings.
-  ///
-  /// This must be called once at application startup before any biometric
-  /// operations. Sets up prompts and platform-specific biometric configuration.
+  /// Configures the biometric provider; call once at application startup.
   Future<void> configureBiometricCipher(BiometricConfig config);
 
-  /// Enable biometric authentication (requires password confirmation)
-  /// This method handles key generation and storage update.
+  /// Enables biometric authentication (requires password confirmation).
   Future<void> setupBiometry({
     required BioCipherFunc bioCipherFunc,
     required PasswordCipherFunc passwordCipherFunc,
   });
 
-  /// Disable biometric authentication using password confirmation.
-  ///
-  /// Removes the biometric wrap from storage. When [biometricKeyTag] is
-  /// provided, attempts to delete the hardware key afterwards; errors during
-  /// key deletion are suppressed because the key may already be inaccessible
-  /// or deleted by the OS.
+  /// Disables biometrics; deletes the hardware key if [biometricKeyTag] is
+  /// given (best-effort, errors suppressed).
   Future<void> teardownBiometry({
     required PasswordCipherFunc passwordCipherFunc,
     String? biometricKeyTag,
   });
 
-  /// Updates the lock timeout.
-  ///
-  /// Requires a [cipherFunc] to authorize.
+  /// Updates the auto-lock timeout.
   Future<void> updateLockTimeout({
     required Duration lockTimeout,
     required CipherFunc cipherFunc,
   });
 
-  /// Determines the biometric state.
-  ///
-  /// When [biometricKeyTag] is provided and biometrics are enabled in app
-  /// settings, silently checks whether the hardware key is still valid.
-  /// Returns [BiometricState.keyInvalidated] if the key has been permanently
-  /// invalidated (e.g., after a biometric enrollment change). No biometric
-  /// prompt is shown.
-  ///
-  /// When [biometricKeyTag] is omitted, the method returns the biometric state
-  /// based solely on hardware availability and app settings (existing behavior).
+  /// Determines the biometric state. With [biometricKeyTag] silently checks
+  /// key validity and returns [BiometricState.keyInvalidated] (no prompt).
   Future<BiometricState> determineBiometricState({String? biometricKeyTag});
 
-  /// Completely erases all data from the storage.
-  ///
-  /// This operation is irreversible: it deletes all entries,
-  /// clears cached metadata, and transitions the locker to the locked state.
-  ///
-  /// Throws if the underlying storage file deletion fails.
+  /// Irreversibly erases all data and transitions to the locked state.
   Future<void> eraseStorage();
 
-  /// Closes the locker state stream controller and clears all cached data.
-  ///
-  /// After calling this, no further operations should be performed.
+  /// Closes the state stream and clears cached data; no operations afterwards.
   void dispose();
 }

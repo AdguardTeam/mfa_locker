@@ -16,7 +16,7 @@ import 'package:locker/storage/models/data/wrapped_key.dart';
 import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
-import 'package:locker/storage/storage_change_set.dart';
+import 'package:locker/storage/storage_transaction.dart';
 import 'package:locker/utils/cryptography_utils.dart';
 import 'package:locker/utils/sync.dart';
 import 'package:path/path.dart' as p;
@@ -146,39 +146,35 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
       });
 
   @override
-  Future<StorageChangeSet> openChangeSet({required CipherFunc cipherFunc}) => _sync(() async {
+  Future<StorageTransaction> openTransaction({required CipherFunc cipherFunc}) => _sync(() async {
         final data = await _loadData();
         final masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
 
-        return StorageChangeSet(data: data, masterKey: masterKey);
+        return StorageTransaction(data: data, masterKey: masterKey);
       });
 
-  @override
-  Future<void> commitChangeSet(StorageChangeSet changeSet) => _sync(
-        () => _persistChangeSet(changeSet),
-      );
-
-  /// Persists [changeSet] if it has changes, comparing the snapshot taken at
+  /// Persists [transaction] if it has changes, comparing the snapshot taken at
   /// open with the current file: an outside write fails with conflict.
-  Future<void> _persistChangeSet(StorageChangeSet changeSet) async {
-    if (changeSet.isCommitted) {
-      return;
-    }
-    if (changeSet.isErased) {
-      throw StateError('Change set is erased');
-    }
+  @override
+  Future<void> closeTransaction(StorageTransaction transaction) => _sync(() async {
+        if (transaction.isClosed) {
+          return;
+        }
+        if (transaction.isErased) {
+          throw StorageException.other('Change set is erased');
+        }
 
-    if (changeSet.isDirty) {
-      final current = await _loadData();
-      if (!_storageDataEquals(current, changeSet.baseData)) {
-        throw StorageException.conflict();
-      }
+        if (transaction.isDirty) {
+          final current = await _loadData();
+          if (!_storageDataEquals(current, transaction.baseData)) {
+            throw StorageException.conflict();
+          }
 
-      await _signDataWithHmacAndSave(changeSet.data, changeSet.masterKey);
-    }
+          await _signDataWithHmacAndSave(transaction.data, transaction.masterKey);
+        }
 
-    changeSet.markCommitted();
-  }
+        transaction.close();
+      });
 
   @override
   Future<void> erase() => _sync(() async {
@@ -191,7 +187,6 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
         await file.delete();
       });
 
-  /// Loads the file content and parses a StorageData
   Future<StorageData> _loadData() async {
     final exists = await file.exists();
     if (!exists) {

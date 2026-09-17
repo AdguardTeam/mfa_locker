@@ -1420,7 +1420,7 @@ void main() {
         }
       });
 
-      test('commitChangeSet and erase are serialized: erase waits for the commit', () async {
+      test('closeTransaction and erase are serialized: erase waits for the close', () async {
         // Arrange
         const entryId = 'entryId';
         final masterKey = await CryptographyUtils.generateAESKey();
@@ -1451,22 +1451,22 @@ void main() {
           return storageFile.readAsString();
         });
 
-        // Act: open and mutate a change set, then commit (blocked at the gate)
-        // and issue erase while the commit is still in flight.
-        final changeSet = await storage.openChangeSet(cipherFunc: cipher);
+        // Act: open and mutate a transaction, then close (blocked at the gate)
+        // and issue erase while the close is still in flight.
+        final changeSet = await storage.openTransaction(cipherFunc: cipher);
         await changeSet.updateEntry(
           EntryUpdateInput(id: EntryId(entryId), value: _Helpers.createEntryValue([5])),
         );
 
-        final commitF = storage.commitChangeSet(changeSet);
+        final commitF = storage.closeTransaction(changeSet);
         await Future<void>.delayed(delayDuration);
-        expect(readCalls, 2, reason: 'the commit entered and is waiting at the gate');
+        expect(readCalls, 2, reason: 'the close entered and is waiting at the gate');
 
         final eraseF = storage.erase();
         await Future<void>.delayed(delayDuration);
-        expect(deleteCalls, 0, reason: 'erase must wait for the commit to finish');
+        expect(deleteCalls, 0, reason: 'erase must wait for the close to finish');
 
-        // Unblock the commit — then erase runs and removes the file.
+        // Unblock the close — then erase runs and removes the file.
         gate.complete();
         await commitF;
         changeSet.erase();
@@ -1478,7 +1478,7 @@ void main() {
       });
     });
 
-    group('change set operations', () {
+    group('transaction operations', () {
       late Uint8List masterKeyBytes;
 
       setUp(() async {
@@ -1510,12 +1510,12 @@ void main() {
         await _Helpers.writeStorageData(storageFile, data);
       });
 
-      test('openChangeSet returns a change set that decodes entries', () async {
+      test('openTransaction returns a transaction that decodes entries', () async {
         // Arrange
         final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
 
         // Act
-        final changeSet = await storage.openChangeSet(cipherFunc: cipher);
+        final changeSet = await storage.openTransaction(cipherFunc: cipher);
 
         // Assert
         expect(changeSet.isErased, isFalse);
@@ -1529,10 +1529,10 @@ void main() {
         changeSet.erase();
       });
 
-      test('read/update/add/delete round-trip and commit persists once', () async {
+      test('read/update/add/delete round-trip and close persists once', () async {
         // Arrange
         final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
-        final changeSet = await storage.openChangeSet(cipherFunc: cipher);
+        final changeSet = await storage.openTransaction(cipherFunc: cipher);
 
         // Act
         await changeSet.updateEntry(
@@ -1559,11 +1559,11 @@ void main() {
         all = await changeSet.readAllMeta();
         expect(all.keys, isNot(contains(EntryId('b'))));
 
-        // Commit and verify from a fresh change set.
-        await storage.commitChangeSet(changeSet);
+        // Close and verify from a fresh transaction.
+        await storage.closeTransaction(changeSet);
         changeSet.erase();
 
-        final fresh = await storage.openChangeSet(cipherFunc: cipher);
+        final fresh = await storage.openTransaction(cipherFunc: cipher);
         expect((await fresh.readValue(EntryId('a'))).bytes, orderedEquals([9, 9]));
         expect((await fresh.readAllMeta()).keys, contains(EntryId('a')));
         fresh.erase();
@@ -1572,7 +1572,7 @@ void main() {
       test('an update keeps the entry position in the file', () async {
         // Arrange: two entries in a known order ('a' was created by setUp).
         final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
-        final changeSet = await storage.openChangeSet(cipherFunc: cipher);
+        final changeSet = await storage.openTransaction(cipherFunc: cipher);
         await changeSet.addEntry(
           EntryAddInput(
             meta: _Helpers.createEntryMeta([7]),
@@ -1580,15 +1580,15 @@ void main() {
             id: EntryId('b'),
           ),
         );
-        await storage.commitChangeSet(changeSet);
+        await storage.closeTransaction(changeSet);
         changeSet.erase();
 
         // Act: update the first entry.
-        final second = await storage.openChangeSet(cipherFunc: cipher);
+        final second = await storage.openTransaction(cipherFunc: cipher);
         await second.updateEntry(
           EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([9, 9])),
         );
-        await storage.commitChangeSet(second);
+        await storage.closeTransaction(second);
         second.erase();
 
         // Assert
@@ -1596,24 +1596,24 @@ void main() {
         expect(data.entries.map((e) => e.id), orderedEquals([EntryId('a'), EntryId('b')]));
       });
 
-      test('a read-only change set commit does not rewrite the file', () async {
+      test('a read-only transaction close does not rewrite the file', () async {
         // Arrange
         final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
-        final changeSet = await storage.openChangeSet(cipherFunc: cipher);
+        final changeSet = await storage.openTransaction(cipherFunc: cipher);
         await changeSet.readAllMeta();
 
         // Act
-        await storage.commitChangeSet(changeSet);
+        await storage.closeTransaction(changeSet);
 
         // Assert: not dirty, so nothing was written.
-        expect(changeSet.isCommitted, isTrue);
+        expect(changeSet.isClosed, isTrue);
         changeSet.erase();
       });
 
-      test('commit fails with conflict when the file changed since opening', () async {
+      test('close fails with conflict when the file changed since opening', () async {
         // Arrange
         final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
-        final changeSet = await storage.openChangeSet(cipherFunc: cipher);
+        final changeSet = await storage.openTransaction(cipherFunc: cipher);
         await changeSet.updateEntry(
           EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([5, 5])),
         );
@@ -1630,27 +1630,27 @@ void main() {
 
         // Act & Assert
         await expectLater(
-          storage.commitChangeSet(changeSet),
+          storage.closeTransaction(changeSet),
           throwsA(isA<StorageException>().having((e) => e.type, 'type', StorageExceptionType.conflict)),
         );
         changeSet.erase();
       });
 
-      test('openChangeSet with a failing cipher throws', () async {
+      test('openTransaction with a failing cipher throws', () async {
         // Arrange
         final cipher = _Helpers.createDecryptFailingPasswordCipherFunc();
 
         // Act & Assert
         await expectLater(
-          storage.openChangeSet(cipherFunc: cipher),
+          storage.openTransaction(cipherFunc: cipher),
           throwsA(isA<DecryptFailedException>()),
         );
       });
 
-      test('operations throw after the change set is erased', () async {
+      test('operations throw after the transaction is erased', () async {
         // Arrange
         final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
-        final changeSet = await storage.openChangeSet(cipherFunc: cipher);
+        final changeSet = await storage.openTransaction(cipherFunc: cipher);
         changeSet.erase();
 
         // Act & Assert

@@ -20,39 +20,10 @@ import 'package:test/test.dart';
 import '../mocks/mock_bio_cipher_func.dart';
 import '../storage/encrypted_storage_test_helpers.dart';
 
+part 'mfa_locker_transaction_test_helpers.dart';
+
 typedef _Helpers = EncryptedStorageTestHelpers;
 
-/// Reads an entry value the way a single public operation does: open a change
-/// set, read and close without writing (a read-only commit persists nothing).
-Future<EntryValue> readValueFromFile(EncryptedStorage storage, CipherFunc cipher, EntryId id) async {
-  final changeSet = await storage.openChangeSet(cipherFunc: cipher);
-  try {
-    return await changeSet.readValue(id);
-  } finally {
-    changeSet.erase();
-  }
-}
-
-/// Updates an entry value the way a single public operation does:
-/// open → mutate → commit (one unwrap, one atomic write).
-Future<void> updateValueInFile(
-  EncryptedStorage storage,
-  CipherFunc cipher,
-  EntryId id,
-  List<int> bytes,
-) async {
-  final changeSet = await storage.openChangeSet(cipherFunc: cipher);
-  try {
-    await changeSet.updateEntry(EntryUpdateInput(id: id, value: _Helpers.createEntryValue(bytes)));
-    await storage.commitChangeSet(changeSet);
-  } finally {
-    changeSet.erase();
-  }
-}
-
-/// End-to-end check that a single [LockerTransaction] (read + update) performs
-/// exactly ONE biometric unwrap (`cipherFunc.decrypt`), on a real storage file.
-/// This is the "one biometric prompt for a composite user action" guarantee.
 void main() {
   late Directory tempDir;
   late File storageFile;
@@ -144,12 +115,12 @@ void main() {
       expect((await txn.readValue(EntryId('a'))).bytes, orderedEquals([42]));
 
       // ...but the file on disk is still the original one.
-      final onDisk = await readValueFromFile(storage, cipher, EntryId('a'));
+      final onDisk = await _TransactionHelpers.readValueFromFile(storage, cipher, EntryId('a'));
       expect(onDisk.bytes, orderedEquals([2, 3]));
     });
 
     // After the body returns the transaction is committed.
-    final committed = await readValueFromFile(storage, cipher, EntryId('a'));
+    final committed = await _TransactionHelpers.readValueFromFile(storage, cipher, EntryId('a'));
     expect(committed.bytes, orderedEquals([42]));
   });
 
@@ -171,7 +142,7 @@ void main() {
     );
 
     // Nothing was persisted.
-    final onDisk = await readValueFromFile(storage, cipher, EntryId('a'));
+    final onDisk = await _TransactionHelpers.readValueFromFile(storage, cipher, EntryId('a'));
     expect(onDisk.bytes, orderedEquals([2, 3]));
   });
 
@@ -181,8 +152,8 @@ void main() {
     final cipher = createCountingCipher(() => decryptCalls++);
 
     // Act: each operation performs its own unwrap, as a public one-shot call does.
-    await updateValueInFile(storage, cipher, EntryId('a'), [42]);
-    await readValueFromFile(storage, cipher, EntryId('a'));
+    await _TransactionHelpers.updateValueInFile(storage, cipher, EntryId('a'), [42]);
+    await _TransactionHelpers.readValueFromFile(storage, cipher, EntryId('a'));
 
     // Assert
     expect(decryptCalls, 2, reason: 'without a transaction every operation unwraps again');

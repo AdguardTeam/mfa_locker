@@ -9,6 +9,9 @@ import 'package:locker/erasable/erasable.dart';
 import 'package:locker/locker/locker.dart';
 import 'package:locker/locker/locker_transaction.dart';
 import 'package:locker/locker/models/biometric_state.dart';
+import 'package:locker/locker/models/exceptions/inside_transaction_exception.dart';
+import 'package:locker/locker/models/exceptions/locker_locked_exception.dart';
+import 'package:locker/locker/utils/operation_lane.dart';
 import 'package:locker/security/biometric_cipher_provider.dart';
 import 'package:locker/security/models/bio_cipher_func.dart';
 import 'package:locker/security/models/biometric_config.dart';
@@ -24,25 +27,25 @@ import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
-import 'package:locker/storage/storage_change_set.dart';
-import 'package:locker/utils/operation_lane.dart';
+import 'package:locker/storage/storage_transaction.dart';
 import 'package:meta/meta.dart';
 import 'package:rxdart/rxdart.dart';
 
 part 'mfa_locker_transaction.dart';
 
-/// Zone marker set by [MFALocker.withTransaction] for the duration of the
-/// transaction body. Lets [MFALocker.allMeta] expose the uncommitted metadata
-/// of the active transaction to its own body only.
-final Object _transactionZoneKey = Object();
+/// Marks the `withTransaction` body zone so locker methods refuse to run
+/// inside it (instead of deadlocking on the lane) and [allMeta] exposes the
+/// uncommitted metadata to the body only.
+class _TransactionZone {
+  static final Object _key = Object();
 
-/// Error raised when the locker was locked (or disposed) while an operation was
-/// waiting in the queue or running.
-const _lockedWhileWaitingMessage = 'Locker was locked while the operation was waiting';
+  /// Runs [body] in a child zone marked with [txn]; the marker propagates
+  /// through its async continuations.
+  static Future<R> run<R>(_MfaLockerTransaction txn, Future<R> Function() body) async =>
+      runZoned<Future<R>>(body, zoneValues: {_key: txn});
 
-/// Error raised when a locker method is called from the body of a transaction.
-const _insideTransactionMessage =
-    'MFALocker methods cannot be used inside a transaction; use LockerTransaction instead';
+  static _MfaLockerTransaction? get current => Zone.current[_key] as _MfaLockerTransaction?;
+}
 
 class MFALocker implements Locker {
   final EncryptedStorage _storage;
@@ -59,15 +62,12 @@ class MFALocker implements Locker {
 
   Map<EntryId, EntryMeta> _metaCache = {};
 
-  /// Serializes all locker operations (transactions and standalone ones).
+  /// Serializes locker operations and owns the session generation:
+  /// [OperationLane.invalidate] makes waiting/running operations fail on
+  /// `lock()`/`dispose()`/`eraseStorage()`.
   final _lane = OperationLane();
 
   _MfaLockerTransaction? _activeTransaction;
-
-  /// Unlocked-session generation: incremented by [lock], [eraseStorage] and
-  /// [dispose], so that operations which waited (or were running) can detect
-  /// that the locker was locked and must not apply their result.
-  int _epoch = 0;
 
   @override
   ValueStream<LockerState> get stateStream => _stateController.stream;
@@ -92,11 +92,8 @@ class MFALocker implements Locker {
     }
 
     final activeTransaction = _activeTransaction;
-    final zoneTransaction = Zone.current[_transactionZoneKey];
-    if (activeTransaction != null &&
-        zoneTransaction is _MfaLockerTransaction &&
-        identical(zoneTransaction, activeTransaction) &&
-        !activeTransaction.isClosed) {
+    final zoneTransaction = _TransactionZone.current;
+    if (activeTransaction != null && identical(zoneTransaction, activeTransaction) && !activeTransaction.isClosed) {
       // Inside the transaction body: expose its uncommitted changes.
       return UnmodifiableMapView(activeTransaction.mergedMeta(_metaCache));
     }
@@ -114,7 +111,7 @@ class MFALocker implements Locker {
       _executeWithCleanup(
         erasables: [passwordCipherFunc, ...initialEntries],
         callback: () => _runOperation(() async {
-          final epoch = _epoch;
+          final epoch = _lane.generation;
 
           if (await isStorageInitialized) {
             throw StateError('Storage is already initialized');
@@ -157,7 +154,7 @@ class MFALocker implements Locker {
         callback: () async {
           _assertNotInsideTransaction();
 
-          final epoch = _epoch;
+          final epoch = _lane.generation;
 
           // The transaction holds the lane until the body finishes, so a second one waits.
           await _lane.acquire();
@@ -174,21 +171,21 @@ class MFALocker implements Locker {
         },
       );
 
-  /// Opens the change set (the single key unwrap) and transitions to unlocked
+  /// Opens the transaction (the single key unwrap) and transitions to unlocked
   /// using the already-unwrapped key. Runs with the lane held.
   Future<_MfaLockerTransaction> _openTransaction(CipherFunc cipherFunc, int epoch) async {
     if (!(await isStorageInitialized)) {
       throw StateError('Storage is not initialized');
     }
 
-    final changeSet = await _storage.openChangeSet(cipherFunc: cipherFunc);
+    final changeSet = await _storage.openTransaction(cipherFunc: cipherFunc);
 
     try {
       // Reuse the already-unwrapped master key to load metadata and transition
       // to unlocked instead of a second authentication.
       if (_stateController.value != LockerState.unlocked) {
         final meta = await changeSet.readAllMeta();
-        _ensureFreshEpochOrErase(epoch, meta);
+        _ensureFreshEpochErasing(epoch, meta.values);
 
         _metaCache = meta;
         _stateController.add(LockerState.unlocked);
@@ -215,7 +212,7 @@ class MFALocker implements Locker {
     try {
       // Run the body in a child zone so [allMeta] exposes the uncommitted
       // metadata of this transaction (and one-shot methods can detect misuse).
-      final result = await runZoned(() => body(txn), zoneValues: {_transactionZoneKey: txn});
+      final result = await _TransactionZone.run(txn, () => body(txn));
       succeeded = true;
 
       return result;
@@ -240,8 +237,7 @@ class MFALocker implements Locker {
 
   @override
   void lock() {
-    _epoch++;
-    _lane.failPending(StateError(_lockedWhileWaitingMessage));
+    _lane.invalidate(const LockerLockedException());
     _activeTransaction?._detachAndErase();
 
     if (_stateController.value != LockerState.unlocked) {
@@ -297,7 +293,7 @@ class MFALocker implements Locker {
     required PasswordCipherFunc newCipherFunc,
     required CipherFunc existingCipherFunc,
   }) {
-    final epoch = _epoch;
+    final epoch = _lane.generation;
 
     return _executeWithCleanup(
       erasables: [newCipherFunc, existingCipherFunc],
@@ -318,7 +314,7 @@ class MFALocker implements Locker {
     required Duration lockTimeout,
     required CipherFunc cipherFunc,
   }) {
-    final epoch = _epoch;
+    final epoch = _lane.generation;
 
     return _executeWithCleanup(
       erasables: [cipherFunc],
@@ -339,25 +335,22 @@ class MFALocker implements Locker {
 
   @override
   Future<void> eraseStorage() => _runOperation(() async {
-        _epoch++;
-        final epoch = _epoch;
-
         // Everything queued behind erase must fail, not resurrect the locker.
-        _lane.failPending(StateError(_lockedWhileWaitingMessage));
+        _lane.invalidate(const LockerLockedException());
+        final epoch = _lane.generation;
 
         await _storage.erase();
 
         // A concurrent lock()/dispose() must not turn a completed erase into an error.
         _cleanupState();
-        if (_epoch == epoch && !_stateController.isClosed) {
+        if (_lane.isCurrent(epoch) && !_stateController.isClosed) {
           _stateController.add(LockerState.locked);
         }
       });
 
   @override
   void dispose() {
-    _epoch++;
-    _lane.failPending(StateError(_lockedWhileWaitingMessage));
+    _lane.invalidate(const LockerLockedException());
     _activeTransaction?._detachAndErase();
     _cleanupState();
     _stateController.close();
@@ -367,7 +360,7 @@ class MFALocker implements Locker {
   /// generation captured by the caller before its own awaits (defaults to now).
   @visibleForTesting
   Future<void> loadAllMetaIfLocked(CipherFunc cipherFunc, {int? epoch}) async {
-    final epochAtStart = epoch ?? _epoch;
+    final epochAtStart = epoch ?? _lane.generation;
 
     if (!(await isStorageInitialized)) {
       throw StateError('Storage is not initialized');
@@ -377,12 +370,11 @@ class MFALocker implements Locker {
       return;
     }
 
-    final changeSet = await _storage.openChangeSet(cipherFunc: cipherFunc);
+    final changeSet = await _storage.openTransaction(cipherFunc: cipherFunc);
 
     try {
-      // locker is locked, unlock it, cache keys and jump to unlocked state
       final meta = await changeSet.readAllMeta();
-      _ensureFreshEpochOrErase(epochAtStart, meta);
+      _ensureFreshEpochErasing(epochAtStart, meta.values);
 
       _metaCache = meta;
       _stateController.add(LockerState.unlocked);
@@ -395,7 +387,7 @@ class MFALocker implements Locker {
   Future<T> _runOperation<T>(Future<T> Function() body) async {
     _assertNotInsideTransaction();
 
-    final epoch = _epoch;
+    final epoch = _lane.generation;
 
     await _lane.acquire();
 
@@ -411,31 +403,31 @@ class MFALocker implements Locker {
   /// Throws if the caller is inside a transaction of this locker, which would
   /// deadlock on its lane. Transactions of other lockers are fine.
   void _assertNotInsideTransaction() {
-    final zoneTransaction = Zone.current[_transactionZoneKey];
-    if (zoneTransaction is _MfaLockerTransaction && identical(zoneTransaction._locker, this)) {
-      throw StateError(_insideTransactionMessage);
+    final zoneTransaction = _TransactionZone.current;
+    if (zoneTransaction != null && identical(zoneTransaction._locker, this)) {
+      throw const InsideTransactionException();
     }
   }
 
   /// Throws if the locker was locked/disposed after [epoch] was captured.
   void _ensureFreshEpoch(int epoch) {
-    if (epoch != _epoch) {
-      throw StateError(_lockedWhileWaitingMessage);
+    if (!_lane.isCurrent(epoch)) {
+      throw const LockerLockedException();
     }
   }
 
-  /// Same as [_ensureFreshEpoch] but also erases [meta] when the result is
-  /// discarded because the locker was locked while it was being read.
-  void _ensureFreshEpochOrErase(int epoch, Map<EntryId, EntryMeta> meta) {
-    if (epoch == _epoch) {
+  /// Same as [_ensureFreshEpoch] but also erases [metas] when the result is
+  /// discarded because the locker was locked while they were being read.
+  void _ensureFreshEpochErasing(int epoch, Iterable<EntryMeta> metas) {
+    if (_lane.isCurrent(epoch)) {
       return;
     }
 
-    for (final entryMeta in meta.values) {
-      entryMeta.erase();
+    for (final meta in metas) {
+      meta.erase();
     }
 
-    throw StateError(_lockedWhileWaitingMessage);
+    throw const LockerLockedException();
   }
 
   void _cleanupState() {
@@ -444,24 +436,6 @@ class MFALocker implements Locker {
     }
 
     _metaCache = {};
-  }
-
-  /// Same as [_ensureFreshEpoch] but also erases the uncommitted metadata of a
-  /// transaction whose commit result must not be applied.
-  void _ensureFreshEpochOrErasePending(int epoch, _MfaLockerTransaction txn) {
-    if (epoch == _epoch) {
-      return;
-    }
-
-    // Never leave uncommitted metadata behind on a locked locker.
-    for (final meta in txn._pendingMeta.values) {
-      meta.erase();
-    }
-
-    txn._pendingMeta.clear();
-    txn._deletedIds.clear();
-
-    throw StateError(_lockedWhileWaitingMessage);
   }
 
   /// Applies the metadata overlay of a committed [txn] to the cache, erasing
@@ -531,14 +505,13 @@ class MFALocker implements Locker {
     return BiometricState.enabled;
   }
 
-  /// Enable biometric authentication (requires password confirmation)
-  /// This method handles key generation and storage update.
+  /// Enable biometric authentication (requires password confirmation).
   @override
   Future<void> setupBiometry({
     required BioCipherFunc bioCipherFunc,
     required PasswordCipherFunc passwordCipherFunc,
   }) {
-    final epoch = _epoch;
+    final epoch = _lane.generation;
 
     return _executeWithCleanup(
       erasables: [bioCipherFunc, passwordCipherFunc],
@@ -602,7 +575,7 @@ class MFALocker implements Locker {
     required PasswordCipherFunc passwordCipherFunc,
     String? biometricKeyTag,
   }) {
-    final epoch = _epoch;
+    final epoch = _lane.generation;
 
     return _executeWithCleanup(
       erasables: [passwordCipherFunc],

@@ -18,49 +18,35 @@ import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
 import 'package:locker/utils/cryptography_utils.dart';
 
-/// In-memory working copy of the storage for one open transaction. Mutations
-/// touch memory only; the file is written once by the storage on commit.
-class StorageChangeSet implements Erasable {
+/// In-memory working copy of the storage for one open transaction; the file is
+/// written once by the storage on close.
+class StorageTransaction implements Erasable {
   StorageData _data;
 
-  /// Snapshot of the storage at the moment the change set was opened.
+  /// Snapshot at open, compared against the file on close (compare-and-swap).
   final StorageData baseData;
 
   /// The unwrapped master key used to (de)encrypt entry payloads.
   final ErasableByteArray masterKey;
 
   bool _dirty = false;
-  bool _committed = false;
-  bool _erased = false;
+  bool _closed = false;
 
-  StorageChangeSet({
+  StorageTransaction({
     required StorageData data,
     required this.masterKey,
   })  : _data = data,
         baseData = data;
 
-  /// The current (possibly mutated) storage data.
   StorageData get data => _data;
 
-  /// Whether any entry operation has been applied since opening.
   bool get isDirty => _dirty;
 
-  /// Whether the change set has been committed (persisted).
-  bool get isCommitted => _committed;
+  bool get isClosed => _closed;
 
   @override
-  bool get isErased => _erased || masterKey.isErased;
+  bool get isErased => masterKey.isErased;
 
-  void _ensureActive() {
-    if (_committed) {
-      throw StateError('Change set is already committed');
-    }
-    if (_erased) {
-      throw StateError('Change set is erased');
-    }
-  }
-
-  /// Decrypts and returns all entry metadata.
   Future<Map<EntryId, EntryMeta>> readAllMeta() async {
     _ensureActive();
 
@@ -77,9 +63,6 @@ class StorageChangeSet implements Erasable {
     return result;
   }
 
-  /// Decrypts and returns the value of the entry identified by [id].
-  ///
-  /// Throws [StorageException.entryNotFound] if the entry does not exist.
   Future<EntryValue> readValue(EntryId id) async {
     _ensureActive();
 
@@ -96,7 +79,6 @@ class StorageChangeSet implements Erasable {
     return EntryValue.fromErasable(erasable: decryptedValue);
   }
 
-  /// Adds a new entry and returns its id.
   Future<EntryId> addEntry(EntryAddInput input) async {
     _ensureActive();
 
@@ -128,7 +110,6 @@ class StorageChangeSet implements Erasable {
     return entryId;
   }
 
-  /// Updates an existing entry.
   Future<void> updateEntry(EntryUpdateInput input) async {
     _ensureActive();
 
@@ -171,7 +152,6 @@ class StorageChangeSet implements Erasable {
     _dirty = true;
   }
 
-  /// Deletes the entry identified by [id].
   Future<void> deleteEntry(EntryId id) async {
     _ensureActive();
 
@@ -186,12 +166,10 @@ class StorageChangeSet implements Erasable {
     _dirty = true;
   }
 
-  /// Marks the change set as committed (persisted).
-  void markCommitted() {
-    _committed = true;
+  void close() {
+    _closed = true;
   }
 
-  /// Updates the auto-lock timeout in milliseconds.
   Future<void> updateLockTimeout(int lockTimeout) async {
     _ensureActive();
 
@@ -203,7 +181,7 @@ class StorageChangeSet implements Erasable {
     _dirty = true;
   }
 
-  /// Adds a wrap for the master key or replaces the wrap with the same origin.
+  /// Adds a wrap for the master key, or replaces the wrap of the same origin.
   Future<void> addOrReplaceWrap({required CipherFunc newWrapFunc}) async {
     _ensureActive();
 
@@ -234,10 +212,7 @@ class StorageChangeSet implements Erasable {
     _dirty = true;
   }
 
-  /// Removes the wrap of [originToDelete].
-  ///
-  /// Throws [StorageException] if there is no such wrap or if it is the last
-  /// remaining one.
+  /// Removes the wrap of [originToDelete]; throws if it is the last one.
   Future<void> deleteWrap({required Origin originToDelete}) async {
     _ensureActive();
 
@@ -257,18 +232,8 @@ class StorageChangeSet implements Erasable {
   }
 
   @override
-  void erase() {
-    if (_erased) {
-      return;
-    }
+  void erase() => masterKey.erase();
 
-    _erased = true;
-    masterKey.erase();
-  }
-
-  /// Validates that [ids] contains no duplicates.
-  ///
-  /// Throws [StorageException.duplicateEntry] if a duplicate is found.
   void _validateNoDuplicateIds(List<EntryId> ids) {
     final seen = <String>{};
     for (final id in ids) {
@@ -279,4 +244,10 @@ class StorageChangeSet implements Erasable {
   }
 
   String _generateEntryId() => CryptographyUtils.generateUuid();
+
+  void _ensureActive() {
+    if (_closed) {
+      throw StateError('Transaction is already closed');
+    }
+  }
 }

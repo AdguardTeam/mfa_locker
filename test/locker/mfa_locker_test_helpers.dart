@@ -29,7 +29,7 @@ abstract class _Helpers {
   }
 
   static Map<EntryId, EntryMeta> stubReadAllMeta(
-    MockStorageChangeSet changeSet, {
+    MockStorageTransaction changeSet, {
     String id = 'a',
     List<int> metaBytes = const [1],
   }) {

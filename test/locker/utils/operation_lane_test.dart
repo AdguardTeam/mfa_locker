@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:locker/utils/operation_lane.dart';
+import 'package:locker/locker/utils/operation_lane.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -89,6 +89,36 @@ void main() {
       // The holder releases afterwards: the lane is free, nobody is resurrected.
       lane.release();
       expect(lane.isBusy, isFalse);
+    });
+
+    test('invalidate bumps the generation and fails pending waiters', () async {
+      // Arrange
+      final generation = lane.generation;
+      await lane.acquire();
+      final first = lane.acquire();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      // Act
+      lane.invalidate(StateError('locked'));
+
+      // Assert
+      expect(lane.generation, greaterThan(generation));
+      expect(lane.isCurrent(generation), isFalse);
+      expect(lane.isCurrent(lane.generation), isTrue);
+      await expectLater(first, throwsStateError);
+      expect(lane.pendingCount, 0);
+    });
+
+    test('isCurrent reflects the generation captured before invalidate', () async {
+      // Arrange
+      final generation = lane.generation;
+
+      // Act
+      lane.invalidate(StateError('locked'));
+
+      // Assert
+      expect(lane.isCurrent(generation), isFalse);
+      expect(lane.isCurrent(lane.generation), isTrue);
     });
   });
 }

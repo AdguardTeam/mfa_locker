@@ -9,14 +9,14 @@ import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
-import 'package:locker/storage/storage_change_set.dart';
+import 'package:locker/storage/storage_transaction.dart';
 
 /// Test helper that performs a storage operation the way the locker does it for
 /// a single public call: open a change set, apply one operation and commit it
 /// (open → mutate → commit). A commit without mutations writes nothing.
 ///
 /// The storage itself no longer exposes one-shot methods: every mutation goes
-/// through [StorageChangeSet].
+/// through [StorageTransaction].
 class OneShotStorage {
   final EncryptedStorage _storage;
 
@@ -43,18 +43,18 @@ class OneShotStorage {
 
   Future<void> erase() => _storage.erase();
 
-  Future<StorageChangeSet> openChangeSet({required CipherFunc cipherFunc}) =>
-      _storage.openChangeSet(cipherFunc: cipherFunc);
+  Future<StorageTransaction> openTransaction({required CipherFunc cipherFunc}) =>
+      _storage.openTransaction(cipherFunc: cipherFunc);
 
-  Future<void> commitChangeSet(StorageChangeSet changeSet) => _storage.commitChangeSet(changeSet);
+  Future<void> closeTransaction(StorageTransaction changeSet) => _storage.closeTransaction(changeSet);
 
-  /// Runs [operation] over a fresh change set and commits the result.
-  Future<T> run<T>(CipherFunc cipherFunc, Future<T> Function(StorageChangeSet changeSet) operation) async {
-    final changeSet = await _storage.openChangeSet(cipherFunc: cipherFunc);
+  /// Runs [operation] over a fresh transaction and closes it.
+  Future<T> run<T>(CipherFunc cipherFunc, Future<T> Function(StorageTransaction changeSet) operation) async {
+    final changeSet = await _storage.openTransaction(cipherFunc: cipherFunc);
 
     try {
       final result = await operation(changeSet);
-      await _storage.commitChangeSet(changeSet);
+      await _storage.closeTransaction(changeSet);
 
       return result;
     } finally {
