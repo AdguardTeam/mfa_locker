@@ -4,7 +4,7 @@ part of 'mfa_locker.dart';
 /// [StorageTransaction]; metadata is overlaid on the locker cache at commit.
 class _MfaLockerTransaction implements LockerTransaction {
   final MFALocker _locker;
-  final StorageTransaction _changeSet;
+  final StorageTransaction _transaction;
 
   /// Locker generation captured when the transaction was opened; used to detect
   /// that the locker was locked/disposed before the commit is applied.
@@ -16,7 +16,7 @@ class _MfaLockerTransaction implements LockerTransaction {
 
   final Set<EntryId> _deletedIds = {};
 
-  _MfaLockerTransaction._(this._locker, this._changeSet, this._epochAtOpen);
+  _MfaLockerTransaction._(this._locker, this._transaction, this._epochAtOpen);
 
   bool get isClosed => _closed;
 
@@ -49,7 +49,7 @@ class _MfaLockerTransaction implements LockerTransaction {
   Future<EntryValue> readValue(EntryId id) async {
     _ensureOpen();
 
-    return _changeSet.readValue(id);
+    return _transaction.readValue(id);
   }
 
   @override
@@ -60,7 +60,7 @@ class _MfaLockerTransaction implements LockerTransaction {
         callback: () async {
           _ensureOpen();
 
-          final entryId = await _changeSet.addEntry(input);
+          final entryId = await _transaction.addEntry(input);
 
           _deletedIds.remove(entryId);
           _pendingMeta[entryId] = input.meta;
@@ -77,7 +77,7 @@ class _MfaLockerTransaction implements LockerTransaction {
         callback: () async {
           _ensureOpen();
 
-          await _changeSet.updateEntry(input);
+          await _transaction.updateEntry(input);
 
           final meta = input.meta;
           if (meta != null) {
@@ -93,7 +93,7 @@ class _MfaLockerTransaction implements LockerTransaction {
     _ensureOpen();
 
     try {
-      await _changeSet.deleteEntry(id);
+      await _transaction.deleteEntry(id);
     } on StorageException catch (error) {
       // The entry is already absent in storage - treat delete as an
       // idempotent success and fall through to reconcile the overlay.
@@ -110,21 +110,21 @@ class _MfaLockerTransaction implements LockerTransaction {
   Future<void> updateLockTimeout(Duration lockTimeout) async {
     _ensureOpen();
 
-    await _changeSet.updateLockTimeout(lockTimeout.inMilliseconds);
+    await _transaction.updateLockTimeout(lockTimeout.inMilliseconds);
   }
 
   @override
   Future<void> addOrReplaceWrap({required CipherFunc newWrapFunc}) async {
     _ensureOpen();
 
-    await _changeSet.addOrReplaceWrap(newWrapFunc: newWrapFunc);
+    await _transaction.addOrReplaceWrap(newWrapFunc: newWrapFunc);
   }
 
   @override
   Future<void> deleteWrap({required Origin originToDelete}) async {
     _ensureOpen();
 
-    await _changeSet.deleteWrap(originToDelete: originToDelete);
+    await _transaction.deleteWrap(originToDelete: originToDelete);
   }
 
   /// Persists the buffered changes and closes the transaction; called by
@@ -133,7 +133,7 @@ class _MfaLockerTransaction implements LockerTransaction {
     _ensureOpen();
 
     try {
-      await _locker._storage.closeTransaction(_changeSet);
+      await _locker._storage.closeTransaction(_transaction);
 
       // Persisted, but the locker may have been locked meanwhile: do not
       // repopulate the cache of a locked locker. The uncommitted metadata is
@@ -161,7 +161,7 @@ class _MfaLockerTransaction implements LockerTransaction {
 
     _closed = true;
     _discardPendingMeta();
-    _changeSet.erase();
+    _transaction.erase();
     _locker._lane.release();
     if (identical(_locker._activeTransaction, this)) {
       _locker._activeTransaction = null;

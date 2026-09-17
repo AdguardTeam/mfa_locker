@@ -178,25 +178,25 @@ class MFALocker implements Locker {
       throw StateError('Storage is not initialized');
     }
 
-    final changeSet = await _storage.openTransaction(cipherFunc: cipherFunc);
+    final storageTransaction = await _storage.openTransaction(cipherFunc: cipherFunc);
 
     try {
       // Reuse the already-unwrapped master key to load metadata and transition
       // to unlocked instead of a second authentication.
       if (_stateController.value != LockerState.unlocked) {
-        final meta = await changeSet.readAllMeta();
+        final meta = await storageTransaction.readAllMeta();
         _ensureFreshEpochErasing(epoch, meta.values);
 
         _metaCache = meta;
         _stateController.add(LockerState.unlocked);
       }
     } catch (_) {
-      changeSet.erase();
+      storageTransaction.erase();
 
       rethrow;
     }
 
-    final transaction = _MfaLockerTransaction._(this, changeSet, epoch);
+    final transaction = _MfaLockerTransaction._(this, storageTransaction, epoch);
     _activeTransaction = transaction;
 
     return transaction;
@@ -370,16 +370,16 @@ class MFALocker implements Locker {
       return;
     }
 
-    final changeSet = await _storage.openTransaction(cipherFunc: cipherFunc);
+    final transaction = await _storage.openTransaction(cipherFunc: cipherFunc);
 
     try {
-      final meta = await changeSet.readAllMeta();
+      final meta = await transaction.readAllMeta();
       _ensureFreshEpochErasing(epochAtStart, meta.values);
 
       _metaCache = meta;
       _stateController.add(LockerState.unlocked);
     } finally {
-      changeSet.erase();
+      transaction.erase();
     }
   }
 

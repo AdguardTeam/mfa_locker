@@ -161,7 +161,7 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
           return;
         }
         if (transaction.isErased) {
-          throw StorageException.other('Change set is erased');
+          throw StorageException.other('Transaction is erased');
         }
 
         if (transaction.isDirty) {

@@ -12,7 +12,7 @@ import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/storage_transaction.dart';
 
 /// Test helper that performs a storage operation the way the locker does it for
-/// a single public call: open a change set, apply one operation and commit it
+/// a single public call: open a transaction, apply one operation and commit it
 /// (open → mutate → commit). A commit without mutations writes nothing.
 ///
 /// The storage itself no longer exposes one-shot methods: every mutation goes
@@ -46,46 +46,46 @@ class OneShotStorage {
   Future<StorageTransaction> openTransaction({required CipherFunc cipherFunc}) =>
       _storage.openTransaction(cipherFunc: cipherFunc);
 
-  Future<void> closeTransaction(StorageTransaction changeSet) => _storage.closeTransaction(changeSet);
+  Future<void> closeTransaction(StorageTransaction transaction) => _storage.closeTransaction(transaction);
 
   /// Runs [operation] over a fresh transaction and closes it.
-  Future<T> run<T>(CipherFunc cipherFunc, Future<T> Function(StorageTransaction changeSet) operation) async {
-    final changeSet = await _storage.openTransaction(cipherFunc: cipherFunc);
+  Future<T> run<T>(CipherFunc cipherFunc, Future<T> Function(StorageTransaction transaction) operation) async {
+    final transaction = await _storage.openTransaction(cipherFunc: cipherFunc);
 
     try {
-      final result = await operation(changeSet);
-      await _storage.closeTransaction(changeSet);
+      final result = await operation(transaction);
+      await _storage.closeTransaction(transaction);
 
       return result;
     } finally {
-      changeSet.erase();
+      transaction.erase();
     }
   }
 
   Future<EntryId> addEntry({required EntryAddInput input, required CipherFunc cipherFunc}) =>
-      run(cipherFunc, (changeSet) => changeSet.addEntry(input));
+      run(cipherFunc, (transaction) => transaction.addEntry(input));
 
   Future<void> updateEntry({required EntryUpdateInput input, required CipherFunc cipherFunc}) =>
-      run(cipherFunc, (changeSet) => changeSet.updateEntry(input));
+      run(cipherFunc, (transaction) => transaction.updateEntry(input));
 
   Future<void> deleteEntry({required EntryId id, required CipherFunc cipherFunc}) =>
-      run(cipherFunc, (changeSet) => changeSet.deleteEntry(id));
+      run(cipherFunc, (transaction) => transaction.deleteEntry(id));
 
   Future<EntryValue> readValue({required EntryId id, required CipherFunc cipherFunc}) =>
-      run(cipherFunc, (changeSet) => changeSet.readValue(id));
+      run(cipherFunc, (transaction) => transaction.readValue(id));
 
   Future<Map<EntryId, EntryMeta>> readAllMeta({required CipherFunc cipherFunc}) =>
-      run(cipherFunc, (changeSet) => changeSet.readAllMeta());
+      run(cipherFunc, (transaction) => transaction.readAllMeta());
 
   Future<void> addOrReplaceWrap({
     required CipherFunc newWrapFunc,
     required CipherFunc existingWrapFunc,
   }) =>
-      run(existingWrapFunc, (changeSet) => changeSet.addOrReplaceWrap(newWrapFunc: newWrapFunc));
+      run(existingWrapFunc, (transaction) => transaction.addOrReplaceWrap(newWrapFunc: newWrapFunc));
 
   Future<void> deleteWrap({required Origin originToDelete, required CipherFunc cipherFunc}) =>
-      run(cipherFunc, (changeSet) => changeSet.deleteWrap(originToDelete: originToDelete));
+      run(cipherFunc, (transaction) => transaction.deleteWrap(originToDelete: originToDelete));
 
   Future<void> updateLockTimeout({required int lockTimeout, required CipherFunc cipherFunc}) =>
-      run(cipherFunc, (changeSet) => changeSet.updateLockTimeout(lockTimeout));
+      run(cipherFunc, (transaction) => transaction.updateLockTimeout(lockTimeout));
 }
