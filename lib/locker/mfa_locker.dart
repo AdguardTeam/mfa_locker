@@ -5,7 +5,6 @@ import 'dart:typed_data';
 
 import 'package:biometric_cipher/data/biometric_status.dart';
 import 'package:biometric_cipher/data/tpm_status.dart';
-import 'package:locker/erasable/erasable.dart';
 import 'package:locker/locker/locker.dart';
 import 'package:locker/locker/locker_transaction.dart';
 import 'package:locker/locker/models/biometric_state.dart';
@@ -18,6 +17,9 @@ import 'package:locker/security/models/biometric_config.dart';
 import 'package:locker/security/models/cipher_func.dart';
 import 'package:locker/security/models/exceptions/biometric_exception.dart';
 import 'package:locker/security/models/password_cipher_func.dart';
+import 'package:locker/src/locker/erase_after.dart';
+import 'package:locker/src/locker/mfa_locker_transaction.dart';
+import 'package:locker/src/locker/transaction_result.dart';
 import 'package:locker/storage/encrypted_storage.dart';
 import 'package:locker/storage/encrypted_storage_impl.dart';
 import 'package:locker/storage/models/data/origin.dart';
@@ -27,23 +29,20 @@ import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
-import 'package:locker/storage/storage_transaction.dart';
 import 'package:meta/meta.dart';
 import 'package:rxdart/rxdart.dart';
 
-part 'mfa_locker_transaction.dart';
-
-/// Marks the `withTransaction` body zone so locker methods refuse to run
-/// inside it (instead of deadlocking on the lane).
+/// Marks the `withTransaction` body zone with the owning locker so its methods
+/// refuse to run inside it (instead of deadlocking on the lane).
 class _TransactionZone {
   static final Object _key = Object();
 
-  /// Runs [body] in a child zone marked with [txn]; the marker propagates
+  /// Runs [body] in a child zone marked with [locker]; the marker propagates
   /// through its async continuations.
-  static Future<R> run<R>(_MfaLockerTransaction txn, Future<R> Function() body) async =>
-      runZoned<Future<R>>(body, zoneValues: {_key: txn});
+  static Future<R> run<R>(MFALocker locker, Future<R> Function() body) async =>
+      runZoned<Future<R>>(body, zoneValues: {_key: locker});
 
-  static _MfaLockerTransaction? get current => Zone.current[_key] as _MfaLockerTransaction?;
+  static MFALocker? get current => Zone.current[_key] as MFALocker?;
 }
 
 class MFALocker implements Locker {
@@ -66,7 +65,7 @@ class MFALocker implements Locker {
   /// `lock()`/`dispose()`/`eraseStorage()`.
   final _lane = OperationLane();
 
-  _MfaLockerTransaction? _activeTransaction;
+  MfaLockerTransaction? _activeTransaction;
 
   @override
   ValueStream<LockerState> get stateStream => _stateController.stream;
@@ -101,7 +100,7 @@ class MFALocker implements Locker {
     required Duration lockTimeout,
   }) =>
       // Erase the inputs even if the call never runs (cancelled while queued).
-      _executeWithCleanup(
+      eraseAfter(
         erasables: [passwordCipherFunc, ...initialEntries],
         callback: () => _runOperation(() async {
           final epoch = _lane.generation;
@@ -138,35 +137,31 @@ class MFALocker implements Locker {
     await withTransaction(cipherFunc, (_) async {});
   }
 
-  /// Opens a transaction for [withTransaction]: acquires the lane, unwraps the
-  /// master key via [cipherFunc] and transitions to unlocked.
-  Future<_MfaLockerTransaction> _beginTransaction(CipherFunc cipherFunc) =>
-      // Erase the cipher function even if the call never runs (cancelled while queued).
-      _executeWithCleanup(
-        erasables: [cipherFunc],
-        callback: () async {
-          _assertNotInsideTransaction();
+  /// Enters the serialized transaction slot: asserts non-reentrancy, acquires
+  /// the lane and captures the epoch, then delegates to [_unlockTransaction].
+  /// Does not erase [cipherFunc] — the calling boundary owns the single erase.
+  Future<MfaLockerTransaction> _enterTransaction(CipherFunc cipherFunc) async {
+    _assertNotInsideTransaction();
 
-          final epoch = _lane.generation;
+    final epoch = _lane.generation;
 
-          // The transaction holds the lane until the body finishes, so a second one waits.
-          await _lane.acquire();
+    // The transaction holds the lane until the body finishes, so a second one waits.
+    await _lane.acquire();
 
-          try {
-            _ensureFreshEpoch(epoch);
+    try {
+      _ensureFreshEpoch(epoch);
 
-            return await _openTransaction(cipherFunc, epoch);
-          } catch (_) {
-            _lane.release();
+      return await _unlockTransaction(cipherFunc, epoch);
+    } catch (_) {
+      _lane.release();
 
-            rethrow;
-          }
-        },
-      );
+      rethrow;
+    }
+  }
 
-  /// Opens the transaction (the single key unwrap) and transitions to unlocked
-  /// using the already-unwrapped key. Runs with the lane held.
-  Future<_MfaLockerTransaction> _openTransaction(CipherFunc cipherFunc, int epoch) async {
+  /// Unwraps the master key (the single native call), loads metadata, transitions
+  /// to unlocked and builds the transaction. Runs with the lane held.
+  Future<MfaLockerTransaction> _unlockTransaction(CipherFunc cipherFunc, int epoch) async {
     if (!(await isStorageInitialized)) {
       throw StateError('Storage is not initialized');
     }
@@ -189,7 +184,7 @@ class MFALocker implements Locker {
       rethrow;
     }
 
-    final transaction = _MfaLockerTransaction._(this, storageTransaction, epoch);
+    final transaction = MfaLockerTransaction(storageTransaction, _metaCache);
     _activeTransaction = transaction;
 
     return transaction;
@@ -199,39 +194,44 @@ class MFALocker implements Locker {
   Future<R> withTransaction<R>(
     CipherFunc cipherFunc,
     Future<R> Function(LockerTransaction txn) body,
+  ) =>
+      // Erase the cipher once here, at the public boundary that received it
+      // (even if the transaction never opens); the internal path does not erase.
+      eraseAfter(
+        erasables: [cipherFunc],
+        callback: () => _withTransaction(cipherFunc, body),
+      );
+
+  /// Internal typed variant: passes the concrete [MfaLockerTransaction] so
+  /// one-shot methods can call `writeBuffered`/`updateBuffered` without a cast.
+  Future<R> _withTransaction<R>(
+    CipherFunc cipherFunc,
+    Future<R> Function(MfaLockerTransaction txn) body,
   ) async {
-    final txn = await _beginTransaction(cipherFunc);
+    final txn = await _enterTransaction(cipherFunc);
     var succeeded = false;
     try {
       // Run the body in a child zone so [allMeta] exposes the uncommitted
       // metadata of this transaction (and one-shot methods can detect misuse).
-      final result = await _TransactionZone.run(txn, () => body(txn));
+      final result = await _TransactionZone.run(this, () => body(txn));
       succeeded = true;
 
       return result;
     } finally {
-      if (succeeded) {
-        if (txn.isClosed) {
-          // Closed by lock()/dispose() while the body was running: report the
-          // lock, not the opaque "Transaction is closed".
-          _ensureFreshEpoch(txn._epochAtOpen);
-        }
-
-        await txn._commit();
-      } else {
-        try {
-          await txn._abort();
-        } on StateError {
-          // Already closed by lock()/dispose(): never mask the body error.
-        }
+      if (succeeded && txn.isClosed) {
+        // Closed by lock()/dispose() while the body was running: the buffer was
+        // discarded, report the lock instead of returning as if committed.
+        throw const LockerLockedException();
       }
+
+      await _finishTransaction(txn, commit: succeeded);
     }
   }
 
   @override
   void lock() {
     _lane.invalidate(const LockerLockedException());
-    _activeTransaction?._detachAndErase();
+    _abortActiveTransaction();
 
     if (_stateController.value != LockerState.unlocked) {
       return;
@@ -246,12 +246,12 @@ class MFALocker implements Locker {
     required EntryAddInput input,
     required CipherFunc cipherFunc,
   }) =>
-      // The public call owns the input: even when the transaction cannot be
-      // opened, the value is erased and the meta is erased on error.
-      _executeWithCleanup<EntryId>(
-        erasables: [input.value],
+      // The public call owns the input and cipher: even when the transaction
+      // cannot be opened, the value/cipher are erased and the meta on error.
+      eraseAfter<EntryId>(
+        erasables: [input.value, cipherFunc],
         erasablesOnError: [input.meta],
-        callback: () => withTransaction(cipherFunc, (txn) => txn.write(input)),
+        callback: () => _withTransaction(cipherFunc, (txn) => txn.writeBuffered(input)),
       );
 
   @override
@@ -273,12 +273,12 @@ class MFALocker implements Locker {
     required EntryUpdateInput input,
     required CipherFunc cipherFunc,
   }) =>
-      // The public call owns the input: even when the transaction cannot be
-      // opened, the value is erased and the meta is erased on error.
-      _executeWithCleanup(
-        erasables: [if (input.value != null) input.value!],
+      // The public call owns the input and cipher: even when the transaction
+      // cannot be opened, the value/cipher are erased and the meta on error.
+      eraseAfter(
+        erasables: [if (input.value != null) input.value!, cipherFunc],
         erasablesOnError: [if (input.meta != null) input.meta!],
-        callback: () => withTransaction(cipherFunc, (txn) => txn.update(input)),
+        callback: () => _withTransaction(cipherFunc, (txn) => txn.updateBuffered(input)),
       );
 
   @override
@@ -288,13 +288,13 @@ class MFALocker implements Locker {
   }) {
     final epoch = _lane.generation;
 
-    return _executeWithCleanup(
+    return eraseAfter(
       erasables: [newCipherFunc, existingCipherFunc],
       callback: () async {
         _assertNotInsideTransaction();
         _ensureFreshEpoch(epoch);
 
-        await withTransaction(
+        await _withTransaction(
           existingCipherFunc,
           (txn) => txn.addOrReplaceWrap(newWrapFunc: newCipherFunc),
         );
@@ -309,7 +309,7 @@ class MFALocker implements Locker {
   }) {
     final epoch = _lane.generation;
 
-    return _executeWithCleanup(
+    return eraseAfter(
       erasables: [cipherFunc],
       callback: () async {
         _assertNotInsideTransaction();
@@ -321,7 +321,7 @@ class MFALocker implements Locker {
           throw StorageException.other('Lock timeout must be greater than 0');
         }
 
-        await withTransaction(cipherFunc, (txn) => txn.updateLockTimeout(lockTimeout));
+        await _withTransaction(cipherFunc, (txn) => txn.updateLockTimeout(lockTimeout));
       },
     );
   }
@@ -344,7 +344,7 @@ class MFALocker implements Locker {
   @override
   void dispose() {
     _lane.invalidate(const LockerLockedException());
-    _activeTransaction?._detachAndErase();
+    _abortActiveTransaction();
     _cleanupState();
     _stateController.close();
   }
@@ -396,8 +396,7 @@ class MFALocker implements Locker {
   /// Throws if the caller is inside a transaction of this locker, which would
   /// deadlock on its lane. Transactions of other lockers are fine.
   void _assertNotInsideTransaction() {
-    final zoneTransaction = _TransactionZone.current;
-    if (zoneTransaction != null && identical(zoneTransaction._locker, this)) {
+    if (identical(_TransactionZone.current, this)) {
       throw const InsideTransactionException();
     }
   }
@@ -431,21 +430,62 @@ class MFALocker implements Locker {
     _metaCache = {};
   }
 
-  /// Applies the metadata overlay of a committed [txn] to the cache, erasing
-  /// the metadata it replaced or deleted.
-  void _applyCommittedMeta(_MfaLockerTransaction txn) {
-    for (final id in txn._deletedIds) {
+  /// Finishes a transaction: on commit persists and publishes the overlay; on
+  /// abort (or a failed commit) erases the overlay. Always erases the working
+  /// copy, releases the lane and clears the active marker. Idempotent.
+  Future<void> _finishTransaction(MfaLockerTransaction txn, {required bool commit}) async {
+    if (txn.isClosed) {
+      return;
+    }
+
+    try {
+      if (commit) {
+        await _storage.closeTransaction(txn.storageTransaction);
+        _applyResult(txn.finalize());
+      } else {
+        txn.eraseOverlay();
+      }
+    } catch (_) {
+      // Commit failed (e.g. conflict): the overlay was not published, erase it.
+      txn.eraseOverlay();
+
+      rethrow;
+    } finally {
+      _closeTransaction(txn);
+    }
+  }
+
+  /// Synchronous abort of the active transaction for `lock()`/`dispose()`.
+  void _abortActiveTransaction() {
+    final txn = _activeTransaction;
+    if (txn == null || txn.isClosed) {
+      return;
+    }
+
+    txn.eraseOverlay();
+    _closeTransaction(txn);
+  }
+
+  void _closeTransaction(MfaLockerTransaction txn) {
+    txn.close();
+    txn.storageTransaction.erase();
+    _lane.release();
+    if (identical(_activeTransaction, txn)) {
+      _activeTransaction = null;
+    }
+  }
+
+  /// Publishes a committed transaction's overlay into the cache, erasing the
+  /// metadata it replaced or deleted.
+  void _applyResult(TransactionResult result) {
+    for (final id in result.deletedIds) {
       _metaCache.remove(id)?.erase();
     }
 
-    for (final entry in txn._pendingMeta.entries) {
+    for (final entry in result.pendingMeta.entries) {
       _metaCache[entry.key]?.erase();
       _metaCache[entry.key] = entry.value;
     }
-
-    // Ownership moved to the cache: nothing left to erase on detach.
-    txn._pendingMeta.clear();
-    txn._deletedIds.clear();
   }
 
   @override
@@ -506,7 +546,7 @@ class MFALocker implements Locker {
   }) {
     final epoch = _lane.generation;
 
-    return _executeWithCleanup(
+    return eraseAfter(
       erasables: [bioCipherFunc, passwordCipherFunc],
       callback: () async {
         _assertNotInsideTransaction();
@@ -545,7 +585,7 @@ class MFALocker implements Locker {
           _ensureFreshEpoch(epoch);
 
           // Step 5: Enable biometry in locker (one atomic write)
-          await withTransaction(
+          await _withTransaction(
             passwordCipherFunc,
             (txn) => txn.addOrReplaceWrap(newWrapFunc: bioCipherFunc),
           );
@@ -570,13 +610,13 @@ class MFALocker implements Locker {
   }) {
     final epoch = _lane.generation;
 
-    return _executeWithCleanup(
+    return eraseAfter(
       erasables: [passwordCipherFunc],
       callback: () async {
         _assertNotInsideTransaction();
         _ensureFreshEpoch(epoch);
 
-        await withTransaction(
+        await _withTransaction(
           passwordCipherFunc,
           (txn) => txn.deleteWrap(originToDelete: Origin.bio),
         );
@@ -590,25 +630,5 @@ class MFALocker implements Locker {
         }
       },
     );
-  }
-
-  Future<T> _executeWithCleanup<T>({
-    required List<Erasable> erasables,
-    required Future<T> Function() callback,
-    List<Erasable> erasablesOnError = const [],
-  }) async {
-    try {
-      return await callback();
-    } catch (_) {
-      for (final cipherFunc in erasablesOnError) {
-        cipherFunc.erase();
-      }
-
-      rethrow;
-    } finally {
-      for (final cipherFunc in erasables) {
-        cipherFunc.erase();
-      }
-    }
   }
 }
