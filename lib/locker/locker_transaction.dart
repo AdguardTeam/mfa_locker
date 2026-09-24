@@ -5,8 +5,8 @@ import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 
-/// Vault operations available inside a `withTransaction` body; after the body
-/// every method throws [LockerException.transactionClosed].
+/// Operations available inside a `withTransaction` body; after the body returns
+/// every method throws `LockerException.transactionClosed`.
 abstract interface class LockerTransaction {
   Future<EntryValue> readValue(EntryId id);
 

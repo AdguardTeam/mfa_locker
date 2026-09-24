@@ -5,7 +5,9 @@ import 'dart:typed_data';
 import 'package:locker/storage/encrypted_storage_impl.dart';
 import 'package:locker/storage/models/data/key_wrap.dart';
 import 'package:locker/storage/models/data/origin.dart';
+import 'package:locker/storage/models/data/storage_data.dart';
 import 'package:locker/storage/models/data/storage_entry.dart';
+import 'package:locker/storage/models/data/wrapped_key.dart';
 import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
@@ -1046,8 +1048,12 @@ void main() {
       });
 
       test('throws when neither meta nor value provided', () async {
-        // Arrange
-        final cipherFunc = _Helpers.createMockPasswordCipherFunc();
+        // Arrange: a valid storage, so the guard is reached and not the load.
+        final masterKey = await CryptographyUtils.generateAESKey();
+        final cipherFunc = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKey.bytes);
+        final wrapPwd = KeyWrap(origin: Origin.pwd, encryptedKey: masterKey.bytes);
+        final signedData = await _Helpers.createStorageData(wraps: [wrapPwd], masterKey: masterKey);
+        await _Helpers.writeStorageData(storageFile, signedData);
 
         // Act & Assert
         await expectLater(
@@ -1055,7 +1061,11 @@ void main() {
             input: EntryUpdateInput(id: EntryId('id')),
             cipherFunc: cipherFunc,
           ),
-          throwsA(isA<StorageException>()),
+          throwsA(
+            isA<StorageException>()
+                .having((e) => e.type, 'type', StorageExceptionType.other)
+                .having((e) => e.message, 'message', 'Either entryMeta or entryValue must be provided'),
+          ),
         );
       });
 
@@ -1635,6 +1645,70 @@ void main() {
           throwsA(isA<StorageException>().having((e) => e.type, 'type', StorageExceptionType.conflict)),
         );
         changeSet.erase();
+      });
+
+      test('close fails when the transaction was erased', () async {
+        // Arrange
+        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
+        final changeSet = await storage.openTransaction(cipherFunc: cipher);
+        await changeSet.updateEntry(
+          EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([5, 5])),
+        );
+        final contentBefore = await storageFile.readAsString();
+        changeSet.erase();
+
+        // Act & Assert
+        await expectLater(
+          storage.closeTransaction(changeSet),
+          throwsA(
+            isA<StorageException>()
+                .having((e) => e.type, 'type', StorageExceptionType.other)
+                .having((e) => e.message, 'message', 'Transaction is erased'),
+          ),
+        );
+
+        // Nothing was written.
+        expect(await storageFile.readAsString(), contentBefore);
+      });
+
+      test('openTransaction fails when the file was tampered with', () async {
+        // Arrange: an unsigned edit invalidates the HMAC.
+        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
+        final data = await _Helpers.readStorageData(storageFile);
+        await _Helpers.writeStorageData(storageFile, data.copyWith(lockTimeout: data.lockTimeout + 1));
+
+        // Act & Assert
+        await expectLater(
+          storage.openTransaction(cipherFunc: cipher),
+          throwsA(
+            isA<StorageException>()
+                .having((e) => e.type, 'type', StorageExceptionType.invalidStorage)
+                .having((e) => e.message, 'message', 'HMAC is invalid!'),
+          ),
+        );
+      });
+
+      test('openTransaction fails when the HMAC key is missing', () async {
+        // Arrange: a readable file without an hmacKey.
+        final masterKey = await CryptographyUtils.generateAESKey();
+        final data = StorageData(
+          entries: const [],
+          masterKey: WrappedKey(wraps: [KeyWrap(origin: Origin.pwd, encryptedKey: masterKey.bytes)]),
+          salt: Uint8List.fromList([0]),
+          lockTimeout: 1,
+        );
+        await _Helpers.writeStorageData(storageFile, data);
+        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKey.bytes);
+
+        // Act & Assert
+        await expectLater(
+          storage.openTransaction(cipherFunc: cipher),
+          throwsA(
+            isA<StorageException>()
+                .having((e) => e.type, 'type', StorageExceptionType.invalidStorage)
+                .having((e) => e.message, 'message', 'HMAC key is null!'),
+          ),
+        );
       });
 
       test('openTransaction with a failing cipher throws', () async {

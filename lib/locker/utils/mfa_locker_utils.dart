@@ -2,7 +2,7 @@ import 'package:locker/erasable/erasable.dart';
 
 abstract final class MFALockerUtils {
   /// Runs [callback] and erases [erasables] afterwards, plus [erasablesOnError]
-  /// when it throws; the single erase point of an API boundary.
+  /// when it throws: the single erase point of an API boundary.
   static Future<T> eraseAfter<T>({
     required List<Erasable> erasables,
     required Future<T> Function() callback,

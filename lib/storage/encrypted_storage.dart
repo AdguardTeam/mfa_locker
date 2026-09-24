@@ -9,7 +9,6 @@ import 'package:locker/storage/storage_transaction.dart';
 /// File-backed encrypted storage; all mutations go through a
 /// [StorageTransaction] and are persisted atomically on close.
 abstract interface class EncryptedStorage {
-  /// Whether the storage file exists and contains valid data.
   Future<bool> get isInitialized;
 
   /// Whether biometric authentication is enabled (`false` when not initialized).
@@ -35,7 +34,7 @@ abstract interface class EncryptedStorage {
   });
 
   /// Persists [transaction] atomically (nothing is written without mutations);
-  /// throws [StorageException.conflict] if the file changed since it was opened.
+  /// throws a conflict if the file changed since the transaction was opened.
   Future<void> closeTransaction(StorageTransaction transaction);
 
   Future<void> erase();

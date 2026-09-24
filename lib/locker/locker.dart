@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:locker/locker/locker_transaction.dart';
 import 'package:locker/locker/models/biometric_state.dart';
+import 'package:locker/locker/models/exceptions/locker_exception.dart';
 import 'package:locker/security/models/bio_cipher_func.dart';
 import 'package:locker/security/models/biometric_config.dart';
 import 'package:locker/security/models/cipher_func.dart';
@@ -24,7 +25,7 @@ enum LockerState {
 abstract interface class Locker {
   ValueStream<LockerState> get stateStream;
 
-  /// The storage salt; throws [StorageException] if not initialized.
+  /// The storage salt; throws if the storage is not initialized.
   Future<Uint8List> get salt;
 
   Future<bool> get isStorageInitialized;
@@ -33,20 +34,19 @@ abstract interface class Locker {
 
   Future<bool> get isBiometricEnabled;
 
-  /// All committed metadata (cleared on lock/dispose); an open `withTransaction`
-  /// body appears here after it commits. Throws [LockerException] when not unlocked.
+  /// Committed metadata only; an open `withTransaction` body appears here after
+  /// it commits. Throws [LockerException] when not unlocked.
   Map<EntryId, EntryMeta> get allMeta;
 
   /// Initializes the storage with [passwordCipherFunc] and [initialEntries], then
-  /// unlocks; throws [LockerException] on a bad timeout, [StorageException] if already initialized.
+  /// unlocks; throws on a bad timeout or if the storage is already initialized.
   Future<void> init({
     required PasswordCipherFunc passwordCipherFunc,
     required List<EntryAddInput> initialEntries,
     required Duration lockTimeout,
   });
 
-  /// Unlocks (if locked) and loads all entry metadata; throws
-  /// [StorageException] if the storage is not initialized.
+  /// Unlocks (if locked) and loads all entry metadata.
   Future<void> loadAllMeta(CipherFunc cipherFunc);
 
   /// Runs [body] in one transaction: a single key unwrap, atomic persist on
@@ -56,17 +56,15 @@ abstract interface class Locker {
     Future<R> Function(LockerTransaction txn) body,
   );
 
-  /// Clears all cached data.
+  /// Aborts the active transaction and clears all cached data.
   void lock();
 
-  /// Writes a new entry and returns its id; throws [StorageException] if
-  /// [input.id] already exists.
+  /// Writes a new entry and returns its id; throws if [input.id] already exists.
   Future<EntryId> write({
     required EntryAddInput input,
     required CipherFunc cipherFunc,
   });
 
-  /// Reads an entry value by id, unlocking if needed.
   Future<EntryValue> readValue({
     required EntryId id,
     required CipherFunc cipherFunc,
@@ -115,7 +113,6 @@ abstract interface class Locker {
   /// key validity and returns [BiometricState.keyInvalidated] (no prompt).
   Future<BiometricState> determineBiometricState({String? biometricKeyTag});
 
-  /// Irreversibly erases all data and transitions to the locked state.
   Future<void> eraseStorage();
 
   /// Closes the state stream and clears cached data; no operations afterwards.

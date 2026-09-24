@@ -9,8 +9,7 @@ class OperationLane {
 
   bool _busy = false;
 
-  /// Bumped by [invalidate]; [isCurrent] detects a lock that happened while an
-  /// operation was waiting or running.
+  /// Bumped by [invalidate]; [isCurrent] detects a lock that happened meanwhile.
   int _generation = 0;
 
   bool get isBusy => _busy;

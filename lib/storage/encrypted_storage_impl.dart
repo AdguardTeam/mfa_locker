@@ -153,8 +153,6 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
         return StorageTransaction(data: data, masterKey: masterKey);
       });
 
-  /// Persists [transaction] if it has changes, comparing the snapshot taken at
-  /// open with the file: an outside write fails with conflict.
   @override
   Future<void> closeTransaction(StorageTransaction transaction) => _sync(() async {
         if (transaction.isErased) {
@@ -196,7 +194,7 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
     }
   }
 
-  /// Retrieves the master key from one of the existing wraps, verifying HMAC.
+  /// Unwraps the master key via [cipherFunc], verifying the HMAC.
   Future<ErasableByteArray> _getDecryptedMasterKey({
     required StorageData data,
     required CipherFunc cipherFunc,
@@ -239,14 +237,13 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
     }
   }
 
-  /// Saves [data] to the file, generating new hmacKey/hmacSignature
+  /// Saves [data] to the file with a fresh hmacKey and hmacSignature.
   Future<void> _signDataWithHmacAndSave(StorageData data, ErasableByteArray masterKey) async {
     final signedData = await signDataWithHmac(data: data, masterKey: masterKey);
 
     await _writeDataToFile(signedData);
   }
 
-  /// Compares two snapshots by their canonical JSON form.
   bool _storageDataEquals(StorageData a, StorageData b) => jsonEncode(a.toJson()) == jsonEncode(b.toJson());
 
   // TODO(m.semenov): investigate if this will work on all operating systems. ChatGPT told this could be a problem on Windows
@@ -280,7 +277,6 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
     }
   }
 
-  /// Throws [StorageException.duplicateEntry] if [ids] contains duplicates.
   void _validateNoDuplicateIds(List<EntryId> ids) {
     final seen = <String>{};
     for (final id in ids) {

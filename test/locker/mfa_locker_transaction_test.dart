@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -10,6 +11,7 @@ import 'package:locker/storage/encrypted_storage.dart';
 import 'package:locker/storage/encrypted_storage_impl.dart';
 import 'package:locker/storage/models/data/key_wrap.dart';
 import 'package:locker/storage/models/data/origin.dart';
+import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
@@ -20,6 +22,8 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../mocks/mock_bio_cipher_func.dart';
+import '../mocks/mock_encrypted_storage.dart';
+import '../mocks/mock_storage_transaction.dart';
 import '../storage/encrypted_storage_test_helpers.dart';
 
 part 'mfa_locker_transaction_test_helpers.dart';
@@ -179,11 +183,44 @@ void main() {
     expect(value.bytes, orderedEquals([42]));
   });
 
+  test('a conflicting external write fails the commit and keeps the locker usable', () async {
+    // Arrange
+    final cipher = createCountingCipher(() {});
+    final locker = MFALocker(file: storageFile, storage: storage);
+
+    // Act: while the body runs, a concurrent writer changes the file.
+    final future = locker.withTransaction(cipher, (txn) async {
+      await txn.update(
+        EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([42])),
+      );
+      await _TransactionHelpers.updateValueInFile(storage, cipher, EntryId('a'), [7]);
+    });
+
+    // Assert: the commit detects the race, the buffered update is not persisted.
+    await expectLater(
+      future,
+      throwsA(isA<StorageException>().having((e) => e.type, 'type', StorageExceptionType.conflict)),
+    );
+
+    final onDisk = await _TransactionHelpers.readValueFromFile(storage, cipher, EntryId('a'));
+    expect(onDisk.bytes, orderedEquals([7]), reason: 'the concurrent write wins, the buffered one is discarded');
+
+    // The lane was released: the locker still serves requests.
+    final value = await locker.withTransaction(cipher, (txn) => txn.readValue(EntryId('a')));
+    expect(value.bytes, orderedEquals([7]));
+  });
+
   group('MfaLockerTransaction lifecycle', () {
     final isClosedTransactionError = isA<LockerException>().having(
       (e) => e.type,
       'type',
       LockerExceptionType.transactionClosed,
+    );
+
+    final isConflictError = isA<StorageException>().having(
+      (e) => e.type,
+      'type',
+      StorageExceptionType.conflict,
     );
 
     Future<MfaLockerTransaction> openTransaction(CipherFunc cipher) => MfaLockerTransaction.open(
@@ -233,6 +270,83 @@ void main() {
       await expectLater(txn.commit(), throwsA(isClosedTransactionError));
       expect(txn.isClosed, isTrue);
       expect(txn.isCommitting, isFalse);
+    });
+
+    group('commit failure', () {
+      late MockEncryptedStorage mockStorage;
+      late MockStorageTransaction storageTransaction;
+      late MockBioCipherFunc cipher;
+
+      setUp(() {
+        mockStorage = MockEncryptedStorage();
+        storageTransaction = MockStorageTransaction();
+        cipher = createCountingCipher(() {});
+
+        when(() => mockStorage.openTransaction(cipherFunc: cipher)).thenAnswer((_) async => storageTransaction);
+        when(() => storageTransaction.erase()).thenAnswer((_) {});
+      });
+
+      Future<MfaLockerTransaction> open() => MfaLockerTransaction.open(
+            storage: mockStorage,
+            cipherFunc: cipher,
+            initialize: (_) async {},
+          );
+
+      test('a failed commit erases the buffer, closes the transaction and rethrows', () async {
+        // Arrange
+        when(() => mockStorage.closeTransaction(storageTransaction)).thenThrow(StorageException.conflict());
+        final txn = await open();
+
+        // Act & Assert
+        await expectLater(txn.commit(), throwsA(isConflictError));
+
+        expect(txn.isClosed, isTrue, reason: 'a failed commit must close the transaction');
+        expect(txn.isCommitting, isFalse);
+        verify(() => storageTransaction.erase()).called(1);
+
+        // The failed transaction cannot be reused.
+        await expectLater(txn.commit(), throwsA(isClosedTransactionError));
+      });
+
+      test('a failed commit erases the pending metadata', () async {
+        // Arrange
+        final meta = _Helpers.createEntryMeta([5]);
+        final input = EntryAddInput(meta: meta, value: _Helpers.createEntryValue([1]));
+        when(() => mockStorage.closeTransaction(storageTransaction)).thenThrow(StorageException.conflict());
+        when(() => storageTransaction.addEntry(input)).thenAnswer((_) async => EntryId('new'));
+
+        final txn = await open();
+        await txn.write(input);
+        expect(meta.isErased, isFalse);
+
+        // Act & Assert
+        await expectLater(txn.commit(), throwsA(isConflictError));
+
+        expect(meta.isErased, isTrue, reason: 'the uncommitted metadata must not outlive the failed commit');
+      });
+
+      test('abort during an in-flight commit is a no-op and the commit erases the buffer once', () async {
+        // Arrange
+        final commitGate = Completer<void>();
+        when(() => mockStorage.closeTransaction(storageTransaction)).thenAnswer((_) => commitGate.future);
+        final txn = await open();
+
+        // Act: the commit is in flight when the transaction is aborted.
+        final commitFuture = txn.commit();
+        expect(txn.isCommitting, isTrue);
+        txn.abort();
+
+        // Assert: the buffer survives while the commit is writing it.
+        expect(txn.isClosed, isFalse);
+        verifyNever(() => storageTransaction.erase());
+
+        commitGate.complete();
+        await commitFuture;
+
+        expect(txn.isClosed, isTrue);
+        expect(txn.isCommitting, isFalse);
+        verify(() => storageTransaction.erase()).called(1);
+      });
     });
   });
 }

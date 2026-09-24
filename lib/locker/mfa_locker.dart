@@ -346,7 +346,7 @@ class MFALocker implements Locker {
         },
       );
 
-  /// [loadAllMeta] path: opens a transaction and discards it, persisting nothing.
+  /// Unlocks by opening a transaction and discarding it; nothing is persisted.
   Future<void> _unlockAndLoadMeta(CipherFunc cipherFunc, int epoch) async {
     if (_stateController.value == LockerState.unlocked) {
       return;
@@ -393,8 +393,8 @@ class MFALocker implements Locker {
     }
   }
 
-  /// Opens a transaction; the first open of a session unwraps the key, loads
-  /// the metadata and unlocks. Every operation relies on that invariant.
+  /// Opens a transaction; the first open of a session unwraps the key, loads the
+  /// metadata and unlocks, so every operation can rely on that invariant.
   Future<MfaLockerTransaction> _openTransaction(CipherFunc cipherFunc, int epoch) async {
     _ensureFreshEpoch(epoch);
 
@@ -502,8 +502,7 @@ class MFALocker implements Locker {
 
       final result = await txn.commit();
 
-      // A lock()/dispose() while the commit was in flight must not resurrect
-      // the session: the file is written, but the overlay is discarded.
+      // The file is written, but a lock during the commit must not resurrect the session.
       if (!_lane.isCurrent(epoch)) {
         _eraseMetas(result.pendingMeta.values);
 

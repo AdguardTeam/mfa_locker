@@ -14,7 +14,7 @@ import 'package:locker/storage/models/exceptions/storage_exception.dart';
 import 'package:locker/storage/storage_transaction.dart';
 
 /// Buffers one `withTransaction` body (working copy + metadata overlay) and owns
-/// the working copy lifecycle, so it can never outlive the transaction.
+/// the working copy, so it cannot outlive the transaction.
 class MfaLockerTransaction implements LockerTransaction {
   static Future<MfaLockerTransaction> open({
     required EncryptedStorage storage,
@@ -162,8 +162,8 @@ class MfaLockerTransaction implements LockerTransaction {
   }
 
   void abort() {
-    // While a commit is in flight the buffer belongs to it: erasing the master
-    // key now would corrupt the write. [commit] erases the buffer when done.
+    // While a commit is in flight the buffer belongs to it: erasing the master key
+    // now would corrupt the write. [commit] erases the buffer when done.
     if (_closed || _committing) {
       return;
     }

@@ -21,6 +21,7 @@ import 'package:locker/storage/models/exceptions/decrypt_failed_exception.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
 import 'package:locker/storage/storage_transaction.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../mocks/mock_bio_cipher_func.dart';
@@ -162,6 +163,21 @@ void main() {
           () => locker.allMeta[EntryId('new')] = _StorageHelpers.createEntryMeta(),
           throwsUnsupportedError,
         );
+      });
+    });
+
+    group('default dependencies', () {
+      test('falls back to the file-backed storage when none is injected', () async {
+        // Arrange
+        final tempDir = await Directory.systemTemp.createTemp('locker_defaults_test_');
+        addTearDown(() => tempDir.delete(recursive: true));
+
+        // Act: no storage and no secure provider are injected.
+        final defaultLocker = MFALocker(file: File(p.join(tempDir.path, 'storage.json')));
+        addTearDown(defaultLocker.dispose);
+
+        // Assert: the real storage is wired and reports the missing file.
+        expect(await defaultLocker.isStorageInitialized, isFalse);
       });
     });
 
@@ -1119,6 +1135,33 @@ void main() {
         );
         verifyNever(() => storage.closeTransaction(any()));
         verify(() => changeSet.erase()).called(1);
+      });
+
+      test('a failed commit surfaces the error, discards the overlay and keeps the locker usable', () async {
+        // Arrange
+        final expectedId = EntryId('new');
+        final metaToAdd = _StorageHelpers.createEntryMeta([5]);
+        when(() => changeSet.addEntry(any())).thenAnswer((_) async => expectedId);
+        when(() => storage.closeTransaction(any())).thenThrow(StorageException.conflict());
+
+        // Act & Assert
+        await expectLater(
+          locker.withTransaction(cipher, (txn) async {
+            await txn.write(
+              EntryAddInput(meta: metaToAdd, value: _StorageHelpers.createEntryValue([1])),
+            );
+          }),
+          throwsA(isStorageError(StorageExceptionType.conflict)),
+        );
+
+        // The uncommitted overlay never reaches the cache and the buffer is erased.
+        expect(locker.allMeta, isNot(contains(expectedId)));
+        expect(metaToAdd.isErased, isTrue);
+        verify(() => changeSet.erase()).called(1);
+
+        // The lane was released: the next operation still runs.
+        when(() => storage.closeTransaction(any())).thenAnswer((_) async {});
+        await locker.withTransaction(cipher, (_) async {});
       });
 
       test('locker.allMeta stays committed-only inside the body', () async {

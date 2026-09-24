@@ -13,21 +13,17 @@ abstract class BiometricCipherProvider {
   /// Applies [config] to the underlying plugin; call once at startup.
   Future<void> configure(BiometricConfig config);
 
-  /// The TPM availability status of the device.
   Future<TPMStatus> getTPMStatus();
 
-  /// The biometric availability status of the device.
   Future<BiometricStatus> getBiometryStatus();
 
   /// Generates a key for [tag]; an existing key may be overwritten or throw.
   Future<void> generateKey({required String tag});
 
-  /// Encrypts [data] with the key of [tag]; the payload crosses the platform
-  /// channel as base64.
+  /// Encrypts [data] with the key of [tag] (base64 over the platform channel).
   Future<Uint8List> encrypt({required String tag, required Uint8List data});
 
-  /// Decrypts [data] with the key of [tag]; the payload crosses the platform
-  /// channel as base64.
+  /// Decrypts [data] with the key of [tag] (base64 over the platform channel).
   Future<Uint8List> decrypt({required String tag, required Uint8List data});
 
   /// Deletes the key of [tag]; a missing key is not an error.

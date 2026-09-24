@@ -1,5 +1,5 @@
-/// Typed errors of the locker layer: a session that was locked while an
-/// operation was pending, or a misuse of the locker/transaction API.
+/// Errors of the locker layer: a session that ended while an operation was
+/// pending, or a misuse of the locker/transaction API.
 class LockerException implements Exception {
   final LockerExceptionType type;
   final String message;
@@ -38,19 +38,12 @@ class LockerException implements Exception {
   String toString() => 'LockerException: $message (type: $type)';
 }
 
+/// [locked] is thrown when the unlocked session ends mid-operation,
+/// [notUnlocked] when it never started (e.g. `allMeta` while locked).
 enum LockerExceptionType {
-  /// The locker was locked or disposed while the operation was pending.
   locked,
-
-  /// The unlocked session has not started (e.g. `allMeta` while locked).
   notUnlocked,
-
-  /// An `MFALocker` method was called from a `withTransaction` body.
   insideTransaction,
-
-  /// A transaction method was called after the transaction was closed.
   transactionClosed,
-
-  /// A locker method was called with an invalid argument value.
   invalidArgument,
 }
