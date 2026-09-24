@@ -111,8 +111,7 @@ class MfaLockerTransaction implements LockerTransaction {
   /// True while the commit is writing the file: the buffer must survive it.
   bool get isCommitting => _committing;
 
-  /// [write] without erasing the input: the one-shot locker path owns the
-  /// single erase at its API boundary.
+  /// [write] without erasing the input: the caller owns the single erase.
   Future<EntryId> writeBuffered(EntryAddInput input) async {
     _ensureOpen();
 
@@ -138,8 +137,7 @@ class MfaLockerTransaction implements LockerTransaction {
     }
   }
 
-  /// Persists the working copy and closes the transaction; a failed commit
-  /// discards the buffer. The working copy is erased once the write is done.
+  /// Persists the working copy and closes the transaction; a failed commit discards the buffer.
   Future<TransactionResult> commit() async {
     _ensureOpen();
 

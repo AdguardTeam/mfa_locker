@@ -85,17 +85,10 @@ void main() {
 
     group('getters', () {
       test('stateStream starts with "locked"', () async {
-        // Arrange
-
-        // Act
-
-        // Assert
         expect(locker.stateStream.value, LockerState.locked);
       });
 
       test('isStorageInitialized returns data from storage', () async {
-        // Arrange
-
         // Act
         final result = await locker.isStorageInitialized;
 
@@ -130,8 +123,6 @@ void main() {
       });
 
       test('lockTimeout returns value from storage', () async {
-        // Arrange
-
         // Act
         final first = await locker.lockTimeout;
         clearInteractions(storage);
@@ -155,11 +146,6 @@ void main() {
       });
 
       test('allMeta throws when locked', () async {
-        // Arrange
-
-        // Act
-
-        // Assert
         expect(
           () => locker.allMeta,
           throwsA(isLockerError(LockerExceptionType.notUnlocked)),

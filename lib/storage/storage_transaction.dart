@@ -26,7 +26,7 @@ class StorageTransaction implements Erasable {
   /// Snapshot at open, compared against the file on close (compare-and-swap).
   final StorageData baseData;
 
-  /// The unwrapped master key used to (de)encrypt entry payloads.
+  /// The unwrapped master key; erasing it makes the working copy unusable.
   final ErasableByteArray masterKey;
 
   bool _dirty = false;
@@ -174,7 +174,6 @@ class StorageTransaction implements Erasable {
     _dirty = true;
   }
 
-  /// Adds a wrap for the master key, or replaces the wrap of the same origin.
   Future<void> addOrReplaceWrap({required CipherFunc newWrapFunc}) async {
     _ensureActive();
 
@@ -205,7 +204,7 @@ class StorageTransaction implements Erasable {
     _dirty = true;
   }
 
-  /// Removes the wrap of [originToDelete]; throws if it is the last one.
+  /// Throws if it is the last wrap.
   Future<void> deleteWrap({required Origin originToDelete}) async {
     _ensureActive();
 

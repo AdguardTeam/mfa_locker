@@ -264,7 +264,6 @@ class MFALocker implements Locker {
     return BiometricState.enabled;
   }
 
-  /// Enable biometric authentication (requires password confirmation).
   @override
   Future<void> setupBiometry({
     required BioCipherFunc bioCipherFunc,
@@ -347,8 +346,7 @@ class MFALocker implements Locker {
         },
       );
 
-  /// Dedicated [loadAllMeta] path: opens a transaction (the first open of a
-  /// session loads the metadata) and discards it, persisting nothing.
+  /// [loadAllMeta] path: opens a transaction and discards it, persisting nothing.
   Future<void> _unlockAndLoadMeta(CipherFunc cipherFunc, int epoch) async {
     if (_stateController.value == LockerState.unlocked) {
       return;
@@ -359,7 +357,6 @@ class MFALocker implements Locker {
     txn.abort();
   }
 
-  /// Acquires the lane, opens the transaction and runs [body]; commits on return, aborts on throw.
   Future<R> _startTransaction<R>(
     CipherFunc cipherFunc,
     Future<R> Function(MfaLockerTransaction txn) body,
@@ -423,7 +420,6 @@ class MFALocker implements Locker {
     );
   }
 
-  /// Runs [body] exclusively on the FIFO lane, failing if the locker was locked meanwhile.
   Future<T> _runOperation<T>(Future<T> Function(int epoch) body) async {
     _ensureNotInsideTransaction();
     _ensureNotDisposed();
@@ -447,7 +443,6 @@ class MFALocker implements Locker {
     }
   }
 
-  /// Throws if the locker was disposed: `dispose()` is terminal.
   void _ensureNotDisposed() {
     if (_stateController.isClosed) {
       throw const LockerException(
@@ -457,15 +452,14 @@ class MFALocker implements Locker {
     }
   }
 
-  /// Throws before any storage call (and any prompt) if [lockTimeout] is not a positive number of milliseconds.
+  /// Checked before any storage call, so an invalid value never prompts.
   void _ensureValidLockTimeout(Duration lockTimeout) {
     if (lockTimeout.inMilliseconds <= 0) {
       throw LockerException.invalidArgument('Lock timeout must be greater than 0');
     }
   }
 
-  /// Throws if the locker was locked/disposed after [epoch] was captured,
-  /// erasing [metas] because their session is gone.
+  /// Erases [metas] when the session they belong to is gone.
   void _ensureFreshEpoch(
     int epoch, {
     Iterable<EntryMeta> metas = const [],
@@ -490,8 +484,6 @@ class MFALocker implements Locker {
     }
   }
 
-  /// Commits the transaction (publishing the overlay) or aborts it; [epoch] is
-  /// the lane generation captured when the operation started.
   Future<void> _finishTransaction(
     MfaLockerTransaction txn, {
     required bool commit,
@@ -531,8 +523,7 @@ class MFALocker implements Locker {
     }
   }
 
-  /// Synchronous abort of the active transaction for `lock()`/`dispose()`; a
-  /// commit in flight finishes and is discarded by [_finishTransaction].
+  /// A commit in flight is left to finish and discarded by [_finishTransaction].
   void _abortActiveTransaction() {
     final txn = _activeTransaction;
     if (txn == null || txn.isClosed || txn.isCommitting) {
@@ -543,7 +534,6 @@ class MFALocker implements Locker {
     _releaseTransaction(txn);
   }
 
-  /// Releases the lane and clears the active marker (identity-guarded).
   void _releaseTransaction(MfaLockerTransaction txn) {
     if (!identical(_activeTransaction, txn)) {
       return;

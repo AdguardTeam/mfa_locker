@@ -16,13 +16,9 @@ abstract interface class LockerTransaction {
 
   Future<void> delete(EntryId id);
 
-  /// Updates the auto-lock timeout of the storage.
   Future<void> updateLockTimeout(Duration lockTimeout);
 
-  /// Adds a new wrap for the master key or replaces the existing wrap of the
-  /// same origin (password change, enabling biometrics).
   Future<void> addOrReplaceWrap({required CipherFunc newWrapFunc});
 
-  /// Removes the wrap of [originToDelete] (disabling biometrics).
   Future<void> deleteWrap({required Origin originToDelete});
 }

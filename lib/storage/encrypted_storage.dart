@@ -15,7 +15,6 @@ abstract interface class EncryptedStorage {
   /// Whether biometric authentication is enabled (`false` when not initialized).
   Future<bool> get isBiometricEnabled;
 
-  /// The salt used for key derivation.
   Future<Uint8List> get salt;
 
   /// The lock timeout in milliseconds.
@@ -39,6 +38,5 @@ abstract interface class EncryptedStorage {
   /// throws [StorageException.conflict] if the file changed since it was opened.
   Future<void> closeTransaction(StorageTransaction transaction);
 
-  /// Deletes the storage file.
   Future<void> erase();
 }

@@ -56,7 +56,7 @@ abstract interface class Locker {
     Future<R> Function(LockerTransaction txn) body,
   );
 
-  /// Locks the locker and clears all cached data.
+  /// Clears all cached data.
   void lock();
 
   /// Writes a new entry and returns its id; throws [StorageException] if
@@ -84,13 +84,12 @@ abstract interface class Locker {
     required CipherFunc cipherFunc,
   });
 
-  /// Adds a new password wrap, authorized by [existingCipherFunc].
   Future<void> changePassword({
     required PasswordCipherFunc newCipherFunc,
     required CipherFunc existingCipherFunc,
   });
 
-  /// Configures the biometric provider; call once at application startup.
+  /// Call once at application startup.
   Future<void> configureBiometricCipher(BiometricConfig config);
 
   /// Enables biometric authentication (requires password confirmation).

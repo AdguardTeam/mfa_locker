@@ -17,7 +17,6 @@ class OperationLane {
 
   int get generation => _generation;
 
-  /// Completes when the lane becomes free, in FIFO order.
   Future<void> acquire() {
     if (!_busy) {
       _busy = true;
@@ -31,7 +30,6 @@ class OperationLane {
     return ticket.future;
   }
 
-  /// Releases the lane and hands it to the next waiter, if any.
   void release() {
     if (!_busy) {
       return;
@@ -53,13 +51,11 @@ class OperationLane {
     }
   }
 
-  /// Bumps the generation and fails pending waiters with [error].
   void invalidate(Object error) {
     _generation++;
     failPending(error);
   }
 
-  /// Whether [generation] is still current, i.e. no [invalidate] since.
   bool isCurrent(int generation) => generation == _generation;
 
   @visibleForTesting
