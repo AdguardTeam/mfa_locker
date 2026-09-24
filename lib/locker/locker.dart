@@ -14,58 +14,43 @@ import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:rxdart/rxdart.dart';
 
-/// Represents the current state of the locker.
 enum LockerState {
-  /// The locker is locked and requires authentication to access.
   locked,
-
-  /// The locker is unlocked and ready for operations.
   unlocked,
 }
 
 /// Encrypted key-value storage with lock/unlock, password rotation and
 /// biometric support; locked methods unlock via the provided [CipherFunc].
 abstract interface class Locker {
-  /// The current state of the locker.
   ValueStream<LockerState> get stateStream;
 
   /// The storage salt; throws [StorageException] if not initialized.
   Future<Uint8List> get salt;
 
-  /// Whether the underlying storage has been initialized.
   Future<bool> get isStorageInitialized;
 
-  /// The auto-lock timeout.
   Future<Duration> get lockTimeout;
 
-  /// Whether biometric authentication is enabled.
   Future<bool> get isBiometricEnabled;
 
-  /// All committed entry metadata (cleared on lock/dispose). Inside a
-  /// [withTransaction] body use [LockerTransaction.allMeta] to see the
-  /// transaction's uncommitted changes. Do not keep references beyond the
-  /// unlocked session.
+  /// All committed metadata (cleared on lock/dispose); an open `withTransaction`
+  /// body appears here after it commits. Throws [LockerException] when not unlocked.
   Map<EntryId, EntryMeta> get allMeta;
 
-  /// Initializes the storage with the given password-derived cipher and
-  /// entries, then transitions to unlocked.
-  ///
-  /// Throws [StateError] if storage is already initialized.
+  /// Initializes the storage with [passwordCipherFunc] and [initialEntries], then
+  /// unlocks; throws [LockerException] on a bad timeout, [StorageException] if already initialized.
   Future<void> init({
     required PasswordCipherFunc passwordCipherFunc,
     required List<EntryAddInput> initialEntries,
     required Duration lockTimeout,
   });
 
-  /// Unlocks (if locked) and loads all entry metadata.
-  ///
-  /// Throws [StateError] if storage is not initialized.
+  /// Unlocks (if locked) and loads all entry metadata; throws
+  /// [StorageException] if the storage is not initialized.
   Future<void> loadAllMeta(CipherFunc cipherFunc);
 
-  /// Runs [body] in a scoped transaction: one key unwrap (single biometric
-  /// prompt), atomic persist on return, abort on throw. The transaction never
-  /// outlives [body]; use only [LockerTransaction] methods inside (a locker
-  /// call throws [StateError] instead of deadlocking).
+  /// Runs [body] in one transaction: a single key unwrap, atomic persist on
+  /// return, abort on throw. Use only [LockerTransaction] methods inside.
   Future<R> withTransaction<R>(
     CipherFunc cipherFunc,
     Future<R> Function(LockerTransaction txn) body,
@@ -74,9 +59,8 @@ abstract interface class Locker {
   /// Locks the locker and clears all cached data.
   void lock();
 
-  /// Writes a new entry and returns its id.
-  ///
-  /// Throws [StorageException] if [input.id] already exists.
+  /// Writes a new entry and returns its id; throws [StorageException] if
+  /// [input.id] already exists.
   Future<EntryId> write({
     required EntryAddInput input,
     required CipherFunc cipherFunc,
@@ -122,7 +106,7 @@ abstract interface class Locker {
     String? biometricKeyTag,
   });
 
-  /// Updates the auto-lock timeout.
+  /// Updates the auto-lock timeout; throws [LockerException] if it is not positive.
   Future<void> updateLockTimeout({
     required Duration lockTimeout,
     required CipherFunc cipherFunc,

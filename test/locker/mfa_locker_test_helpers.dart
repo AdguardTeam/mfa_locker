@@ -2,6 +2,12 @@ part of 'mfa_locker_test.dart';
 
 typedef _StorageHelpers = EncryptedStorageTestHelpers;
 
+/// Matches a [LockerException] of the given [type].
+Matcher isLockerError(LockerExceptionType type) => isA<LockerException>().having((e) => e.type, 'type', type);
+
+/// Matches a [StorageException] of the given [type].
+Matcher isStorageError(StorageExceptionType type) => isA<StorageException>().having((e) => e.type, 'type', type);
+
 abstract class _Helpers {
   static const lockTimeout = Duration(milliseconds: 200);
 
@@ -42,9 +48,11 @@ abstract class _Helpers {
     return result;
   }
 
+  /// Asserts that [erasable] was erased exactly once: every API boundary erases
+  /// its own arguments, so a second erase would mean a double erase.
   static void verifyErased(Erasable erasable) {
     if (erasable is Mock) {
-      verify(() => erasable.erase()).called(greaterThan(0));
+      verify(() => erasable.erase()).called(1);
     } else {
       expect(erasable.isErased, isTrue);
     }

@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/locker/mfa_locker.dart';
+import 'package:locker/locker/mfa_locker_transaction.dart';
+import 'package:locker/locker/models/exceptions/locker_exception.dart';
 import 'package:locker/security/models/cipher_func.dart';
 import 'package:locker/storage/encrypted_storage.dart';
 import 'package:locker/storage/encrypted_storage_impl.dart';
@@ -175,5 +177,62 @@ void main() {
 
     // Assert
     expect(value.bytes, orderedEquals([42]));
+  });
+
+  group('MfaLockerTransaction lifecycle', () {
+    final isClosedTransactionError = isA<LockerException>().having(
+      (e) => e.type,
+      'type',
+      LockerExceptionType.transactionClosed,
+    );
+
+    Future<MfaLockerTransaction> openTransaction(CipherFunc cipher) => MfaLockerTransaction.open(
+          storage: storage,
+          cipherFunc: cipher,
+          initialize: (_) async {},
+        );
+
+    test('abort is idempotent and closes the transaction', () async {
+      // Arrange
+      final txn = await openTransaction(createCountingCipher(() {}));
+
+      // Act
+      txn.abort();
+
+      // Assert
+      expect(txn.isClosed, isTrue);
+      expect(txn.isCommitting, isFalse);
+      expect(txn.abort, returnsNormally);
+    });
+
+    test('operations after abort throw a closed-transaction error', () async {
+      // Arrange
+      final txn = await openTransaction(createCountingCipher(() {}));
+      txn.abort();
+
+      // Act & Assert
+      await expectLater(txn.readValue(EntryId('a')), throwsA(isClosedTransactionError));
+      await expectLater(txn.updateLockTimeout(const Duration(seconds: 1)), throwsA(isClosedTransactionError));
+    });
+
+    test('commit after abort throws a closed-transaction error', () async {
+      // Arrange
+      final txn = await openTransaction(createCountingCipher(() {}));
+      txn.abort();
+
+      // Act & Assert
+      await expectLater(txn.commit(), throwsA(isClosedTransactionError));
+    });
+
+    test('a second commit throws a closed-transaction error', () async {
+      // Arrange
+      final txn = await openTransaction(createCountingCipher(() {}));
+      await txn.commit();
+
+      // Act & Assert
+      await expectLater(txn.commit(), throwsA(isClosedTransactionError));
+      expect(txn.isClosed, isTrue);
+      expect(txn.isCommitting, isFalse);
+    });
   });
 }

@@ -3,15 +3,14 @@ import 'dart:collection';
 
 import 'package:meta/meta.dart';
 
-/// FIFO queue with a single holder that serializes locker operations; a
-/// transaction holds it for the whole body of `withTransaction`.
+/// FIFO queue with a single holder that serializes locker operations.
 class OperationLane {
   final Queue<Completer<void>> _queue = Queue();
 
   bool _busy = false;
 
-  /// Bumped by [invalidate], so a granted-but-not-resumed operation can detect
-  /// via [isCurrent] that the locker was locked while it was waiting/running.
+  /// Bumped by [invalidate]; [isCurrent] detects a lock that happened while an
+  /// operation was waiting or running.
   int _generation = 0;
 
   bool get isBusy => _busy;
@@ -35,7 +34,6 @@ class OperationLane {
   /// Releases the lane and hands it to the next waiter, if any.
   void release() {
     if (!_busy) {
-      // Already discarded by [invalidate]: the holder is finishing up.
       return;
     }
 
@@ -48,16 +46,14 @@ class OperationLane {
     _queue.removeFirst().complete();
   }
 
-  /// Completes all pending waiters with [error] without releasing the lane, so
-  /// operations queued before `lock()`/`dispose()` fail instead of running.
+  /// Fails all pending waiters with [error] without releasing the lane.
   void failPending(Object error) {
     while (_queue.isNotEmpty) {
       _queue.removeFirst().completeError(error);
     }
   }
 
-  /// Invalidates the lane: bumps the generation and fails pending waiters with
-  /// [error]; called by `lock()`/`dispose()`/`eraseStorage()`.
+  /// Bumps the generation and fails pending waiters with [error].
   void invalidate(Object error) {
     _generation++;
     failPending(error);
