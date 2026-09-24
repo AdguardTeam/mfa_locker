@@ -171,13 +171,13 @@ await locker.withTransaction(bioCipherFunc, (txn) async {
 
 The transaction lives only inside the `withTransaction` body: it commits when the body returns and aborts when the body throws. There is no separate `beginTransaction`/`commit`/`abort` API, so a transaction can never be held open by the caller — a single safe entry point keeps the invariant in the type system instead of the docs.
 
-Only one transaction runs at a time: operations are serialized by a FIFO queue, so a second `withTransaction` waits for the first one to finish instead of failing. `lock()`, auto-lock, and `dispose()` abort the active transaction (and fail the queued operations) and erase its key material.
+Only one transaction runs at a time: operations are serialized by a FIFO queue, so a second `withTransaction` waits for the first one to finish instead of failing. `lock()`, auto-lock, and `dispose()` abort the active transaction (and fail the queued operations) and erase its key material. A commit that is already in flight cannot be cancelled: it finishes, but its result is discarded and the call reports `LockerException` (`LockerExceptionType.locked`).
 
 Because auto-lock aborts the active transaction, apps that run background work inside a `withTransaction` body (e.g. a migration) should suppress the auto-lock timer for the whole duration of the call — the wait in the FIFO queue plus the body — not only for the body.
 
-`locker.allMeta` always exposes only committed metadata; inside a `withTransaction` body use `LockerTransaction.allMeta` to see that transaction's uncommitted changes. Every single public operation is an implicit transaction: one master-key unwrap and one atomic write, unchanged from the outside. Within a `withTransaction` body use only the `LockerTransaction` methods — calling a locker method there throws an `InsideTransactionException` instead of deadlocking.
+`locker.allMeta` always exposes only committed metadata: the changes of an open `withTransaction` body become visible after the body commits. Every single public operation is an implicit transaction: one master-key unwrap and one atomic write, unchanged from the outside. Within a `withTransaction` body use only the `LockerTransaction` methods — calling a locker method there throws a `LockerException` (`LockerExceptionType.insideTransaction`) instead of deadlocking.
 
-Values returned by `txn.readValue` are owned by the caller: erase them with `value.erase()` as soon as they are no longer needed (e.g. in a migration loop that reads and transforms every entry). Metadata from `txn.allMeta` (and `locker.allMeta`) is shared with the locker cache — treat it as read-only and never erase or mutate it.
+Values returned by `txn.readValue` are owned by the caller: erase them with `value.erase()` as soon as they are no longer needed (e.g. in a migration loop that reads and transforms every entry). Metadata from `locker.allMeta` is shared with the locker cache — treat it as read-only and never erase or mutate it.
 
 ### 4. Configure Biometric Authentication
 
@@ -288,20 +288,27 @@ locker.dispose();
 
 ### 8. Error Handling
 
-The library throws three main exception types:
+The library throws four main exception types:
 
 - **`DecryptFailedException`** — wrong password or corrupted data
 - **`BiometricException`** — biometric auth failures; check `BiometricExceptionType` for specifics:
   - `cancel` — user dismissed the biometric prompt
-  - `failure` — authentication failed (wrong fingerprint, lockout)
+  - `failure` — authentication failed (wrong fingerprint, lockout) or the native cipher returned no data
   - `keyInvalidated` — hardware key permanently invalidated after biometric enrollment change
   - `keyNotFound` — biometric key does not exist in secure hardware
   - `keyAlreadyExists` — a biometric key with the given tag already exists in secure hardware
   - `notAvailable` — biometrics not available on device
   - `notConfigured` — biometric cipher not configured
-- **`StorageException`** — storage lifecycle errors (`notInitialized`, `alreadyInitialized`, `invalidStorage`, `entryNotFound`, `duplicateEntry`, `other`)
+- **`StorageException`** — storage errors (`notInitialized`, `alreadyInitialized`, `invalidStorage`, `entryNotFound`, `duplicateEntry`, `conflict`, `other`); the locker reuses these for storage-state conditions (e.g. `init` on an initialized storage)
+- **`LockerException`** — locker session and API errors; check `LockerExceptionType` for specifics:
+  - `locked` — the locker was locked or disposed while the operation was pending
+  - `notUnlocked` — the unlocked session has not started (e.g. `allMeta` while locked)
+  - `insideTransaction` — an `MFALocker` method was called from a `withTransaction` body
+  - `transactionClosed` — a transaction method was called after the body finished
+  - `invalidArgument` — a locker method was called with an invalid argument value
 
 ```dart
+import 'package:locker/locker/models/exceptions/locker_exception.dart';
 import 'package:locker/security/models/exceptions/biometric_exception.dart';
 import 'package:locker/storage/models/exceptions/decrypt_failed_exception.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
@@ -321,6 +328,8 @@ try {
   }
 } on StorageException catch (e) {
   // Storage error — check e.type for specifics
+} on LockerException catch (e) {
+  // Locker session error — check e.type for specifics
 }
 ```
 
