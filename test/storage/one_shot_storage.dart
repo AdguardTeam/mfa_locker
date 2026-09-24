@@ -11,12 +11,8 @@ import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/storage_transaction.dart';
 
-/// Test helper that performs a storage operation the way the locker does it for
-/// a single public call: open a transaction, apply one operation and commit it
-/// (open → mutate → commit). A commit without mutations writes nothing.
-///
-/// The storage itself no longer exposes one-shot methods: every mutation goes
-/// through [StorageTransaction].
+/// Test helper: performs a storage operation the way the locker does for one
+/// public call — open a transaction, apply the operation and commit it.
 class OneShotStorage {
   final EncryptedStorage _storage;
 

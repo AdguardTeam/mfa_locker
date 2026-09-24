@@ -1601,12 +1601,13 @@ void main() {
         final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
         final changeSet = await storage.openTransaction(cipherFunc: cipher);
         await changeSet.readAllMeta();
+        final contentBefore = await storageFile.readAsString();
 
         // Act
         await storage.closeTransaction(changeSet);
 
         // Assert: not dirty, so nothing was written.
-        expect(changeSet.isClosed, isTrue);
+        expect(await storageFile.readAsString(), contentBefore);
         changeSet.erase();
       });
 
@@ -1647,6 +1648,21 @@ void main() {
         );
       });
 
+      test('openTransaction throws when the cipher has no wrap in the storage', () async {
+        // Arrange: the storage holds only a password wrap.
+        final masterKey = await CryptographyUtils.generateAESKey();
+        final wrapPwd = KeyWrap(origin: Origin.pwd, encryptedKey: masterKey.bytes);
+        final data = await _Helpers.createStorageData(masterKey: masterKey, wraps: [wrapPwd]);
+        await _Helpers.writeStorageData(storageFile, data);
+        final cipher = _Helpers.createMockBioCipherFunc(masterKeyBytes: masterKey.bytes);
+
+        // Act & Assert
+        await expectLater(
+          storage.openTransaction(cipherFunc: cipher),
+          throwsA(isA<StorageException>().having((e) => e.type, 'type', StorageExceptionType.invalidStorage)),
+        );
+      });
+
       test('operations throw after the transaction is erased', () async {
         // Arrange
         final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
@@ -1655,7 +1671,10 @@ void main() {
 
         // Act & Assert
         expect(changeSet.isErased, isTrue);
-        await expectLater(changeSet.readAllMeta(), throwsStateError);
+        await expectLater(
+          changeSet.readAllMeta(),
+          throwsA(isA<StorageException>().having((e) => e.message, 'message', 'Transaction is erased')),
+        );
       });
     });
   });

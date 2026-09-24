@@ -21,10 +21,8 @@ abstract interface class EncryptedStorage {
   /// The lock timeout in milliseconds.
   Future<int> get lockTimeout;
 
-  /// Initializes the storage with the given password wrap and entries; only
-  /// password authentication is supported here.
-  ///
-  /// Throws if already initialized or [lockTimeout] is not positive.
+  /// Initializes the storage with the given password wrap and entries; throws
+  /// if already initialized or [lockTimeout] is not positive.
   Future<void> init({
     required PasswordCipherFunc passwordCipherFunc,
     required List<EntryAddInput> initialEntries,

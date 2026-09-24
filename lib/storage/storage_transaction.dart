@@ -18,8 +18,8 @@ import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
 import 'package:locker/utils/cryptography_utils.dart';
 
-/// In-memory working copy of the storage for one open transaction; the file is
-/// written once by the storage on close.
+/// In-memory working copy of the storage for one transaction; the file is
+/// written once by the storage on close, and erasing the key makes it unusable.
 class StorageTransaction implements Erasable {
   StorageData _data;
 
@@ -30,7 +30,6 @@ class StorageTransaction implements Erasable {
   final ErasableByteArray masterKey;
 
   bool _dirty = false;
-  bool _closed = false;
 
   StorageTransaction({
     required StorageData data,
@@ -41,8 +40,6 @@ class StorageTransaction implements Erasable {
   StorageData get data => _data;
 
   bool get isDirty => _dirty;
-
-  bool get isClosed => _closed;
 
   @override
   bool get isErased => masterKey.isErased;
@@ -166,10 +163,6 @@ class StorageTransaction implements Erasable {
     _dirty = true;
   }
 
-  void close() {
-    _closed = true;
-  }
-
   Future<void> updateLockTimeout(int lockTimeout) async {
     _ensureActive();
 
@@ -246,8 +239,8 @@ class StorageTransaction implements Erasable {
   String _generateEntryId() => CryptographyUtils.generateUuid();
 
   void _ensureActive() {
-    if (_closed) {
-      throw StateError('Transaction is already closed');
+    if (isErased) {
+      throw StorageException.other('Transaction is erased');
     }
   }
 }

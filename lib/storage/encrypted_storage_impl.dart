@@ -154,12 +154,9 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
       });
 
   /// Persists [transaction] if it has changes, comparing the snapshot taken at
-  /// open with the current file: an outside write fails with conflict.
+  /// open with the file: an outside write fails with conflict.
   @override
   Future<void> closeTransaction(StorageTransaction transaction) => _sync(() async {
-        if (transaction.isClosed) {
-          return;
-        }
         if (transaction.isErased) {
           throw StorageException.other('Transaction is erased');
         }
@@ -172,8 +169,6 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
 
           await _signDataWithHmacAndSave(transaction.data, transaction.masterKey);
         }
-
-        transaction.close();
       });
 
   @override
@@ -285,9 +280,7 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
     }
   }
 
-  /// Validates that [ids] contains no duplicates.
-  ///
-  /// Throws [StorageException.duplicateEntry] if a duplicate is found.
+  /// Throws [StorageException.duplicateEntry] if [ids] contains duplicates.
   void _validateNoDuplicateIds(List<EntryId> ids) {
     final seen = <String>{};
     for (final id in ids) {
