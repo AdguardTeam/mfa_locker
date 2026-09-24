@@ -44,7 +44,7 @@ class OperationLane {
     _queue.removeFirst().complete();
   }
 
-  /// Fails all pending waiters with [error] without releasing the lane.
+  /// Fails every pending operation with [error] without releasing the lane.
   void failPending(Object error) {
     while (_queue.isNotEmpty) {
       _queue.removeFirst().completeError(error);
