@@ -8,51 +8,32 @@ import 'package:locker/security/models/biometric_config.dart';
 import 'package:locker/security/models/exceptions/biometric_exception.dart';
 import 'package:meta/meta.dart';
 
-/// Interface for biometric cipher storage and cryptographic operations.
-///
-/// Provides methods to configure biometric access, manage cryptographic keys,
-/// and perform encryption/decryption operations using hardware-backed security
-/// (TPM/Secure Enclave) where available.
+/// Hardware-backed (TPM/Secure Enclave) key operations used by the locker.
 abstract class BiometricCipherProvider {
-  /// Configures the biometric settings for the provider.
-  ///
-  /// [config] contains the biometric configuration parameters.
+  /// Applies [config] to the underlying plugin; call once at startup.
   Future<void> configure(BiometricConfig config);
 
-  /// Retrieves the current status of the Trusted Platform Module (TPM) or equivalent.
-  ///
-  /// Returns a [TPMStatus] indicating availability and readiness.
+  /// The TPM availability status of the device.
   Future<TPMStatus> getTPMStatus();
 
-  /// Retrieves the current status of biometric authentication availability.
-  ///
-  /// Returns a [BiometricStatus] indicating if biometrics are supported, enrolled, etc.
+  /// The biometric availability status of the device.
   Future<BiometricStatus> getBiometryStatus();
 
-  /// Generates a new cryptographic key pair identified by [tag].
-  ///
-  /// If a key with the specified [tag] already exists, it may be overwritten or
-  /// throw an error depending on the underlying implementation.
+  /// Generates a key for [tag]; an existing key may be overwritten or throw.
   Future<void> generateKey({required String tag});
 
-  /// Encrypts data and returns encrypted bytes.
-  /// Input data is converted to base64 before encryption.
-  /// Output is base64-decoded from provider result.
+  /// Encrypts [data] with the key of [tag]; the payload crosses the platform
+  /// channel as base64.
   Future<Uint8List> encrypt({required String tag, required Uint8List data});
 
-  /// Decrypts data and returns decrypted bytes.
-  /// Input data is converted to base64 before decryption.
-  /// Output is base64-decoded from provider result.
+  /// Decrypts [data] with the key of [tag]; the payload crosses the platform
+  /// channel as base64.
   Future<Uint8List> decrypt({required String tag, required Uint8List data});
 
-  /// Deletes the cryptographic key identified by [tag].
-  ///
-  /// If the key does not exist, this operation should complete without error.
+  /// Deletes the key of [tag]; a missing key is not an error.
   Future<void> deleteKey({required String tag});
 
-  /// Returns `true` if the biometric key identified by [tag] exists and is valid.
-  ///
-  /// Does not trigger a biometric prompt.
+  /// Whether the key of [tag] exists and is still valid; never prompts.
   Future<bool> isKeyValid({required String tag});
 }
 
@@ -92,7 +73,10 @@ class BiometricCipherProviderImpl implements BiometricCipherProvider {
       final encrypted = await _biometricCipher.encrypt(tag: tag, data: base64Data);
 
       if (encrypted == null) {
-        throw StateError('BiometricCipher.encrypt returned null');
+        throw const BiometricException(
+          BiometricExceptionType.failure,
+          message: 'BiometricCipher.encrypt returned null',
+        );
       }
 
       return base64Decode(encrypted);
@@ -108,7 +92,10 @@ class BiometricCipherProviderImpl implements BiometricCipherProvider {
       final decrypted = await _biometricCipher.decrypt(tag: tag, data: base64Data);
 
       if (decrypted == null) {
-        throw StateError('BiometricCipher.decrypt returned null');
+        throw const BiometricException(
+          BiometricExceptionType.failure,
+          message: 'BiometricCipher.decrypt returned null',
+        );
       }
 
       return base64Decode(decrypted);

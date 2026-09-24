@@ -95,6 +95,38 @@ void main() {
       });
     });
 
+    group('null platform result', () {
+      late MockBiometricCipher mockCipher;
+      late BiometricCipherProviderImpl provider;
+
+      setUp(() {
+        mockCipher = MockBiometricCipher();
+        provider = BiometricCipherProviderImpl.forTesting(mockCipher);
+      });
+
+      test('maps a null encrypt result to BiometricExceptionType.failure', () async {
+        // Arrange
+        when(() => mockCipher.encrypt(tag: any(named: 'tag'), data: any(named: 'data'))).thenAnswer((_) async => null);
+
+        // Act & Assert
+        await expectLater(
+          () => provider.encrypt(tag: 'tag', data: Uint8List.fromList([1])),
+          throwsA(isA<BiometricException>().having((e) => e.type, 'type', BiometricExceptionType.failure)),
+        );
+      });
+
+      test('maps a null decrypt result to BiometricExceptionType.failure', () async {
+        // Arrange
+        when(() => mockCipher.decrypt(tag: any(named: 'tag'), data: any(named: 'data'))).thenAnswer((_) async => null);
+
+        // Act & Assert
+        await expectLater(
+          () => provider.decrypt(tag: 'tag', data: Uint8List.fromList([1])),
+          throwsA(isA<BiometricException>().having((e) => e.type, 'type', BiometricExceptionType.failure)),
+        );
+      });
+    });
+
     group('isKeyValid', () {
       late MockBiometricCipher mockCipher;
       late BiometricCipherProviderImpl provider;
