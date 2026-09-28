@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:mfa_demo/features/locker/data/models/duplicate_entry_result.dart';
 
-/// Prompts for a new name when duplicating the entry identified by the tapped
-/// row, letting the caller compare two ways to authenticate: two separate
-/// biometric checks (read + write) or one check via a single transaction.
+/// Prompts for a new name when duplicating an entry; both auth flows are offered
+/// to compare two biometric checks against one via a transaction.
 class DuplicateEntryDialog extends StatefulWidget {
   const DuplicateEntryDialog({required this.sourceName, super.key});
 

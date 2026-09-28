@@ -107,20 +107,15 @@ abstract class LockerRepository {
   /// Read entry value using biometric authentication
   Future<String> readEntryWithBiometric({required EntryId id});
 
-  /// Duplicate an entry using two separate biometric authentications (naive).
-  ///
-  /// Reads the source value (prompt #1), then writes a copy (prompt #2).
-  /// Kept alongside [duplicateEntryInTransactionWithBiometric] to demonstrate
-  /// the multi-prompt cost the transaction avoids.
+  /// Duplicate an entry with two separate biometric authentications (naive);
+  /// kept to contrast with [duplicateEntryInTransactionWithBiometric].
   Future<void> duplicateEntryWithBiometric({
     required EntryId sourceId,
     required String newName,
   });
 
-  /// Duplicate an entry within a single biometric transaction.
-  ///
-  /// Reads the source value and writes a copy under one unwrap, so one prompt
-  /// covers both operations.
+  /// Duplicate an entry within one transaction: a single prompt covers the read
+  /// and the write.
   Future<void> duplicateEntryInTransactionWithBiometric({
     required EntryId sourceId,
     required String newName,
