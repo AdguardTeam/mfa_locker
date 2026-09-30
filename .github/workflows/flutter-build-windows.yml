@@ -1,0 +1,90 @@
+name: Flutter Build Windows
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        default: '0.0.0'
+        description: 'Version string for build'
+      build-number:
+        type: string
+        default: '1'
+        description: 'Build number'
+      artifact-name:
+        type: string
+        default: ''
+        description: 'Name for uploaded build artifact'
+      artifact-path:
+        type: string
+        default: ''
+        description: 'Path to build output file(s)'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  resolve-runner:
+    runs-on: [team-flutter]
+    outputs:
+      image: ${{ steps.kv.outputs.value }}
+    steps:
+      - uses: AdGuardSoftwareLimited/actions/actions/kv-get@master
+        id: kv
+        with:
+          key: build-images/windows2022-flutter
+
+  build:
+    needs: [resolve-runner]
+    runs-on:
+      - ephemeral
+      - ephemeral-vmwin
+      - ${{ needs.resolve-runner.outputs.image }}
+      - ephemeral-limit-memory-16384
+      - ephemeral-limit-cpu-4
+      - ephemeral-limit-disk-gb-20
+      - ephemeral-job-key-${{ github.run_id }}-${{ github.job }}-${{ strategy.job-index || 0 }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Apply PR overrides
+        uses: AdGuardSoftwareLimited/actions/actions/apply-pr-overrides@master
+
+      - name: Select Flutter
+        env:
+          FLUTTER_VERSION: '3.38.3'
+        run: |
+          set -euo pipefail
+          : "${FLUTTER_SDKS_ROOT:?image does not provide versioned Flutter SDKs}"
+          sdk="$FLUTTER_SDKS_ROOT/$FLUTTER_VERSION"
+          echo "$sdk/bin" >> "$GITHUB_PATH"
+          { echo "FLUTTER_ROOT=$sdk"; echo "FLUTTER_HOME=$sdk"; } >> "$GITHUB_ENV"
+
+      - name: Flutter pub get and code generation
+        run: |
+          set -euo pipefail
+          make gha-prepare
+
+      - name: Build Windows
+        run: |
+          set -euo pipefail
+          make gha-build-windows \
+            BUILD_NAME="${{ inputs.version }}" \
+            BUILD_NUMBER="${{ inputs.build-number }}"
+
+      - name: Build MSIX
+        run: |
+          set -euo pipefail
+          make gha-build-msix BUILD_NUMBER="${{ inputs.build-number }}"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+          if-no-files-found: error
