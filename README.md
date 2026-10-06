@@ -45,13 +45,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:locker/locker/mfa_locker.dart';
-import 'package:locker/security/models/password_cipher_func.dart';
-import 'package:locker/storage/models/domain/entry_add_input.dart';
-import 'package:locker/storage/models/domain/entry_meta.dart';
-import 'package:locker/storage/models/domain/entry_update_input.dart';
-import 'package:locker/storage/models/domain/entry_value.dart';
-import 'package:locker/erasable/erasable_byte_array.dart';
+import 'package:locker/locker.dart';
 
 // Create locker instance with storage file
 final file = File('/path/to/secure_storage.json');
@@ -156,8 +150,7 @@ await locker.eraseStorage();
 Operations that together form one user-intent action (e.g. *read a seed phrase → derive an account → save the updated entry*) can be grouped in a **scoped transaction**: the master key is unwrapped exactly once (the single biometric prompt), all changes are buffered in memory, and the file is written **once, atomically** on commit — so the whole action is "all or nothing".
 
 ```dart
-import 'package:locker/locker/locker_transaction.dart';
-import 'package:locker/storage/models/domain/entry_update_input.dart';
+import 'package:locker/locker.dart';
 
 // withTransaction commits on success and aborts on error
 await locker.withTransaction(bioCipherFunc, (txn) async {
@@ -182,9 +175,7 @@ Values returned by `txn.readValue` are owned by the caller: erase them with `val
 ### 4. Configure Biometric Authentication
 
 ```dart
-import 'package:locker/security/models/biometric_config.dart';
-import 'package:locker/security/models/bio_cipher_func.dart';
-import 'package:locker/locker/models/biometric_state.dart';
+import 'package:locker/locker.dart';
 
 // Configure biometrics (call once at app startup)
 await locker.configureBiometricCipher(
@@ -308,10 +299,7 @@ The library throws four main exception types:
   - `invalidArgument` — a locker method was called with an invalid argument value
 
 ```dart
-import 'package:locker/locker/models/exceptions/locker_exception.dart';
-import 'package:locker/security/models/exceptions/biometric_exception.dart';
-import 'package:locker/storage/models/exceptions/decrypt_failed_exception.dart';
-import 'package:locker/storage/models/exceptions/storage_exception.dart';
+import 'package:locker/locker.dart';
 
 try {
   await locker.loadAllMeta(cipherFunc);

@@ -21,7 +21,7 @@ import 'package:locker/utils/cryptography_utils.dart';
 /// In-memory working copy of the storage for one transaction; the file is
 /// written once by the storage on close, and erasing the key makes it unusable.
 class StorageTransaction implements Erasable {
-  StorageData _data;
+  StorageData _updatedData;
 
   /// Snapshot at open, compared against the file on close (compare-and-swap).
   final StorageData baseData;
@@ -34,10 +34,10 @@ class StorageTransaction implements Erasable {
   StorageTransaction({
     required StorageData data,
     required this.masterKey,
-  })  : _data = data,
+  })  : _updatedData = data,
         baseData = data;
 
-  StorageData get data => _data;
+  StorageData get updatedData => _updatedData;
 
   bool get isDirty => _dirty;
 
@@ -48,13 +48,22 @@ class StorageTransaction implements Erasable {
     _ensureActive();
 
     final result = <EntryId, EntryMeta>{};
-    for (final e in _data.entries) {
-      final decryptedMeta = await CryptographyUtils.decrypt(
-        key: masterKey,
-        data: e.encryptedMeta,
-      );
+    try {
+      for (final e in _updatedData.entries) {
+        final decryptedMeta = await CryptographyUtils.decrypt(
+          key: masterKey,
+          data: e.encryptedMeta,
+        );
 
-      result[e.id] = EntryMeta.fromErasable(erasable: decryptedMeta);
+        result[e.id] = EntryMeta.fromErasable(erasable: decryptedMeta);
+      }
+    } catch (_) {
+      // A mid-loop failure must not leave already decrypted metadata unerased.
+      for (final meta in result.values) {
+        meta.erase();
+      }
+
+      rethrow;
     }
 
     return result;
@@ -63,7 +72,7 @@ class StorageTransaction implements Erasable {
   Future<EntryValue> readValue(EntryId id) async {
     _ensureActive();
 
-    final entry = _data.entries.firstWhereOrNull((e) => e.id == id);
+    final entry = _updatedData.entries.firstWhereOrNull((e) => e.id == id);
     if (entry == null || entry.id.isEmpty) {
       throw StorageException.entryNotFound();
     }
@@ -79,12 +88,9 @@ class StorageTransaction implements Erasable {
   Future<EntryId> addEntry(EntryAddInput input) async {
     _ensureActive();
 
-    final idString = input.id?.value ?? _generateEntryId();
-    final entryId = EntryId(idString);
+    final entryId = input.id ?? EntryId.generate();
 
-    if (input.id != null) {
-      _validateNoDuplicateIds([entryId, ..._data.entries.map((e) => e.id)]);
-    }
+    _validateNoDuplicateIds([entryId, ..._updatedData.entries.map((e) => e.id)]);
 
     final encryptedMeta = await CryptographyUtils.encrypt(
       key: masterKey,
@@ -101,7 +107,7 @@ class StorageTransaction implements Erasable {
       encryptedValue: encryptedValue,
     );
 
-    _data = _data.copyWith(entries: [..._data.entries, newEntry]);
+    _updatedData = _updatedData.copyWith(entries: [..._updatedData.entries, newEntry]);
     _dirty = true;
 
     return entryId;
@@ -114,12 +120,12 @@ class StorageTransaction implements Erasable {
       throw StorageException.other('Either entryMeta or entryValue must be provided');
     }
 
-    final index = _data.entries.indexWhere((e) => e.id == input.id);
+    final index = _updatedData.entries.indexWhere((e) => e.id == input.id);
     if (index < 0) {
       throw StorageException.entryNotFound();
     }
 
-    final entry = _data.entries[index];
+    final entry = _updatedData.entries[index];
 
     Uint8List? encryptedMeta;
     Uint8List? encryptedValue;
@@ -142,24 +148,24 @@ class StorageTransaction implements Erasable {
       encryptedValue: encryptedValue,
     );
     // Keep the entry in place so an update does not reorder the file.
-    final newEntries = [..._data.entries];
+    final newEntries = [..._updatedData.entries];
     newEntries[index] = updatedEntry;
 
-    _data = _data.copyWith(entries: newEntries);
+    _updatedData = _updatedData.copyWith(entries: newEntries);
     _dirty = true;
   }
 
   Future<void> deleteEntry(EntryId id) async {
     _ensureActive();
 
-    final originalLength = _data.entries.length;
-    final newEntries = _data.entries.where((e) => e.id != id).toList();
+    final originalLength = _updatedData.entries.length;
+    final newEntries = _updatedData.entries.where((e) => e.id != id).toList();
 
     if (newEntries.length == originalLength) {
       throw StorageException.entryNotFound();
     }
 
-    _data = _data.copyWith(entries: newEntries);
+    _updatedData = _updatedData.copyWith(entries: newEntries);
     _dirty = true;
   }
 
@@ -170,7 +176,7 @@ class StorageTransaction implements Erasable {
       throw StorageException.other('Lock timeout must be greater than 0');
     }
 
-    _data = _data.copyWith(lockTimeout: lockTimeout);
+    _updatedData = _updatedData.copyWith(lockTimeout: lockTimeout);
     _dirty = true;
   }
 
@@ -183,7 +189,7 @@ class StorageTransaction implements Erasable {
       encryptedKey: encryptedMasterKey,
     );
 
-    final currentWraps = [..._data.masterKey.wraps];
+    final currentWraps = [..._updatedData.masterKey.wraps];
     final index = currentWraps.indexWhere((w) => w.origin == newWrap.origin);
 
     if (index >= 0) {
@@ -197,7 +203,7 @@ class StorageTransaction implements Erasable {
       newSalt = newWrapFunc.salt;
     }
 
-    _data = _data.copyWith(
+    _updatedData = _updatedData.copyWith(
       masterKey: WrappedKey(wraps: currentWraps),
       salt: newSalt,
     );
@@ -208,7 +214,7 @@ class StorageTransaction implements Erasable {
   Future<void> deleteWrap({required Origin originToDelete}) async {
     _ensureActive();
 
-    final currentWraps = _data.masterKey.wraps;
+    final currentWraps = _updatedData.masterKey.wraps;
     final updatedWraps = currentWraps.where((w) => w.origin != originToDelete).toList();
 
     if (updatedWraps.length == currentWraps.length) {
@@ -219,7 +225,7 @@ class StorageTransaction implements Erasable {
       throw StorageException.other('The wraps list would be empty after deletion, not allowed');
     }
 
-    _data = _data.copyWith(masterKey: WrappedKey(wraps: updatedWraps));
+    _updatedData = _updatedData.copyWith(masterKey: WrappedKey(wraps: updatedWraps));
     _dirty = true;
   }
 
@@ -234,8 +240,6 @@ class StorageTransaction implements Erasable {
       }
     }
   }
-
-  String _generateEntryId() => CryptographyUtils.generateUuid();
 
   void _ensureActive() {
     if (isErased) {

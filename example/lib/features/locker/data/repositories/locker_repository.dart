@@ -3,16 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:locker/erasable/erasable_byte_array.dart';
-import 'package:locker/locker/locker.dart' as locker;
-import 'package:locker/locker/mfa_locker.dart';
-import 'package:locker/locker/models/biometric_state.dart';
-import 'package:locker/security/models/biometric_config.dart';
-import 'package:locker/security/security_provider.dart';
-import 'package:locker/storage/models/domain/entry_add_input.dart';
-import 'package:locker/storage/models/domain/entry_id.dart';
-import 'package:locker/storage/models/domain/entry_meta.dart';
-import 'package:locker/storage/models/domain/entry_value.dart';
+import 'package:locker/locker.dart';
 import 'package:mfa_demo/core/constants/app_constants.dart';
 import 'package:mfa_demo/features/locker/data/models/repository_locker_state.dart';
 import 'package:rxdart/rxdart.dart';
@@ -144,7 +135,7 @@ class LockerRepositoryImpl implements LockerRepository {
   Completer<void>? _initCompleter;
   MFALocker? _mfaLocker;
   SecurityProviderImpl? _cachedProvider;
-  StreamSubscription<locker.LockerState>? _lockerStateSubscription;
+  StreamSubscription<LockerState>? _lockerStateSubscription;
 
   @override
   ValueStream<RepositoryLockerState> get lockerStateStream {
@@ -272,8 +263,10 @@ class LockerRepositoryImpl implements LockerRepository {
       id: id,
       cipherFunc: passwordCipherFunc,
     );
+    final value = _entryValueToString(entryValue);
+    entryValue.erase();
 
-    return _entryValueToString(entryValue);
+    return value;
   }
 
   @override
@@ -404,8 +397,10 @@ class LockerRepositoryImpl implements LockerRepository {
       id: id,
       cipherFunc: bioCipherFunc,
     );
+    final value = _entryValueToString(entryValue);
+    entryValue.erase();
 
-    return _entryValueToString(entryValue);
+    return value;
   }
 
   @override
@@ -432,6 +427,7 @@ class LockerRepositoryImpl implements LockerRepository {
     await _locker.withTransaction(bioCipherFunc, (transaction) async {
       final value = await transaction.readValue(sourceId);
       final valueEntry = _createEntryValue(_entryValueToString(value));
+      value.erase();
 
       await transaction.write(
         EntryAddInput(meta: _createEntryMeta(newName), value: valueEntry),
@@ -501,10 +497,9 @@ class LockerRepositoryImpl implements LockerRepository {
     _emitRepositoryState(_mapLibraryStateToRepositoryState(currentLibraryState));
   }
 
-  RepositoryLockerState _mapLibraryStateToRepositoryState(locker.LockerState libraryState) => switch (libraryState) {
-    locker.LockerState.locked =>
-      _isStorageInitialized ? RepositoryLockerState.locked : RepositoryLockerState.uninitialized,
-    locker.LockerState.unlocked => RepositoryLockerState.unlocked,
+  RepositoryLockerState _mapLibraryStateToRepositoryState(LockerState libraryState) => switch (libraryState) {
+    LockerState.locked => _isStorageInitialized ? RepositoryLockerState.locked : RepositoryLockerState.uninitialized,
+    LockerState.unlocked => RepositoryLockerState.unlocked,
   };
 
   Future<void> _runInitOnce(Future<void> Function() body) async {

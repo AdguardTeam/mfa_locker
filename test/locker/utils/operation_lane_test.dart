@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:locker/locker/utils/operation_lane.dart';
 import 'package:test/test.dart';
 
@@ -29,7 +27,7 @@ void main() {
       // Act
       final first = lane.acquire().then((_) => order.add(1));
       final second = lane.acquire().then((_) => order.add(2));
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await pumpEventQueue();
       expect(order, isEmpty);
       expect(lane.pendingCount, 2);
 
@@ -75,7 +73,7 @@ void main() {
       await lane.acquire();
       final first = lane.acquire();
       final second = lane.acquire();
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await pumpEventQueue();
 
       // Act
       lane.failPending(StateError('locked'));
@@ -96,7 +94,7 @@ void main() {
       final generation = lane.generation;
       await lane.acquire();
       final first = lane.acquire();
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await pumpEventQueue();
 
       // Act
       lane.invalidate(StateError('locked'));

@@ -75,7 +75,7 @@ class MfaLockerTransaction implements LockerTransaction {
     try {
       await _storageTransaction.deleteEntry(id);
     } on StorageException catch (error) {
-      // Already absent in storage: treat delete as an idempotent success.
+      // A missing entry is a documented no-op, including a repeated delete in one transaction.
       if (error.type != StorageExceptionType.entryNotFound) {
         rethrow;
       }
@@ -117,6 +117,7 @@ class MfaLockerTransaction implements LockerTransaction {
 
     final entryId = await _storageTransaction.addEntry(input);
 
+    // The id is written again after an earlier delete, so commit must publish its meta.
     _deletedIds.remove(entryId);
     _pendingMeta[entryId] = input.meta;
 

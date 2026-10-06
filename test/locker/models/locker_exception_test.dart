@@ -3,7 +3,7 @@ import 'package:test/test.dart';
 
 void main() {
   group('LockerException', () {
-    test('factories expose their type and a human-readable message', () {
+    test('factories expose their type and a non-empty message', () {
       expect(LockerException.locked().type, LockerExceptionType.locked);
       expect(LockerException.locked().message, isNotEmpty);
 
@@ -26,12 +26,12 @@ void main() {
       expect(error.message, 'Lock timeout must be greater than 0');
     });
 
-    test('toString includes the message and the type', () {
+    test('toString includes the type and the message', () {
       // Arrange
       final error = LockerException.invalidArgument('bad argument');
 
       // Act & Assert
-      expect(error.toString(), 'LockerException: bad argument (type: LockerExceptionType.invalidArgument)');
+      expect(error.toString(), 'LockerException(type: LockerExceptionType.invalidArgument, message: bad argument)');
     });
   });
 }

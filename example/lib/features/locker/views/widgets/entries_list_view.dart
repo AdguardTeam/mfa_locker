@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:locker/storage/models/domain/entry_id.dart';
+import 'package:locker/locker.dart';
 
 class EntriesListView extends StatelessWidget {
   const EntriesListView({

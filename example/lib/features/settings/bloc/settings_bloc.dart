@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:action_bloc/action_bloc.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:locker/security/models/exceptions/biometric_exception.dart';
+import 'package:locker/locker.dart';
 import 'package:mfa_demo/core/constants/app_constants.dart';
 import 'package:mfa_demo/core/services/timer_service.dart';
 import 'package:mfa_demo/features/locker/data/repositories/locker_repository.dart';

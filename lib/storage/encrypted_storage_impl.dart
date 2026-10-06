@@ -114,7 +114,7 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
 
           final storageEntries = <StorageEntry>[];
           for (final entry in initialEntries) {
-            final idString = entry.id?.value ?? _generateEntryId();
+            final entryId = entry.id ?? EntryId.generate();
             final encryptedMeta = await CryptographyUtils.encrypt(
               key: masterKey,
               data: entry.meta,
@@ -125,7 +125,7 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
             );
             storageEntries.add(
               StorageEntry(
-                id: EntryId(idString),
+                id: entryId,
                 encryptedMeta: encryptedMeta,
                 encryptedValue: encryptedValue,
               ),
@@ -165,7 +165,7 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
             throw StorageException.conflict();
           }
 
-          await _signDataWithHmacAndSave(transaction.data, transaction.masterKey);
+          await _signDataWithHmacAndSave(transaction.updatedData, transaction.masterKey);
         }
       });
 
@@ -244,6 +244,8 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
     await _writeDataToFile(signedData);
   }
 
+  /// Every `toJson` emits fields in a fixed order, so equal content encodes
+  /// identically: the comparison never reports a false conflict.
   bool _storageDataEquals(StorageData a, StorageData b) => jsonEncode(a.toJson()) == jsonEncode(b.toJson());
 
   // TODO(m.semenov): investigate if this will work on all operating systems. ChatGPT told this could be a problem on Windows
@@ -285,6 +287,4 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
       }
     }
   }
-
-  String _generateEntryId() => CryptographyUtils.generateUuid();
 }

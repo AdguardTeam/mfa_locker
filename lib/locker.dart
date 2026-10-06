@@ -1,0 +1,26 @@
+/// The public API of the `locker` package; consumers should import only this file.
+library;
+
+export 'erasable/erasable.dart';
+export 'erasable/erasable_byte_array.dart';
+export 'locker/locker.dart';
+export 'locker/locker_transaction.dart';
+export 'locker/mfa_locker.dart';
+export 'locker/models/biometric_state.dart';
+export 'locker/models/exceptions/locker_exception.dart';
+export 'security/models/bio_cipher_func.dart';
+export 'security/models/biometric_config.dart';
+export 'security/models/cipher_func.dart';
+export 'security/models/exceptions/biometric_exception.dart';
+export 'security/models/key_validity_status.dart';
+export 'security/models/password_cipher_func.dart';
+export 'security/security_provider.dart';
+export 'storage/models/data/origin.dart';
+export 'storage/models/domain/entry_add_input.dart';
+export 'storage/models/domain/entry_id.dart';
+export 'storage/models/domain/entry_input.dart';
+export 'storage/models/domain/entry_meta.dart';
+export 'storage/models/domain/entry_update_input.dart';
+export 'storage/models/domain/entry_value.dart';
+export 'storage/models/exceptions/decrypt_failed_exception.dart';
+export 'storage/models/exceptions/storage_exception.dart';

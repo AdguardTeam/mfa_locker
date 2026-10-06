@@ -35,7 +35,7 @@ class LockerException implements Exception {
       );
 
   @override
-  String toString() => 'LockerException: $message (type: $type)';
+  String toString() => 'LockerException(type: $type, message: $message)';
 }
 
 /// [locked] is thrown when the unlocked session ends mid-operation,

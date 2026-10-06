@@ -1187,6 +1187,33 @@ void main() {
           ),
         );
       });
+
+      test('throws and keeps file unchanged when a later entry fails to decrypt', () async {
+        // Arrange: the first entry decrypts, the second one is encrypted with a
+        // different key while the HMAC stays valid.
+        final masterKey = await CryptographyUtils.generateAESKey();
+        final otherKey = await CryptographyUtils.generateAESKey();
+        final cipherFunc = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKey.bytes);
+        final wrapPwd = KeyWrap(origin: Origin.pwd, encryptedKey: masterKey.bytes);
+        final entry1 = await _Helpers.createEncryptedEntry(masterKey: masterKey, id: 'id1');
+        final entry2 = await _Helpers.createEncryptedEntry(masterKey: otherKey, id: 'id2');
+        final data = await _Helpers.createStorageData(
+          masterKey: masterKey,
+          wraps: [wrapPwd],
+          entries: [entry1, entry2],
+        );
+
+        await _Helpers.writeStorageData(storageFile, data);
+
+        // Act & Assert
+        await _Helpers.expectFileUnchanged(
+          storageFile,
+          () => expectLater(
+            storage.readAllMeta(cipherFunc: cipherFunc),
+            throwsA(isA<DecryptFailedException>()),
+          ),
+        );
+      });
     });
 
     group('readValue', () {

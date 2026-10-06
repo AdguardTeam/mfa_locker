@@ -189,7 +189,6 @@ class MFALocker implements Locker {
       MFALockerUtils.eraseAfter(
         erasables: [cipherFunc],
         callback: () {
-          _ensureNotInsideTransaction();
           _ensureValidLockTimeout(lockTimeout);
 
           return _startTransaction(cipherFunc, (txn) => txn.updateLockTimeout(lockTimeout));

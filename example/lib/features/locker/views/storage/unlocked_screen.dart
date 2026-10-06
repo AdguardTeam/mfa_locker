@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:action_bloc/action_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:locker/storage/models/domain/entry_id.dart';
+import 'package:locker/locker.dart' hide LockerState;
 import 'package:mfa_demo/core/extensions/context_extensions.dart';
 import 'package:mfa_demo/features/locker/bloc/locker_bloc.dart';
 import 'package:mfa_demo/features/locker/data/models/authentication_result.dart';
