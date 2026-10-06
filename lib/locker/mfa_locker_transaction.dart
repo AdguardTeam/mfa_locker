@@ -75,7 +75,7 @@ class MfaLockerTransaction implements LockerTransaction {
     try {
       await _storageTransaction.deleteEntry(id);
     } on StorageException catch (error) {
-      // A missing entry is a documented no-op, including a repeated delete in one transaction.
+      // A missing entry is a no-op: a repeated delete must not fail the transaction.
       if (error.type != StorageExceptionType.entryNotFound) {
         rethrow;
       }
