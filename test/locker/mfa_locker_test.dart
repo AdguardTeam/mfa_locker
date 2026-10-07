@@ -53,6 +53,7 @@ void main() {
     registerFallbackValue(
       StorageTransaction(
         data: await _StorageHelpers.createStorageData(),
+        baseContent: '',
         masterKey: _StorageHelpers.createErasable(),
       ),
     );

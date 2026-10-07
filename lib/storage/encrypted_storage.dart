@@ -28,7 +28,7 @@ abstract interface class EncryptedStorage {
   });
 
   /// Opens a transaction: unwraps the master key via [cipherFunc] and snapshots
-  /// the data for the compare-and-swap on close.
+  /// the file content for the compare-and-swap on close.
   Future<StorageTransaction> openTransaction({
     required CipherFunc cipherFunc,
   });

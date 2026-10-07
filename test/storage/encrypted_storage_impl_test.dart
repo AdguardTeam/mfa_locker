@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -1665,6 +1666,26 @@ void main() {
           ),
           cipherFunc: cipher,
         );
+
+        // Act & Assert
+        await expectLater(
+          storage.closeTransaction(changeSet),
+          throwsA(isA<StorageException>().having((e) => e.type, 'type', StorageExceptionType.conflict)),
+        );
+        changeSet.erase();
+      });
+
+      test('close fails with conflict when the file was only reformatted', () async {
+        // Arrange
+        final cipher = _Helpers.createMockPasswordCipherFunc(masterKeyBytes: masterKeyBytes);
+        final changeSet = await storage.openTransaction(cipherFunc: cipher);
+        await changeSet.updateEntry(
+          EntryUpdateInput(id: EntryId('a'), value: _Helpers.createEntryValue([5, 5])),
+        );
+
+        // A semantically identical rewrite (pretty-printed JSON) is still a change.
+        final data = await _Helpers.readStorageData(storageFile);
+        await storageFile.writeAsString(const JsonEncoder.withIndent('  ').convert(data.toJson()));
 
         // Act & Assert
         await expectLater(

@@ -147,10 +147,11 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
 
   @override
   Future<StorageTransaction> openTransaction({required CipherFunc cipherFunc}) => _sync(() async {
-        final data = await _loadData();
+        final content = await _readContent();
+        final data = _parseData(content);
         final masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
 
-        return StorageTransaction(data: data, masterKey: masterKey);
+        return StorageTransaction(data: data, baseContent: content, masterKey: masterKey);
       });
 
   @override
@@ -160,8 +161,8 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
         }
 
         if (transaction.isDirty) {
-          final current = await _loadData();
-          if (!_storageDataEquals(current, transaction.baseData)) {
+          final currentContent = await _readContent();
+          if (currentContent != transaction.baseContent) {
             throw StorageException.conflict();
           }
 
@@ -180,14 +181,23 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
         await file.delete();
       });
 
-  Future<StorageData> _loadData() async {
+  Future<StorageData> _loadData() async => _parseData(await _readContent());
+
+  Future<String> _readContent() async {
     final exists = await file.exists();
     if (!exists) {
       throw StorageException.notInitialized();
     }
 
     try {
-      final content = await file.readAsString();
+      return await file.readAsString();
+    } catch (_) {
+      throw StorageException.invalidStorage();
+    }
+  }
+
+  StorageData _parseData(String content) {
+    try {
       return StorageData.fromJson(jsonDecode(content) as Map<String, Object?>);
     } catch (_) {
       throw StorageException.invalidStorage();
@@ -243,10 +253,6 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
 
     await _writeDataToFile(signedData);
   }
-
-  /// Every `toJson` emits fields in a fixed order, so equal content encodes
-  /// identically: the comparison never reports a false conflict.
-  bool _storageDataEquals(StorageData a, StorageData b) => jsonEncode(a.toJson()) == jsonEncode(b.toJson());
 
   // TODO(m.semenov): investigate if this will work on all operating systems. ChatGPT told this could be a problem on Windows
 

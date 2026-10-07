@@ -23,8 +23,8 @@ import 'package:locker/utils/cryptography_utils.dart';
 class StorageTransaction implements Erasable {
   StorageData _updatedData;
 
-  /// Snapshot at open, compared against the file on close (compare-and-swap).
-  final StorageData baseData;
+  /// Raw file content at open, compared against the file on close (compare-and-swap).
+  final String baseContent;
 
   /// The unwrapped master key; erasing it makes the working copy unusable.
   final ErasableByteArray masterKey;
@@ -33,9 +33,9 @@ class StorageTransaction implements Erasable {
 
   StorageTransaction({
     required StorageData data,
+    required this.baseContent,
     required this.masterKey,
-  })  : _updatedData = data,
-        baseData = data;
+  }) : _updatedData = data;
 
   StorageData get updatedData => _updatedData;
 

@@ -1,4 +1,3 @@
-/// The public API of the `locker` package; consumers should import only this file.
 library;
 
 export 'erasable/erasable.dart';
