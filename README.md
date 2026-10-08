@@ -12,6 +12,7 @@ A secure storage library for Dart/Flutter applications that provides encrypted k
 - **Auto-Lock** — Automatic locking after configurable inactivity timeout
 - **Secure Memory Management** — Erasable byte arrays that securely wipe sensitive data from memory
 - **Atomic Writes** — Safe file operations to prevent data corruption
+- **Scoped Transactions** — Group multiple operations (read + write) under one authentication; the master key is unwrapped once (a single biometric prompt) and reused for the whole transaction
 - **Reactive State** — RxDart streams for monitoring lock/unlock state
 - **No Logging or Telemetry** — The library never logs, prints, or transmits secrets, keys, or errors; it carries no logging dependency and surfaces failures by throwing exceptions to the caller
 
@@ -24,7 +25,7 @@ dependencies:
   locker:
     git:
       url: https://github.com/AdguardTeam/mfa_locker.git
-      ref: v1.0.4  # Use the latest tag
+      ref: v1.1.0  # Use the latest tag
 ```
 
 Or for local development:
@@ -44,13 +45,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:locker/locker/mfa_locker.dart';
-import 'package:locker/security/models/password_cipher_func.dart';
-import 'package:locker/storage/models/domain/entry_add_input.dart';
-import 'package:locker/storage/models/domain/entry_meta.dart';
-import 'package:locker/storage/models/domain/entry_update_input.dart';
-import 'package:locker/storage/models/domain/entry_value.dart';
-import 'package:locker/erasable/erasable_byte_array.dart';
+import 'package:locker/locker.dart';
 
 // Create locker instance with storage file
 final file = File('/path/to/secure_storage.json');
@@ -150,12 +145,37 @@ await locker.delete(id: entryId, cipherFunc: passwordCipherFunc);
 await locker.eraseStorage();
 ```
 
+#### Scoped Transactions (single biometric prompt + atomicity)
+
+Operations that together form one user-intent action (e.g. *read a seed phrase → derive an account → save the updated entry*) can be grouped in a **scoped transaction**: the master key is unwrapped exactly once (the single biometric prompt), all changes are buffered in memory, and the file is written **once, atomically** on commit — so the whole action is "all or nothing".
+
+```dart
+import 'package:locker/locker.dart';
+
+// withTransaction commits on success and aborts on error
+await locker.withTransaction(bioCipherFunc, (txn) async {
+  final seed = await txn.readValue(seedEntryId); // no extra prompt
+  // ... derive the new account ...
+  await txn.update(
+    EntryUpdateInput(id: walletEntryId, value: newWalletValue),
+  ); // no extra prompt, buffered until commit
+});
+```
+
+The transaction lives only inside the `withTransaction` body: it commits when the body returns and aborts when the body throws. There is no separate `beginTransaction`/`commit`/`abort` API, so a transaction can never be held open by the caller — a single safe entry point keeps the invariant in the type system instead of the docs.
+
+Only one transaction runs at a time: operations are serialized by a FIFO queue, so a second `withTransaction` waits for the first one to finish instead of failing. `lock()`, auto-lock, and `dispose()` abort the active transaction (and fail the queued operations) and erase its key material. A commit that is already in flight cannot be cancelled: it finishes, but its result is discarded and the call reports `LockerException` (`LockerExceptionType.locked`).
+
+Because auto-lock aborts the active transaction, apps that run background work inside a `withTransaction` body (e.g. a migration) should suppress the auto-lock timer for the whole duration of the call — the wait in the FIFO queue plus the body — not only for the body.
+
+`locker.allMeta` always exposes only committed metadata: the changes of an open `withTransaction` body become visible after the body commits. Every single public operation is an implicit transaction: one master-key unwrap and one atomic write, unchanged from the outside. Within a `withTransaction` body use only the `LockerTransaction` methods — calling a locker method there throws a `LockerException` (`LockerExceptionType.insideTransaction`) instead of deadlocking.
+
+Values returned by `txn.readValue` are owned by the caller: erase them with `value.erase()` as soon as they are no longer needed (e.g. in a migration loop that reads and transforms every entry). Metadata from `locker.allMeta` is shared with the locker cache — treat it as read-only and never erase or mutate it.
+
 ### 4. Configure Biometric Authentication
 
 ```dart
-import 'package:locker/security/models/biometric_config.dart';
-import 'package:locker/security/models/bio_cipher_func.dart';
-import 'package:locker/locker/models/biometric_state.dart';
+import 'package:locker/locker.dart';
 
 // Configure biometrics (call once at app startup)
 await locker.configureBiometricCipher(
@@ -259,23 +279,27 @@ locker.dispose();
 
 ### 8. Error Handling
 
-The library throws three main exception types:
+The library throws four main exception types:
 
 - **`DecryptFailedException`** — wrong password or corrupted data
 - **`BiometricException`** — biometric auth failures; check `BiometricExceptionType` for specifics:
   - `cancel` — user dismissed the biometric prompt
-  - `failure` — authentication failed (wrong fingerprint, lockout)
+  - `failure` — authentication failed (wrong fingerprint, lockout) or the native cipher returned no data
   - `keyInvalidated` — hardware key permanently invalidated after biometric enrollment change
   - `keyNotFound` — biometric key does not exist in secure hardware
   - `keyAlreadyExists` — a biometric key with the given tag already exists in secure hardware
   - `notAvailable` — biometrics not available on device
   - `notConfigured` — biometric cipher not configured
-- **`StorageException`** — storage lifecycle errors (`notInitialized`, `alreadyInitialized`, `invalidStorage`, `entryNotFound`, `duplicateEntry`, `other`)
+- **`StorageException`** — storage errors (`notInitialized`, `alreadyInitialized`, `invalidStorage`, `entryNotFound`, `duplicateEntry`, `conflict`, `other`); the locker reuses these for storage-state conditions (e.g. `init` on an initialized storage)
+- **`LockerException`** — locker session and API errors; check `LockerExceptionType` for specifics:
+  - `locked` — the locker was locked or disposed while the operation was pending
+  - `notUnlocked` — the unlocked session has not started (e.g. `allMeta` while locked)
+  - `insideTransaction` — an `MFALocker` method was called from a `withTransaction` body
+  - `transactionClosed` — a transaction method was called after the body finished
+  - `invalidArgument` — a locker method was called with an invalid argument value
 
 ```dart
-import 'package:locker/security/models/exceptions/biometric_exception.dart';
-import 'package:locker/storage/models/exceptions/decrypt_failed_exception.dart';
-import 'package:locker/storage/models/exceptions/storage_exception.dart';
+import 'package:locker/locker.dart';
 
 try {
   await locker.loadAllMeta(cipherFunc);
@@ -292,6 +316,8 @@ try {
   }
 } on StorageException catch (e) {
   // Storage error — check e.type for specifics
+} on LockerException catch (e) {
+  // Locker session error — check e.type for specifics
 }
 ```
 
@@ -300,7 +326,7 @@ try {
 ```
 locker/
 ├── lib/
-│   ├── locker/           # Core locker interface (Locker) and implementation (MFALocker)
+│   ├── locker/           # Locker interface, MFALocker, LockerTransaction (single-auth transactions)
 │   ├── security/         # Cipher functions, biometric config, BiometricCipherProvider
 │   ├── storage/          # Encrypted storage interface and JSON file-backed implementation
 │   ├── erasable/         # Secure memory management (ErasableByteArray)

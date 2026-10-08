@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:collection/collection.dart';
 import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/security/models/cipher_func.dart';
 import 'package:locker/security/models/password_cipher_func.dart';
@@ -16,10 +15,8 @@ import 'package:locker/storage/models/data/storage_entry.dart';
 import 'package:locker/storage/models/data/wrapped_key.dart';
 import 'package:locker/storage/models/domain/entry_add_input.dart';
 import 'package:locker/storage/models/domain/entry_id.dart';
-import 'package:locker/storage/models/domain/entry_meta.dart';
-import 'package:locker/storage/models/domain/entry_update_input.dart';
-import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
+import 'package:locker/storage/storage_transaction.dart';
 import 'package:locker/utils/cryptography_utils.dart';
 import 'package:locker/utils/sync.dart';
 import 'package:path/path.dart' as p;
@@ -117,7 +114,7 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
 
           final storageEntries = <StorageEntry>[];
           for (final entry in initialEntries) {
-            final idString = entry.id?.value ?? _generateEntryId();
+            final entryId = entry.id ?? EntryId.generate();
             final encryptedMeta = await CryptographyUtils.encrypt(
               key: masterKey,
               data: entry.meta,
@@ -128,7 +125,7 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
             );
             storageEntries.add(
               StorageEntry(
-                id: EntryId(idString),
+                id: entryId,
                 encryptedMeta: encryptedMeta,
                 encryptedValue: encryptedValue,
               ),
@@ -149,281 +146,27 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
       });
 
   @override
-  Future<void> addOrReplaceWrap({
-    required CipherFunc newWrapFunc,
-    required CipherFunc existingWrapFunc,
-  }) =>
-      _sync(() async {
-        ErasableByteArray? masterKey;
+  Future<StorageTransaction> openTransaction({required CipherFunc cipherFunc}) => _sync(() async {
+        final content = await _readContent();
+        final data = _parseData(content);
+        final masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
 
-        try {
-          final data = await _loadData();
-          final wrappedKey = data.masterKey;
-
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: existingWrapFunc);
-
-          final encryptedMasterKey = await newWrapFunc.encrypt(masterKey);
-          final newWrap = KeyWrap(
-            origin: newWrapFunc.origin,
-            encryptedKey: encryptedMasterKey,
-          );
-
-          final currentWraps = [...wrappedKey.wraps];
-          final index = currentWraps.indexWhere((w) => w.origin == newWrap.origin);
-
-          if (index >= 0) {
-            currentWraps[index] = newWrap;
-          } else {
-            currentWraps.add(newWrap);
-          }
-
-          Uint8List? newSalt;
-          if (newWrapFunc is PasswordCipherFunc) {
-            newSalt = newWrapFunc.salt;
-          }
-
-          final updatedKey = WrappedKey(wraps: currentWraps);
-          final newData = data.copyWith(masterKey: updatedKey, salt: newSalt);
-
-          await _signDataWithHmacAndSave(newData, masterKey);
-        } finally {
-          masterKey?.erase();
-        }
+        return StorageTransaction(data: data, baseContent: content, masterKey: masterKey);
       });
 
   @override
-  Future<void> deleteWrap({
-    required Origin originToDelete,
-    required CipherFunc cipherFunc,
-  }) =>
-      _sync(() async {
-        ErasableByteArray? masterKey;
-        try {
-          final data = await _loadData();
-
-          final currentWraps = data.masterKey.wraps;
-          final updatedWraps = currentWraps.where((w) => w.origin != originToDelete).toList();
-
-          if (updatedWraps.length == currentWraps.length) {
-            throw StorageException.other('The wrap to delete was not found');
-          }
-
-          if (updatedWraps.isEmpty) {
-            throw StorageException.other('The wraps list would be empty after deletion, not allowed');
-          }
-
-          final updatedWrappedKey = WrappedKey(wraps: updatedWraps);
-          final newData = data.copyWith(masterKey: updatedWrappedKey);
-
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
-          await _signDataWithHmacAndSave(newData, masterKey);
-        } finally {
-          masterKey?.erase();
-        }
-      });
-
-  @override
-  Future<void> deleteEntry({
-    required EntryId id,
-    required CipherFunc cipherFunc,
-  }) =>
-      _sync(() async {
-        ErasableByteArray? masterKey;
-
-        try {
-          final data = await _loadData();
-
-          final originalLength = data.entries.length;
-          final newEntries = data.entries.where((e) => e.id != id).toList();
-
-          if (newEntries.length == originalLength) {
-            throw StorageException.entryNotFound();
-          }
-
-          final newData = data.copyWith(entries: newEntries);
-
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
-          await _signDataWithHmacAndSave(newData, masterKey);
-        } finally {
-          masterKey?.erase();
-        }
-      });
-
-  @override
-  Future<EntryId> addEntry({
-    required EntryAddInput input,
-    required CipherFunc cipherFunc,
-  }) =>
-      _sync(() async {
-        ErasableByteArray? masterKey;
-        try {
-          final data = await _loadData();
-
-          final idString = input.id?.value ?? _generateEntryId();
-          final entryId = EntryId(idString);
-
-          if (input.id != null) {
-            _validateNoDuplicateIds([entryId, ...data.entries.map((e) => e.id)]);
-          }
-
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
-
-          final encryptedMeta = await CryptographyUtils.encrypt(
-            key: masterKey,
-            data: input.meta,
-          );
-
-          final encryptedValue = await CryptographyUtils.encrypt(
-            key: masterKey,
-            data: input.value,
-          );
-
-          final newEntry = StorageEntry(
-            id: entryId,
-            encryptedMeta: encryptedMeta,
-            encryptedValue: encryptedValue,
-          );
-
-          final newEntries = [...data.entries, newEntry];
-          final newData = data.copyWith(entries: newEntries);
-
-          await _signDataWithHmacAndSave(newData, masterKey);
-
-          return entryId;
-        } finally {
-          masterKey?.erase();
-        }
-      });
-
-  @override
-  Future<void> updateEntry({
-    required EntryUpdateInput input,
-    required CipherFunc cipherFunc,
-  }) =>
-      _sync(() async {
-        ErasableByteArray? masterKey;
-
-        try {
-          if (input.meta == null && input.value == null) {
-            throw StorageException.other('Either entryMeta or entryValue must be provided');
-          }
-
-          final data = await _loadData();
-          final entry = data.entries.firstWhereOrNull((e) => e.id == input.id);
-
-          if (entry == null) {
-            throw StorageException.entryNotFound();
-          }
-
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
-
-          Uint8List? encryptedMeta;
-          Uint8List? encryptedValue;
-
-          if (input.meta != null) {
-            encryptedMeta = await CryptographyUtils.encrypt(
-              key: masterKey,
-              data: input.meta!,
-            );
-          }
-
-          if (input.value != null) {
-            encryptedValue = await CryptographyUtils.encrypt(
-              key: masterKey,
-              data: input.value!,
-            );
-          }
-
-          final updatedEntry = entry.copyWith(
-            encryptedMeta: encryptedMeta,
-            encryptedValue: encryptedValue,
-          );
-
-          final entriesWithoutUpdated = data.entries.where((e) => e.id != input.id).toList();
-          final newEntries = [...entriesWithoutUpdated, updatedEntry];
-          final newData = data.copyWith(entries: newEntries);
-
-          await _signDataWithHmacAndSave(newData, masterKey);
-        } finally {
-          masterKey?.erase();
-        }
-      });
-
-  @override
-  Future<Map<EntryId, EntryMeta>> readAllMeta({required CipherFunc cipherFunc}) => _sync(() async {
-        ErasableByteArray? masterKey;
-
-        try {
-          final data = await _loadData();
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
-
-          final result = <EntryId, EntryMeta>{};
-
-          for (final e in data.entries) {
-            final decryptedMeta = await CryptographyUtils.decrypt(
-              key: masterKey,
-              data: e.encryptedMeta,
-            );
-
-            result[e.id] = EntryMeta.fromErasable(erasable: decryptedMeta);
-          }
-
-          return result;
-        } finally {
-          masterKey?.erase();
-        }
-      });
-
-  @override
-  Future<EntryValue> readValue({
-    required EntryId id,
-    required CipherFunc cipherFunc,
-  }) =>
-      _sync(() async {
-        ErasableByteArray? masterKey;
-
-        try {
-          final data = await _loadData();
-          final entry = data.entries.firstWhereOrNull(
-            (e) => e.id == id,
-          );
-
-          if (entry == null || entry.id.isEmpty) {
-            throw StorageException.entryNotFound();
-          }
-
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
-          final decryptedValue = await CryptographyUtils.decrypt(
-            key: masterKey,
-            data: entry.encryptedValue,
-          );
-
-          return EntryValue.fromErasable(erasable: decryptedValue);
-        } finally {
-          masterKey?.erase();
-        }
-      });
-
-  @override
-  Future<void> updateLockTimeout({
-    required int lockTimeout,
-    required CipherFunc cipherFunc,
-  }) =>
-      _sync(() async {
-        if (lockTimeout <= 0) {
-          throw StorageException.other('Lock timeout must be greater than 0');
+  Future<void> closeTransaction(StorageTransaction transaction) => _sync(() async {
+        if (transaction.isErased) {
+          throw StorageException.other('Transaction is erased');
         }
 
-        ErasableByteArray? masterKey;
+        if (transaction.isDirty) {
+          final currentContent = await _readContent();
+          if (currentContent != transaction.baseContent) {
+            throw StorageException.conflict();
+          }
 
-        try {
-          final data = await _loadData();
-          masterKey = await _getDecryptedMasterKey(data: data, cipherFunc: cipherFunc);
-
-          final newData = data.copyWith(lockTimeout: lockTimeout);
-          await _signDataWithHmacAndSave(newData, masterKey);
-        } finally {
-          masterKey?.erase();
+          await _signDataWithHmacAndSave(transaction.updatedData, transaction.masterKey);
         }
       });
 
@@ -438,22 +181,30 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
         await file.delete();
       });
 
-  /// Loads the file content and parses a StorageData
-  Future<StorageData> _loadData() async {
+  Future<StorageData> _loadData() async => _parseData(await _readContent());
+
+  Future<String> _readContent() async {
     final exists = await file.exists();
     if (!exists) {
       throw StorageException.notInitialized();
     }
 
     try {
-      final content = await file.readAsString();
+      return await file.readAsString();
+    } catch (_) {
+      throw StorageException.invalidStorage();
+    }
+  }
+
+  StorageData _parseData(String content) {
+    try {
       return StorageData.fromJson(jsonDecode(content) as Map<String, Object?>);
     } catch (_) {
       throw StorageException.invalidStorage();
     }
   }
 
-  /// Retrieves the master key from one of the existing wraps, verifying HMAC.
+  /// Unwraps the master key via [cipherFunc], verifying the HMAC.
   Future<ErasableByteArray> _getDecryptedMasterKey({
     required StorageData data,
     required CipherFunc cipherFunc,
@@ -496,7 +247,7 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
     }
   }
 
-  /// Saves [data] to the file, generating new hmacKey/hmacSignature
+  /// Saves [data] to the file with a fresh hmacKey and hmacSignature.
   Future<void> _signDataWithHmacAndSave(StorageData data, ErasableByteArray masterKey) async {
     final signedData = await signDataWithHmac(data: data, masterKey: masterKey);
 
@@ -534,9 +285,6 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
     }
   }
 
-  /// Validates that [ids] contains no duplicates.
-  ///
-  /// Throws [StorageException.duplicateEntry] if a duplicate is found.
   void _validateNoDuplicateIds(List<EntryId> ids) {
     final seen = <String>{};
     for (final id in ids) {
@@ -545,6 +293,4 @@ class EncryptedStorageImpl with HmacStorageMixin implements EncryptedStorage {
       }
     }
   }
-
-  String _generateEntryId() => CryptographyUtils.generateUuid();
 }

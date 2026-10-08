@@ -1,13 +1,17 @@
-import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:biometric_cipher/data/biometric_status.dart';
 import 'package:biometric_cipher/data/tpm_status.dart';
-import 'package:locker/erasable/erasable.dart';
 import 'package:locker/locker/locker.dart';
+import 'package:locker/locker/locker_transaction.dart';
+import 'package:locker/locker/mfa_locker_transaction.dart';
 import 'package:locker/locker/models/biometric_state.dart';
+import 'package:locker/locker/models/exceptions/locker_exception.dart';
+import 'package:locker/locker/utils/mfa_locker_utils.dart';
+import 'package:locker/locker/utils/operation_lane.dart';
+import 'package:locker/locker/utils/transaction_zone.dart';
 import 'package:locker/security/biometric_cipher_provider.dart';
 import 'package:locker/security/models/bio_cipher_func.dart';
 import 'package:locker/security/models/biometric_config.dart';
@@ -23,7 +27,6 @@ import 'package:locker/storage/models/domain/entry_meta.dart';
 import 'package:locker/storage/models/domain/entry_update_input.dart';
 import 'package:locker/storage/models/domain/entry_value.dart';
 import 'package:locker/storage/models/exceptions/storage_exception.dart';
-import 'package:locker/utils/sync.dart';
 import 'package:meta/meta.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -42,7 +45,9 @@ class MFALocker implements Locker {
 
   Map<EntryId, EntryMeta> _metaCache = {};
 
-  final _sync = Sync();
+  final _lane = OperationLane();
+
+  MfaLockerTransaction? _activeTransaction;
 
   @override
   ValueStream<LockerState> get stateStream => _stateController.stream;
@@ -57,13 +62,12 @@ class MFALocker implements Locker {
   Future<Duration> get lockTimeout async => Duration(milliseconds: await _storage.lockTimeout);
 
   @override
-  // TODO(d.seloustev): A test needs to be added
   Future<bool> get isBiometricEnabled => _storage.isBiometricEnabled;
 
   @override
   Map<EntryId, EntryMeta> get allMeta {
-    if (_stateController.value != LockerState.unlocked) {
-      throw StateError('Locker is not unlocked');
+    if (_stateController.isClosed || _stateController.value != LockerState.unlocked) {
+      throw LockerException.notUnlocked();
     }
 
     return UnmodifiableMapView(_metaCache);
@@ -75,12 +79,14 @@ class MFALocker implements Locker {
     required List<EntryAddInput> initialEntries,
     required Duration lockTimeout,
   }) =>
-      _sync(
-        () => _executeWithCleanup(
-          erasables: [passwordCipherFunc, ...initialEntries],
-          callback: () async {
+      MFALockerUtils.eraseAfter(
+        erasables: [passwordCipherFunc, ...initialEntries],
+        callback: () {
+          _ensureValidLockTimeout(lockTimeout);
+
+          return _runOperation((epoch) async {
             if (await isStorageInitialized) {
-              throw StateError('Storage is already initialized');
+              throw StorageException.alreadyInitialized();
             }
 
             await _storage.init(
@@ -89,26 +95,40 @@ class MFALocker implements Locker {
               lockTimeout: lockTimeout.inMilliseconds,
             );
 
-            await loadAllMetaIfLocked(passwordCipherFunc);
-          },
-        ),
+            // Never unlock a locker that was locked while the storage was written.
+            _ensureFreshEpoch(epoch);
+
+            await _unlockAndLoadMeta(passwordCipherFunc, epoch);
+          });
+        },
       );
 
   @override
-  Future<void> loadAllMeta(CipherFunc cipherFunc) => _sync(
-        () => _executeWithCleanup(
-          erasables: [cipherFunc],
-          callback: () async => loadAllMetaIfLocked(cipherFunc),
-        ),
+  Future<void> loadAllMeta(CipherFunc cipherFunc) => MFALockerUtils.eraseAfter(
+        erasables: [cipherFunc],
+        callback: () => _runOperation((epoch) => _unlockAndLoadMeta(cipherFunc, epoch)),
+      );
+
+  @override
+  Future<R> withTransaction<R>(
+    CipherFunc cipherFunc,
+    Future<R> Function(LockerTransaction txn) body,
+  ) =>
+      MFALockerUtils.eraseAfter(
+        erasables: [cipherFunc],
+        callback: () => _startTransaction(cipherFunc, body),
       );
 
   @override
   void lock() {
-    if (_stateController.value != LockerState.unlocked) {
+    _lane.invalidate(LockerException.locked());
+    _abortActiveTransaction();
+
+    if (_stateController.isClosed || _stateController.value != LockerState.unlocked) {
       return;
     }
 
-    _cleanupState();
+    _cleanupMetaCache();
     _stateController.add(LockerState.locked);
   }
 
@@ -117,25 +137,10 @@ class MFALocker implements Locker {
     required EntryAddInput input,
     required CipherFunc cipherFunc,
   }) =>
-      _sync(
-        () => _executeWithCleanup<EntryId>(
-          // dispose input.meta only on error because it is cached
-          erasables: [cipherFunc, input.value],
-          erasablesOnError: [input.meta],
-          callback: () async {
-            await loadAllMetaIfLocked(cipherFunc);
-
-            final entryId = await _storage.addEntry(
-              input: input,
-              cipherFunc: cipherFunc,
-            );
-
-            _metaCache[entryId]?.erase();
-            _metaCache[entryId] = input.meta;
-
-            return entryId;
-          },
-        ),
+      MFALockerUtils.eraseAfter<EntryId>(
+        erasables: [input.value, cipherFunc],
+        erasablesOnError: [input.meta],
+        callback: () => _startTransaction(cipherFunc, (txn) => txn.writeBuffered(input)),
       );
 
   @override
@@ -143,71 +148,24 @@ class MFALocker implements Locker {
     required EntryId id,
     required CipherFunc cipherFunc,
   }) =>
-      _sync(
-        () => _executeWithCleanup<EntryValue>(
-          erasables: [cipherFunc],
-          callback: () async {
-            await loadAllMetaIfLocked(cipherFunc);
-
-            return _storage.readValue(
-              id: id,
-              cipherFunc: cipherFunc,
-            );
-          },
-        ),
-      );
+      withTransaction(cipherFunc, (txn) => txn.readValue(id));
 
   @override
   Future<void> delete({
     required EntryId id,
     required CipherFunc cipherFunc,
   }) =>
-      _sync(
-        () => _executeWithCleanup(
-          erasables: [cipherFunc],
-          callback: () async {
-            await loadAllMetaIfLocked(cipherFunc);
-
-            try {
-              await _storage.deleteEntry(id: id, cipherFunc: cipherFunc);
-            } on StorageException catch (e) {
-              // The entry is already absent in storage - treat delete as an
-              // idempotent success and fall through to reconcile the cache.
-              if (e.type != StorageExceptionType.entryNotFound) {
-                rethrow;
-              }
-            }
-
-            final removedMeta = _metaCache.remove(id);
-            removedMeta?.erase();
-          },
-        ),
-      );
+      withTransaction(cipherFunc, (txn) => txn.delete(id));
 
   @override
   Future<void> update({
     required EntryUpdateInput input,
     required CipherFunc cipherFunc,
   }) =>
-      _sync(
-        () => _executeWithCleanup(
-          // dispose input.meta only on error because it is cached
-          erasables: [cipherFunc, if (input.value != null) input.value!],
-          erasablesOnError: [if (input.meta != null) input.meta!],
-          callback: () async {
-            await loadAllMetaIfLocked(cipherFunc);
-
-            await _storage.updateEntry(
-              input: input,
-              cipherFunc: cipherFunc,
-            );
-
-            if (input.meta != null) {
-              _metaCache[input.id]?.erase();
-              _metaCache[input.id] = input.meta!;
-            }
-          },
-        ),
+      MFALockerUtils.eraseAfter(
+        erasables: [if (input.value != null) input.value!, cipherFunc],
+        erasablesOnError: [if (input.meta != null) input.meta!],
+        callback: () => _startTransaction(cipherFunc, (txn) => txn.updateBuffered(input)),
       );
 
   @override
@@ -215,16 +173,11 @@ class MFALocker implements Locker {
     required PasswordCipherFunc newCipherFunc,
     required CipherFunc existingCipherFunc,
   }) =>
-      _sync(
-        () => _executeWithCleanup(
-          erasables: [newCipherFunc, existingCipherFunc],
-          callback: () async {
-            await loadAllMetaIfLocked(existingCipherFunc);
-            await _storage.addOrReplaceWrap(
-              newWrapFunc: newCipherFunc,
-              existingWrapFunc: existingCipherFunc,
-            );
-          },
+      MFALockerUtils.eraseAfter(
+        erasables: [newCipherFunc, existingCipherFunc],
+        callback: () => _startTransaction(
+          existingCipherFunc,
+          (txn) => txn.addOrReplaceWrap(newWrapFunc: newCipherFunc),
         ),
       );
 
@@ -233,54 +186,34 @@ class MFALocker implements Locker {
     required Duration lockTimeout,
     required CipherFunc cipherFunc,
   }) =>
-      _sync(
-        () => _executeWithCleanup(
-          erasables: [cipherFunc],
-          callback: () async {
-            await loadAllMetaIfLocked(cipherFunc);
-            await _storage.updateLockTimeout(
-              lockTimeout: lockTimeout.inMilliseconds,
-              cipherFunc: cipherFunc,
-            );
-          },
-        ),
+      MFALockerUtils.eraseAfter(
+        erasables: [cipherFunc],
+        callback: () {
+          _ensureValidLockTimeout(lockTimeout);
+
+          return _startTransaction(cipherFunc, (txn) => txn.updateLockTimeout(lockTimeout));
+        },
       );
 
   @override
-  Future<void> eraseStorage() => _sync(() async {
+  Future<void> eraseStorage() => _runOperation((_) async {
+        _lane.invalidate(LockerException.locked());
+        final epoch = _lane.generation;
+
         await _storage.erase();
-        _cleanupState();
-        _stateController.add(LockerState.locked);
+
+        _cleanupMetaCache();
+        if (_lane.isCurrent(epoch) && !_stateController.isClosed) {
+          _stateController.add(LockerState.locked);
+        }
       });
 
   @override
   void dispose() {
-    _cleanupState();
+    _lane.invalidate(LockerException.locked());
+    _abortActiveTransaction();
+    _cleanupMetaCache();
     _stateController.close();
-  }
-
-  @visibleForTesting
-  Future<void> loadAllMetaIfLocked(CipherFunc cipherFunc) async {
-    if (!(await isStorageInitialized)) {
-      throw StateError('Storage is not initialized');
-    }
-
-    if (_stateController.value == LockerState.unlocked) {
-      return;
-    }
-
-    // locker is locked, unlock it, cache keys and jump to unlocked state
-    _metaCache = await _storage.readAllMeta(cipherFunc: cipherFunc);
-
-    _stateController.add(LockerState.unlocked);
-  }
-
-  void _cleanupState() {
-    for (final meta in _metaCache.values) {
-      meta.erase();
-    }
-
-    _metaCache = {};
   }
 
   @override
@@ -289,7 +222,6 @@ class MFALocker implements Locker {
   @override
   Future<BiometricState> determineBiometricState({String? biometricKeyTag}) async {
     final tpmStatus = await _secureProvider.getTPMStatus();
-    // TPM checks first
     if (tpmStatus == TPMStatus.unsupported) {
       return BiometricState.tpmUnsupported;
     }
@@ -299,7 +231,6 @@ class MFALocker implements Locker {
 
     final biometryStatus = await _secureProvider.getBiometryStatus();
 
-    // Then biometry checks
     if (biometryStatus == BiometricStatus.unsupported ||
         biometryStatus == BiometricStatus.deviceNotPresent ||
         biometryStatus == BiometricStatus.deviceBusy) {
@@ -317,12 +248,11 @@ class MFALocker implements Locker {
 
     final isEnabledInSettings = await isBiometricEnabled;
 
-    // Finally check app settings
     if (!isEnabledInSettings) {
       return BiometricState.availableButDisabled;
     }
 
-    // Proactive key validity check — no biometric prompt shown.
+    // Proactive check: no biometric prompt is shown.
     if (biometricKeyTag != null) {
       final isValid = await _secureProvider.isKeyValid(tag: biometricKeyTag);
       if (!isValid) {
@@ -333,102 +263,281 @@ class MFALocker implements Locker {
     return BiometricState.enabled;
   }
 
-  /// Enable biometric authentication (requires password confirmation)
-  /// This method handles key generation and storage update.
   @override
   Future<void> setupBiometry({
     required BioCipherFunc bioCipherFunc,
     required PasswordCipherFunc passwordCipherFunc,
-  }) =>
-      _sync(
-        () => _executeWithCleanup(
-          erasables: [bioCipherFunc, passwordCipherFunc],
-          callback: () async {
-            // Step 1: Check TPM status
-            final tpmStatus = await _secureProvider.getTPMStatus();
-            if (tpmStatus != TPMStatus.supported) {
-              throw const BiometricException(
-                BiometricExceptionType.notAvailable,
-                message: 'TPM not supported on this device',
-              );
-            }
+  }) {
+    final epoch = _lane.generation;
 
-            // Step 2: Check biometry status
-            final biometryStatus = await _secureProvider.getBiometryStatus();
-            if (biometryStatus != BiometricStatus.supported) {
-              throw BiometricException(
-                BiometricExceptionType.notAvailable,
-                message: 'Biometric authentication not available: $biometryStatus',
-              );
-            }
+    return MFALockerUtils.eraseAfter(
+      erasables: [bioCipherFunc, passwordCipherFunc],
+      callback: () async {
+        _ensureNotInsideTransaction();
 
-            try {
-              // Step 3: Defensive key management - delete before generate
-              try {
-                await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
-              } catch (_) {
-                // Ignore errors - key might not exist yet
-              }
+        final tpmStatus = await _secureProvider.getTPMStatus();
+        if (tpmStatus != TPMStatus.supported) {
+          throw const BiometricException(
+            BiometricExceptionType.notAvailable,
+            message: 'TPM not supported on this device',
+          );
+        }
 
-              // Step 4: Generate new key
-              await _secureProvider.generateKey(tag: bioCipherFunc.keyTag);
+        final biometryStatus = await _secureProvider.getBiometryStatus();
+        if (biometryStatus != BiometricStatus.supported) {
+          throw BiometricException(
+            BiometricExceptionType.notAvailable,
+            message: 'Biometric authentication not available: $biometryStatus',
+          );
+        }
 
-              // Step 5: Enable biometry in locker
-              await loadAllMetaIfLocked(passwordCipherFunc);
-              await _storage.addOrReplaceWrap(newWrapFunc: bioCipherFunc, existingWrapFunc: passwordCipherFunc);
-            } catch (_) {
-              // Best-effort cleanup after enableBiometric failure; original error is rethrown below
-              try {
-                await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
-              } catch (_) {
-                // Suppress cleanup error; original failure is rethrown
-              }
+        try {
+          // Delete before generate: a stale key may exist.
+          try {
+            await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
+          } catch (_) {
+            // The key might not exist yet.
+          }
 
-              rethrow;
-            }
-          },
-        ),
-      );
+          await _secureProvider.generateKey(tag: bioCipherFunc.keyTag);
+
+          // The locker could have been locked while the native key was created.
+          _ensureFreshEpoch(epoch);
+
+          await _startTransaction(
+            passwordCipherFunc,
+            (txn) => txn.addOrReplaceWrap(newWrapFunc: bioCipherFunc),
+          );
+        } catch (_) {
+          // Best-effort cleanup; the original error is rethrown.
+          try {
+            await _secureProvider.deleteKey(tag: bioCipherFunc.keyTag);
+          } catch (_) {
+            // Best-effort.
+          }
+
+          rethrow;
+        }
+      },
+    );
+  }
 
   @override
   Future<void> teardownBiometry({
     required PasswordCipherFunc passwordCipherFunc,
     String? biometricKeyTag,
   }) =>
-      _sync(
-        () => _executeWithCleanup(
-          erasables: [passwordCipherFunc],
-          callback: () async {
-            await loadAllMetaIfLocked(passwordCipherFunc);
-            await _storage.deleteWrap(originToDelete: Origin.bio, cipherFunc: passwordCipherFunc);
-            if (biometricKeyTag != null) {
-              try {
-                await _secureProvider.deleteKey(tag: biometricKeyTag);
-              } catch (_) {
-                // Suppress: biometric key deletion is best-effort during teardown
-              }
+      MFALockerUtils.eraseAfter(
+        erasables: [passwordCipherFunc],
+        callback: () async {
+          await _startTransaction(
+            passwordCipherFunc,
+            (txn) => txn.deleteWrap(originToDelete: Origin.bio),
+          );
+
+          if (biometricKeyTag != null) {
+            try {
+              await _secureProvider.deleteKey(tag: biometricKeyTag);
+            } catch (_) {
+              // Suppress: biometric key deletion is best-effort during teardown
             }
-          },
-        ),
+          }
+        },
       );
 
-  Future<T> _executeWithCleanup<T>({
-    required List<Erasable> erasables,
-    required Future<T> Function() callback,
-    List<Erasable> erasablesOnError = const [],
-  }) async {
+  /// Unlocks by opening a transaction and discarding it; nothing is persisted.
+  Future<void> _unlockAndLoadMeta(CipherFunc cipherFunc, int epoch) async {
+    if (_stateController.value == LockerState.unlocked) {
+      return;
+    }
+
+    final txn = await _openTransaction(cipherFunc, epoch);
+
+    txn.abort();
+  }
+
+  Future<R> _startTransaction<R>(
+    CipherFunc cipherFunc,
+    Future<R> Function(MfaLockerTransaction txn) body,
+  ) async {
+    _ensureNotInsideTransaction();
+    _ensureNotDisposed();
+
+    final epoch = _lane.generation;
+
+    await _lane.acquire();
+
+    final MfaLockerTransaction txn;
     try {
-      return await callback();
+      txn = await _openTransaction(cipherFunc, epoch);
+      _activeTransaction = txn;
     } catch (_) {
-      for (final cipherFunc in erasablesOnError) {
-        cipherFunc.erase();
-      }
+      _lane.release();
 
       rethrow;
-    } finally {
-      for (final cipherFunc in erasables) {
-        cipherFunc.erase();
-      }
     }
+
+    var succeeded = false;
+    try {
+      final result = await TransactionZone.run(this, () => body(txn));
+      succeeded = true;
+
+      return result;
+    } finally {
+      if (succeeded && txn.isClosed) {
+        throw LockerException.locked();
+      }
+
+      await _finishTransaction(txn, commit: succeeded, epoch: epoch);
+    }
+  }
+
+  /// Opens a transaction; the first open of a session unwraps the key, loads the
+  /// metadata and unlocks, so every operation can rely on that invariant.
+  Future<MfaLockerTransaction> _openTransaction(CipherFunc cipherFunc, int epoch) async {
+    _ensureFreshEpoch(epoch);
+
+    if (!(await isStorageInitialized)) {
+      throw StorageException.notInitialized();
+    }
+
+    return MfaLockerTransaction.open(
+      storage: _storage,
+      cipherFunc: cipherFunc,
+      initialize: (storageTransaction) async {
+        if (_stateController.value != LockerState.unlocked) {
+          final meta = await storageTransaction.readAllMeta();
+          _ensureFreshEpoch(epoch, metas: meta.values);
+
+          _metaCache = meta;
+          _stateController.add(LockerState.unlocked);
+        }
+
+        // lock()/dispose() could have happened while the storage was opening.
+        _ensureFreshEpoch(epoch);
+      },
+    );
+  }
+
+  Future<T> _runOperation<T>(Future<T> Function(int epoch) body) async {
+    _ensureNotInsideTransaction();
+    _ensureNotDisposed();
+
+    final epoch = _lane.generation;
+
+    await _lane.acquire();
+
+    try {
+      _ensureFreshEpoch(epoch);
+
+      return await body(epoch);
+    } finally {
+      _lane.release();
+    }
+  }
+
+  void _ensureNotInsideTransaction() {
+    if (identical(TransactionZone.current, this)) {
+      throw LockerException.insideTransaction();
+    }
+  }
+
+  void _ensureNotDisposed() {
+    if (_stateController.isClosed) {
+      throw const LockerException(
+        type: LockerExceptionType.locked,
+        message: 'Locker is disposed',
+      );
+    }
+  }
+
+  /// Checked before any storage call, so an invalid value never prompts.
+  void _ensureValidLockTimeout(Duration lockTimeout) {
+    if (lockTimeout.inMilliseconds <= 0) {
+      throw LockerException.invalidArgument('Lock timeout must be greater than 0');
+    }
+  }
+
+  /// Erases [metas] when the session they belong to is gone.
+  void _ensureFreshEpoch(
+    int epoch, {
+    Iterable<EntryMeta> metas = const [],
+  }) {
+    if (_lane.isCurrent(epoch)) {
+      return;
+    }
+
+    _eraseMetas(metas);
+
+    throw LockerException.locked();
+  }
+
+  void _cleanupMetaCache() {
+    _eraseMetas(_metaCache.values);
+    _metaCache = {};
+  }
+
+  void _eraseMetas(Iterable<EntryMeta> metas) {
+    for (final meta in metas) {
+      meta.erase();
+    }
+  }
+
+  Future<void> _finishTransaction(
+    MfaLockerTransaction txn, {
+    required bool commit,
+    required int epoch,
+  }) async {
+    try {
+      if (txn.isClosed) {
+        return;
+      }
+
+      if (!commit) {
+        txn.abort();
+
+        return;
+      }
+
+      final result = await txn.commit();
+
+      // The file is written, but a lock during the commit must not resurrect the session.
+      if (!_lane.isCurrent(epoch)) {
+        _eraseMetas(result.pendingMeta.values);
+
+        throw LockerException.locked();
+      }
+
+      for (final id in result.deletedIds) {
+        _metaCache.remove(id)?.erase();
+      }
+
+      for (final entry in result.pendingMeta.entries) {
+        _metaCache[entry.key]?.erase();
+        _metaCache[entry.key] = entry.value;
+      }
+    } finally {
+      _releaseTransaction(txn);
+    }
+  }
+
+  /// A commit in flight is left to finish and discarded by [_finishTransaction].
+  void _abortActiveTransaction() {
+    final txn = _activeTransaction;
+    if (txn == null || txn.isClosed || txn.isCommitting) {
+      return;
+    }
+
+    txn.abort();
+    _releaseTransaction(txn);
+  }
+
+  void _releaseTransaction(MfaLockerTransaction txn) {
+    if (!identical(_activeTransaction, txn)) {
+      return;
+    }
+
+    _activeTransaction = null;
+    _lane.release();
   }
 }

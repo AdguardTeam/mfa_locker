@@ -35,8 +35,21 @@ void main() {
         expect(sut.origin, Origin.bio);
       });
 
-      test('isErased always returns false', () {
+      test('isErased always returns false and erase is a no-op', () {
+        // Act
+        sut.erase();
+
+        // Assert
         expect(sut.isErased, false);
+      });
+
+      test('uses the default provider when no override is given', () {
+        // Act
+        final func = BioCipherFunc(keyTag: 'test-key');
+
+        // Assert
+        expect(func.keyTag, 'test-key');
+        expect(func.origin, Origin.bio);
       });
     });
 

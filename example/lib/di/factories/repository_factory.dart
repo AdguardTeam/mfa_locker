@@ -1,4 +1,4 @@
-import 'package:locker/security/models/biometric_config.dart';
+import 'package:locker/locker.dart';
 import 'package:mfa_demo/core/services/timer_service.dart';
 import 'package:mfa_demo/features/locker/data/repositories/locker_repository.dart';
 

@@ -2,6 +2,10 @@ part of 'mfa_locker_test.dart';
 
 typedef _StorageHelpers = EncryptedStorageTestHelpers;
 
+Matcher isLockerError(LockerExceptionType type) => isA<LockerException>().having((e) => e.type, 'type', type);
+
+Matcher isStorageError(StorageExceptionType type) => isA<StorageException>().having((e) => e.type, 'type', type);
+
 abstract class _Helpers {
   static const lockTimeout = Duration(milliseconds: 200);
 
@@ -29,8 +33,7 @@ abstract class _Helpers {
   }
 
   static Map<EntryId, EntryMeta> stubReadAllMeta(
-    MockEncryptedStorage storage,
-    CipherFunc cipher, {
+    MockStorageTransaction changeSet, {
     String id = 'a',
     List<int> metaBytes = const [1],
   }) {
@@ -38,16 +41,15 @@ abstract class _Helpers {
       EntryId(id): _StorageHelpers.createEntryMeta(metaBytes),
     };
 
-    when(() => storage.readAllMeta(cipherFunc: cipher)).thenAnswer(
-      (_) async => result,
-    );
+    when(() => changeSet.readAllMeta()).thenAnswer((_) async => result);
 
     return result;
   }
 
+  /// Asserts exactly one erase per API boundary.
   static void verifyErased(Erasable erasable) {
     if (erasable is Mock) {
-      verify(() => erasable.erase()).called(greaterThan(0));
+      verify(() => erasable.erase()).called(1);
     } else {
       expect(erasable.isErased, isTrue);
     }

@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:locker/storage/models/domain/entry_id.dart';
+import 'package:locker/locker.dart';
 
 class EntriesListView extends StatelessWidget {
   const EntriesListView({
     required this.entries,
     required this.onDeleteEntry,
     required this.onViewEntry,
+    required this.onCopyEntry,
     super.key,
   });
 
   final Map<EntryId, String> entries;
   final Function(EntryId, String) onDeleteEntry;
   final Function(EntryId, String) onViewEntry;
+  final Function(EntryId, String) onCopyEntry;
 
   @override
   Widget build(BuildContext context) => ListView.builder(
@@ -30,6 +32,12 @@ class EntriesListView extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            IconButton(
+              icon: const Icon(Icons.content_copy, color: Colors.blueGrey),
+              tooltip: 'Duplicate entry',
+              onPressed: () => onCopyEntry(entryId, entryName),
+            ),
+            const SizedBox(width: 8),
             IconButton(
               icon: const Icon(Icons.delete_outline, color: Colors.red),
               tooltip: 'Delete entry',

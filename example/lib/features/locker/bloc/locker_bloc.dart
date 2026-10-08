@@ -4,10 +4,7 @@ import 'package:action_bloc/action_bloc.dart';
 import 'package:adguard_logger/adguard_logger.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:locker/locker/models/biometric_state.dart';
-import 'package:locker/security/models/exceptions/biometric_exception.dart';
-import 'package:locker/storage/models/domain/entry_id.dart';
-import 'package:locker/storage/models/exceptions/decrypt_failed_exception.dart';
+import 'package:locker/locker.dart';
 import 'package:mfa_demo/core/services/timer_service.dart';
 import 'package:mfa_demo/features/locker/data/models/repository_locker_state.dart';
 import 'package:mfa_demo/features/locker/data/repositories/locker_repository.dart';
@@ -42,6 +39,8 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     on<_DisableBiometricRequested>(_onDisableBiometricRequested);
     on<_UnlockWithBiometricRequested>(_onUnlockWithBiometricRequested);
     on<_AddEntryWithBiometricRequested>(_onAddEntryWithBiometricRequested);
+    on<_DuplicateEntryNaiveWithBiometricRequested>(_onDuplicateEntryNaiveWithBiometricRequested);
+    on<_DuplicateEntryTransactionWithBiometricRequested>(_onDuplicateEntryTransactionWithBiometricRequested);
     on<_ReadEntryWithBiometricRequested>(_onReadEntryWithBiometricRequested);
     on<_DeleteEntryWithBiometricRequested>(_onDeleteEntryWithBiometricRequested);
     on<_ViewEntryRequested>(_onViewEntryRequested);
@@ -524,6 +523,122 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
           fallbackMessage: 'Failed to add entry. Please try again.',
         ),
         operationDescription: 'add entry with biometric',
+      );
+    } finally {
+      if (!isClosed) {
+        emit(
+          state.copyWith(
+            loadState: LoadState.none,
+            biometricOperationState: BiometricOperationState.awaitingResume,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _onDuplicateEntryNaiveWithBiometricRequested(
+    _DuplicateEntryNaiveWithBiometricRequested event,
+    Emitter<LockerState> emit,
+  ) async {
+    emit(
+      state.copyWith(
+        loadState: LoadState.loading,
+        biometricOperationState: BiometricOperationState.inProgress,
+      ),
+    );
+
+    try {
+      await _handleVaultOperation(
+        operation: () async {
+          await _lockerRepository.duplicateEntryWithBiometric(
+            sourceId: event.sourceId,
+            newName: event.newName,
+          );
+
+          final entries = await _lockerRepository.getAllEntries();
+          if (isClosed) {
+            return;
+          }
+          emit(
+            state.copyWith(
+              entries: entries,
+              loadState: LoadState.none,
+            ),
+          );
+          action(const LockerAction.biometricAuthenticationSucceeded());
+          action(const LockerAction.showSuccess(message: 'Duplicated (standard: 2 biometric checks)'));
+          if (!isClosed) {
+            add(
+              const LockerEvent.biometricOperationStateChanged(
+                biometricOperationState: BiometricOperationState.idle,
+              ),
+            );
+          }
+        },
+        onError: (error) => _handleBiometricFailure(
+          emit,
+          error,
+          fallbackMessage: 'Failed to duplicate entry (naive). Please try again.',
+        ),
+        operationDescription: 'duplicate entry (naive) with biometric',
+      );
+    } finally {
+      if (!isClosed) {
+        emit(
+          state.copyWith(
+            loadState: LoadState.none,
+            biometricOperationState: BiometricOperationState.awaitingResume,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _onDuplicateEntryTransactionWithBiometricRequested(
+    _DuplicateEntryTransactionWithBiometricRequested event,
+    Emitter<LockerState> emit,
+  ) async {
+    emit(
+      state.copyWith(
+        loadState: LoadState.loading,
+        biometricOperationState: BiometricOperationState.inProgress,
+      ),
+    );
+
+    try {
+      await _handleVaultOperation(
+        operation: () async {
+          await _lockerRepository.duplicateEntryInTransactionWithBiometric(
+            sourceId: event.sourceId,
+            newName: event.newName,
+          );
+
+          final entries = await _lockerRepository.getAllEntries();
+          if (isClosed) {
+            return;
+          }
+          emit(
+            state.copyWith(
+              entries: entries,
+              loadState: LoadState.none,
+            ),
+          );
+          action(const LockerAction.biometricAuthenticationSucceeded());
+          action(const LockerAction.showSuccess(message: 'Duplicated (transaction: 1 biometric check)'));
+          if (!isClosed) {
+            add(
+              const LockerEvent.biometricOperationStateChanged(
+                biometricOperationState: BiometricOperationState.idle,
+              ),
+            );
+          }
+        },
+        onError: (error) => _handleBiometricFailure(
+          emit,
+          error,
+          fallbackMessage: 'Failed to duplicate entry (transaction). Please try again.',
+        ),
+        operationDescription: 'duplicate entry (transaction) with biometric',
       );
     } finally {
       if (!isClosed) {

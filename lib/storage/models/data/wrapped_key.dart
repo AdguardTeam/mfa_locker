@@ -1,5 +1,6 @@
 import 'package:locker/storage/models/data/key_wrap.dart';
 import 'package:locker/storage/models/data/origin.dart';
+import 'package:locker/storage/models/exceptions/storage_exception.dart';
 
 const _wrapsFieldName = 'wraps';
 
@@ -12,7 +13,7 @@ class WrappedKey {
 
   KeyWrap getWrapForOrigin(Origin origin) => wraps.firstWhere(
         (w) => w.origin == origin,
-        orElse: () => throw StateError('Wrap for origin $origin not found'),
+        orElse: () => throw StorageException.invalidStorage(message: 'Wrap for origin $origin not found'),
       );
 
   factory WrappedKey.fromJson(Map<String, Object?> json) => WrappedKey(
