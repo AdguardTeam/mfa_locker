@@ -1,6 +1,6 @@
 name: biometric_cipher
 description: "AdGuard TPM/Secure Enclave plugin for biometric authentication on iOS, macOS, and Android."
-version: 0.0.1
+version: 0.1.0
 homepage: https://github.com/AdguardTeam/mfa_locker
 repository: https://github.com/AdguardTeam/mfa_locker
 issue_tracker: https://github.com/AdguardTeam/mfa_locker/issues
