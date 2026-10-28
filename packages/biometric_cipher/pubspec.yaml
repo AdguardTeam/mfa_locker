@@ -1,5 +1,5 @@
 name: biometric_cipher
-description: "AdGuard TPM/Secure Enclave plugin for biometric authentication on iOS, macOS, Android, and Windows."
+description: "AdGuard TPM/Secure Enclave plugin for biometric authentication on iOS, macOS, and Android."
 version: 0.0.1
 homepage: https://github.com/AdguardTeam/mfa_locker
 repository: https://github.com/AdguardTeam/mfa_locker
@@ -45,8 +45,6 @@ flutter:
       macos:
         pluginClass: BiometricCipherPlugin
         sharedDarwinSource: true
-      windows:
-        pluginClass: BiometricCipherPluginCApi
 
   # To add assets to your plugin package, add an assets section, like this:
   # assets:
