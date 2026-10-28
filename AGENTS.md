@@ -98,8 +98,7 @@ mfa_locker/
 │       ├── lib/                      # Platform interface + method channel
 │       ├── android/                  # Kotlin: AuthenticationRepository, SecureService
 │       ├── ios/                      # Shared Darwin source (Secure Enclave)
-│       ├── macos/                    # Shared Darwin source (Secure Enclave)
-│       └── windows/                  # C++: Windows Hello + TPM
+│       └── macos/                    # Shared Darwin source (Secure Enclave)
 ├── example/
 │   ├── lib/
 │   │   ├── features/
@@ -388,7 +387,7 @@ formatter:
 
 | Package | Location | Purpose |
 |---------|----------|---------|
-| `biometric_cipher` | `packages/biometric_cipher/` | Native Flutter plugin wrapping TPM/Secure Enclave for biometric key operations (generate, encrypt, decrypt, validate, delete). Supports Android (Kotlin), iOS/macOS (Swift, Secure Enclave), Windows (C++, Windows Hello). |
+| `biometric_cipher` | `packages/biometric_cipher/` | Native Flutter plugin wrapping TPM/Secure Enclave for biometric key operations (generate, encrypt, decrypt, validate, delete). Supports Android (Kotlin), iOS/macOS (Swift, Secure Enclave). |
 | `action_bloc` | `example/packages/action_bloc/` | Custom `flutter_bloc` extension. `ActionBloc<E, S, A>` emits both state updates and one-off side-effect actions via separate streams. Provides `BlocActionConsumer`, `BlocActionListener`, `BlocActionStateConsumer` widgets. |
 | `package_info_plus` | `example/packages/package_info_plus/` | Platform integration for app package info. |
 

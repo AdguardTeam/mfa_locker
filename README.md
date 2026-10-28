@@ -6,7 +6,7 @@ A secure storage library for Dart/Flutter applications that provides encrypted k
 
 - **AES-GCM Encryption** — All data is encrypted using industry-standard AES-GCM algorithm
 - **Password Protection** — Argon2id key derivation from user password
-- **Biometric Authentication** — Optional biometric unlock via TPM/Secure Enclave (iOS, macOS, Android, Windows)
+- **Biometric Authentication** — Optional biometric unlock via TPM/Secure Enclave (iOS, macOS, Android)
 - **Biometric Key Invalidation Detection** — Proactive detection of hardware key invalidation after biometric enrollment changes, with silent key validity probes (no biometric prompt)
 - **HMAC Integrity Verification** — Detects storage tampering using HMAC-SHA256
 - **Auto-Lock** — Automatic locking after configurable inactivity timeout
@@ -332,7 +332,7 @@ locker/
 │   ├── erasable/         # Secure memory management (ErasableByteArray)
 │   └── utils/            # Cryptography utilities, reentrant lock (Sync), extensions
 ├── packages/
-│   └── biometric_cipher/  # Native Flutter plugin wrapping TPM/Secure Enclave (iOS, macOS, Android, Windows)
+│   └── biometric_cipher/  # Native Flutter plugin wrapping TPM/Secure Enclave (iOS, macOS, Android)
 ├── example/              # Demo Flutter app (mfa_demo) — UI → BLoC → Repository → MFALocker
 └── test/                 # Unit tests (mocktail)
 ```
