@@ -26,7 +26,6 @@ void main() {
         const config = ConfigData(
           biometricPromptTitle: 'Title',
           biometricPromptSubtitle: 'Subtitle',
-          windowsDataToSign: 'DataToSign',
         );
 
         // Act
@@ -50,7 +49,6 @@ void main() {
           config: const ConfigData(
             biometricPromptTitle: 'Title',
             biometricPromptSubtitle: 'Subtitle',
-            windowsDataToSign: 'DataToSign',
           ),
         );
         await biometricCipher.generateKey(tag: tag);
@@ -96,7 +94,6 @@ void main() {
           config: const ConfigData(
             biometricPromptTitle: 'Title',
             biometricPromptSubtitle: 'Subtitle',
-            windowsDataToSign: 'DataToSign',
           ),
         );
 
@@ -111,7 +108,6 @@ void main() {
           config: const ConfigData(
             biometricPromptTitle: 'Title',
             biometricPromptSubtitle: 'Subtitle',
-            windowsDataToSign: 'DataToSign',
           ),
         );
         await biometricCipher.generateKey(tag: tag);
@@ -147,7 +143,6 @@ void main() {
           config: const ConfigData(
             biometricPromptTitle: 'Title',
             biometricPromptSubtitle: 'Subtitle',
-            windowsDataToSign: 'DataToSign',
           ),
         );
         await biometricCipher.generateKey(tag: tag);
@@ -165,7 +160,6 @@ void main() {
           config: const ConfigData(
             biometricPromptTitle: 'Title',
             biometricPromptSubtitle: 'Subtitle',
-            windowsDataToSign: 'DataToSign',
           ),
         );
         await biometricCipher.generateKey(tag: tag);
@@ -185,7 +179,6 @@ void main() {
           config: const ConfigData(
             biometricPromptTitle: 'Title',
             biometricPromptSubtitle: 'Subtitle',
-            windowsDataToSign: 'DataToSign',
           ),
         );
       });
