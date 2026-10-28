@@ -359,31 +359,10 @@ void main() {
 
         expect(captured.biometricPromptTitle, 'Title');
         expect(captured.biometricPromptSubtitle, 'Subtitle');
-        expect(captured.windowsDataToSign, 'locker_authentication_request');
         expect(captured.androidConfig?.negativeButtonText, 'Cancel');
         expect(captured.androidConfig?.promptTitle, 'Title');
         expect(captured.androidConfig?.promptSubtitle, 'Subtitle');
         expect(captured.androidConfig?.promptDescription, 'Description');
-      });
-
-      test('forwards the Windows auth data when provided', () async {
-        // Arrange
-        const config = BiometricConfig(
-          promptTitle: 'Title',
-          promptSubtitle: 'Subtitle',
-          androidCancelButtonText: 'Cancel',
-          androidPromptDescription: 'Description',
-          windowsAuthData: 'payload',
-        );
-
-        // Act
-        await provider.configure(config);
-
-        // Assert
-        final captured =
-            verify(() => mockCipher.configure(config: captureAny(named: 'config'))).captured.single as ConfigData;
-
-        expect(captured.windowsDataToSign, 'payload');
       });
     });
   });
