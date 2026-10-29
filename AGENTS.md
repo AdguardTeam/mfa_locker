@@ -7,7 +7,7 @@ structure, build commands, contribution rules, and code guidelines.
 
 `locker` is a Dart/Flutter library providing AES-GCM encrypted key-value storage
 with multi-factor authentication (password + biometrics via the platform keystore).
-It targets iOS, macOS, Android, and Windows.
+It targets iOS, macOS and Android with biometrics, and Windows for password-only storage (no biometric implementation).
 
 The repo contains:
 - **`lib/`** — the `locker` library itself (core encryption, storage, authentication)
@@ -30,7 +30,7 @@ The repo contains:
 | **Testing** | `flutter_test`, `mocktail` 1.0.3, Arrange-Act-Assert pattern |
 | **Code Generation** | `build_runner`, `freezed` (example app only) |
 | **Linting** | `lints` 3.0.0 + 90+ rules, `strict-casts: true`, `strict-raw-types: true` |
-| **Target Platforms** | iOS, Android, macOS, Windows |
+| **Target Platforms** | iOS, Android, macOS (biometrics); Windows (password-only storage) |
 | **DI** | Manual constructor-based injection with factory classes (example app) |
 | **Project Type** | Flutter library with local plugin package and example app |
 
