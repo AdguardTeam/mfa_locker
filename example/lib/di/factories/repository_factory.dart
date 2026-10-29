@@ -1,5 +1,6 @@
 import 'package:locker/locker.dart';
 import 'package:mfa_demo/core/services/timer_service.dart';
+import 'package:mfa_demo/core/utils/biometric_support.dart';
 import 'package:mfa_demo/features/locker/data/repositories/locker_repository.dart';
 
 /// Abstract factory for creating repository and service instances
@@ -40,6 +41,10 @@ class RepositoryFactoryImpl implements RepositoryFactory {
   @override
   Future<void> init() async {
     _timerService = TimerServiceImpl(lockerRepository: lockerRepository);
+
+    if (!isBiometricCipherSupported) {
+      return;
+    }
 
     // Configure biometric cipher provider once at app startup
     // This must be done before any biometric operations
