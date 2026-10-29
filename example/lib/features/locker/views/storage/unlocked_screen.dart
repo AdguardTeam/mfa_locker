@@ -7,6 +7,7 @@ import 'package:locker/locker.dart' hide LockerState;
 import 'package:mfa_demo/core/extensions/context_extensions.dart';
 import 'package:mfa_demo/features/locker/bloc/locker_bloc.dart';
 import 'package:mfa_demo/features/locker/data/models/authentication_result.dart';
+import 'package:mfa_demo/features/locker/data/models/duplicate_entry_auth_method.dart';
 import 'package:mfa_demo/features/locker/data/models/duplicate_entry_result.dart';
 import 'package:mfa_demo/features/locker/views/storage/add_entry_screen.dart';
 import 'package:mfa_demo/features/locker/views/widgets/authentication_bottom_sheet.dart';
@@ -94,26 +95,44 @@ class UnlockedScreen extends StatelessWidget {
     final bloc = context.read<LockerBloc>();
     final result = await showDialog<DuplicateEntryResult>(
       context: context,
-      builder: (context) => DuplicateEntryDialog(sourceName: entryName),
+      builder: (context) => DuplicateEntryDialog(
+        sourceName: entryName,
+        biometricAvailable: bloc.state.canUseBiometric,
+      ),
     );
 
     if (result == null || !context.mounted) {
       return;
     }
 
-    if (result.useTransaction) {
+    final password = result.password;
+    final isBiometric = result.authMethod == DuplicateEntryAuthMethod.biometric;
+
+    if (isBiometric) {
       bloc.add(
-        LockerEvent.duplicateEntryTransactionWithBiometricRequested(
-          sourceId: entryId,
-          newName: result.newName,
-        ),
+        result.useTransaction
+            ? LockerEvent.duplicateEntryTransactionWithBiometricRequested(
+                sourceId: entryId,
+                newName: result.newName,
+              )
+            : LockerEvent.duplicateEntryNaiveWithBiometricRequested(
+                sourceId: entryId,
+                newName: result.newName,
+              ),
       );
-    } else {
+    } else if (password != null) {
       bloc.add(
-        LockerEvent.duplicateEntryNaiveWithBiometricRequested(
-          sourceId: entryId,
-          newName: result.newName,
-        ),
+        result.useTransaction
+            ? LockerEvent.duplicateEntryTransactionWithPasswordRequested(
+                sourceId: entryId,
+                newName: result.newName,
+                password: password,
+              )
+            : LockerEvent.duplicateEntryNaiveWithPasswordRequested(
+                sourceId: entryId,
+                newName: result.newName,
+                password: password,
+              ),
       );
     }
   }

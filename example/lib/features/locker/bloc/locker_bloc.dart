@@ -41,6 +41,8 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     on<_AddEntryWithBiometricRequested>(_onAddEntryWithBiometricRequested);
     on<_DuplicateEntryNaiveWithBiometricRequested>(_onDuplicateEntryNaiveWithBiometricRequested);
     on<_DuplicateEntryTransactionWithBiometricRequested>(_onDuplicateEntryTransactionWithBiometricRequested);
+    on<_DuplicateEntryNaiveWithPasswordRequested>(_onDuplicateEntryNaiveWithPasswordRequested);
+    on<_DuplicateEntryTransactionWithPasswordRequested>(_onDuplicateEntryTransactionWithPasswordRequested);
     on<_ReadEntryWithBiometricRequested>(_onReadEntryWithBiometricRequested);
     on<_DeleteEntryWithBiometricRequested>(_onDeleteEntryWithBiometricRequested);
     on<_ViewEntryRequested>(_onViewEntryRequested);
@@ -534,6 +536,84 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
         );
       }
     }
+  }
+
+  Future<void> _onDuplicateEntryNaiveWithPasswordRequested(
+    _DuplicateEntryNaiveWithPasswordRequested event,
+    Emitter<LockerState> emit,
+  ) async {
+    emit(state.copyWith(loadState: LoadState.loading));
+
+    await _handleVaultOperation(
+      operation: () async {
+        await _lockerRepository.duplicateEntryWithPassword(
+          sourceId: event.sourceId,
+          newName: event.newName,
+          password: event.password,
+        );
+
+        final entries = await _lockerRepository.getAllEntries();
+        if (isClosed) {
+          return;
+        }
+
+        emit(
+          state.copyWith(
+            entries: entries,
+            loadState: LoadState.none,
+          ),
+        );
+        action(const LockerAction.showSuccess(message: 'Duplicated (standard: 2 password checks)'));
+      },
+      onDecryptFailed: (error) => _handleDecryptFailure(
+        emit,
+        LockerAction.showError(message: 'Incorrect password: $error'),
+      ),
+      onError: (error) => _handleGenericFailure(
+        emit,
+        LockerAction.showError(message: 'Failed to duplicate entry: $error'),
+      ),
+      operationDescription: 'duplicate entry (naive) with password',
+    );
+  }
+
+  Future<void> _onDuplicateEntryTransactionWithPasswordRequested(
+    _DuplicateEntryTransactionWithPasswordRequested event,
+    Emitter<LockerState> emit,
+  ) async {
+    emit(state.copyWith(loadState: LoadState.loading));
+
+    await _handleVaultOperation(
+      operation: () async {
+        await _lockerRepository.duplicateEntryInTransactionWithPassword(
+          sourceId: event.sourceId,
+          newName: event.newName,
+          password: event.password,
+        );
+
+        final entries = await _lockerRepository.getAllEntries();
+        if (isClosed) {
+          return;
+        }
+
+        emit(
+          state.copyWith(
+            entries: entries,
+            loadState: LoadState.none,
+          ),
+        );
+        action(const LockerAction.showSuccess(message: 'Duplicated (transaction: 1 password check)'));
+      },
+      onDecryptFailed: (error) => _handleDecryptFailure(
+        emit,
+        LockerAction.showError(message: 'Incorrect password: $error'),
+      ),
+      onError: (error) => _handleGenericFailure(
+        emit,
+        LockerAction.showError(message: 'Failed to duplicate entry: $error'),
+      ),
+      operationDescription: 'duplicate entry (transaction) with password',
+    );
   }
 
   Future<void> _onDuplicateEntryNaiveWithBiometricRequested(
