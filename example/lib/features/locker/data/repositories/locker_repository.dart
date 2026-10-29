@@ -326,9 +326,6 @@ class LockerRepositoryImpl implements LockerRepository {
 
   @override
   Future<BiometricState> determineBiometricState() async {
-    // biometric_cipher has no implementation on every platform the app builds
-    // for, and asking it there throws MissingPluginException — which fired on
-    // every locker state change. Report the state the absence implies instead.
     if (!isBiometricCipherSupported) {
       return BiometricState.tpmUnsupported;
     }
