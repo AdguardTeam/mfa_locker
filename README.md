@@ -6,7 +6,7 @@ A secure storage library for Dart/Flutter applications that provides encrypted k
 
 - **AES-GCM Encryption** — All data is encrypted using industry-standard AES-GCM algorithm
 - **Password Protection** — Argon2id key derivation from user password
-- **Biometric Authentication** — Optional biometric unlock via TPM/Secure Enclave (iOS, macOS, Android)
+- **Biometric Authentication** — Optional biometric unlock via Secure Enclave (iOS, macOS) and Android Keystore (Android)
 - **Biometric Key Invalidation Detection** — Proactive detection of hardware key invalidation after biometric enrollment changes, with silent key validity probes (no biometric prompt)
 - **HMAC Integrity Verification** — Detects storage tampering using HMAC-SHA256
 - **Auto-Lock** — Automatic locking after configurable inactivity timeout
@@ -174,6 +174,8 @@ Values returned by `txn.readValue` are owned by the caller: erase them with `val
 
 ### 4. Configure Biometric Authentication
 
+Biometric authentication is available on Android, iOS and macOS only. On other platforms these calls need no guard: `configureBiometricCipher` is a no-op and `determineBiometricState` returns `BiometricState.tpmUnsupported`.
+
 ```dart
 import 'package:locker/locker.dart';
 
@@ -290,6 +292,7 @@ The library throws four main exception types:
   - `keyAlreadyExists` — a biometric key with the given tag already exists in secure hardware
   - `notAvailable` — biometrics not available on device
   - `notConfigured` — biometric cipher not configured
+  - On platforms where the plugin has no implementation (e.g. Windows), enabling biometrics throws `notAvailable` and `determineBiometricState` reports `BiometricState.tpmUnsupported`
 - **`StorageException`** — storage errors (`notInitialized`, `alreadyInitialized`, `invalidStorage`, `entryNotFound`, `duplicateEntry`, `conflict`, `other`); the locker reuses these for storage-state conditions (e.g. `init` on an initialized storage)
 - **`LockerException`** — locker session and API errors; check `LockerExceptionType` for specifics:
   - `locked` — the locker was locked or disposed while the operation was pending
@@ -332,7 +335,7 @@ locker/
 │   ├── erasable/         # Secure memory management (ErasableByteArray)
 │   └── utils/            # Cryptography utilities, reentrant lock (Sync), extensions
 ├── packages/
-│   └── biometric_cipher/  # Native Flutter plugin wrapping TPM/Secure Enclave (iOS, macOS, Android)
+│   └── biometric_cipher/  # Native Flutter plugin wrapping Secure Enclave / Android Keystore (iOS, macOS, Android)
 ├── example/              # Demo Flutter app (mfa_demo) — UI → BLoC → Repository → MFALocker
 └── test/                 # Unit tests (mocktail)
 ```
@@ -401,6 +404,8 @@ Platform-specific build commands (run from `example/`):
 | iOS      | `fvm flutter build ios --release --no-codesign` |
 | macOS    | `fvm flutter build macos --release` |
 | Windows  | `fvm flutter build windows --release` |
+
+Windows builds are password-only: biometric authentication is not available on that platform.
 
 ### GitHub Actions Example
 
@@ -488,7 +493,7 @@ The library implements the following security measures:
 - **Key derivation**: Argon2id password hashing with per-vault salt
 - **Integrity verification**: HMAC-SHA256 detects storage tampering
 - **Master key wrapping**: Random master key encrypted per auth method (password/biometric)
-- **Biometric key management**: TPM/Secure Enclave hardware-backed keys via the `biometric_cipher` plugin
+- **Biometric key management**: hardware-backed keys in Secure Enclave / Android Keystore via the `biometric_cipher` plugin
 - **Biometric key invalidation**: Proactive detection via silent `isKeyValid` probe when biometric enrollment changes (no biometric prompt); `BioCipherFunc` also performs fallback key validity checks during decrypt failures
 - **Memory safety**: `ErasableByteArray` zeroes sensitive data on `erase()`; all operations auto-erase arguments in `finally` blocks
 - **No logging**: secrets, keys, and errors are never written to logs or stdout, and the library carries no external logging/telemetry dependency — failures are propagated to the caller as exceptions
