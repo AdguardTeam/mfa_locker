@@ -13,6 +13,7 @@ import 'package:locker/locker/utils/mfa_locker_utils.dart';
 import 'package:locker/locker/utils/operation_lane.dart';
 import 'package:locker/locker/utils/transaction_zone.dart';
 import 'package:locker/security/biometric_cipher_provider.dart';
+import 'package:locker/security/biometric_platform_support.dart';
 import 'package:locker/security/models/bio_cipher_func.dart';
 import 'package:locker/security/models/biometric_config.dart';
 import 'package:locker/security/models/cipher_func.dart';
@@ -217,10 +218,20 @@ class MFALocker implements Locker {
   }
 
   @override
-  Future<void> configureBiometricCipher(BiometricConfig config) => _secureProvider.configure(config);
+  Future<void> configureBiometricCipher(BiometricConfig config) async {
+    if (!isBiometricCipherSupported) {
+      return;
+    }
+
+    await _secureProvider.configure(config);
+  }
 
   @override
   Future<BiometricState> determineBiometricState({String? biometricKeyTag}) async {
+    if (!isBiometricCipherSupported) {
+      return BiometricState.tpmUnsupported;
+    }
+
     final tpmStatus = await _secureProvider.getTPMStatus();
     if (tpmStatus == TPMStatus.unsupported) {
       return BiometricState.tpmUnsupported;
@@ -274,6 +285,13 @@ class MFALocker implements Locker {
       erasables: [bioCipherFunc, passwordCipherFunc],
       callback: () async {
         _ensureNotInsideTransaction();
+
+        if (!isBiometricCipherSupported) {
+          throw const BiometricException(
+            BiometricExceptionType.notAvailable,
+            message: 'Biometric authentication is not supported on this platform',
+          );
+        }
 
         final tpmStatus = await _secureProvider.getTPMStatus();
         if (tpmStatus != TPMStatus.supported) {

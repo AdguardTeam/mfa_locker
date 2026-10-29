@@ -5,7 +5,6 @@ import 'dart:typed_data';
 
 import 'package:locker/locker.dart';
 import 'package:mfa_demo/core/constants/app_constants.dart';
-import 'package:mfa_demo/core/utils/biometric_support.dart';
 import 'package:mfa_demo/features/locker/data/models/repository_locker_state.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -326,10 +325,6 @@ class LockerRepositoryImpl implements LockerRepository {
 
   @override
   Future<BiometricState> determineBiometricState() async {
-    if (!isBiometricCipherSupported) {
-      return BiometricState.tpmUnsupported;
-    }
-
     await _ensureLockerInstance();
 
     return _locker.determineBiometricState(biometricKeyTag: AppConstants.biometricKeyTag);

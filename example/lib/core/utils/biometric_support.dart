@@ -1,7 +1,3 @@
-import 'package:flutter/foundation.dart';
-
-/// Whether the `biometric_cipher` plugin has an implementation on this platform.
-bool get isBiometricCipherSupported => switch (defaultTargetPlatform) {
-      TargetPlatform.android || TargetPlatform.iOS || TargetPlatform.macOS => true,
-      _ => false,
-    };
+// The plugin owns the platform-support fact; re-export it so the demo's call
+// sites share one source of truth with the library.
+export 'package:locker/security/biometric_platform_support.dart';

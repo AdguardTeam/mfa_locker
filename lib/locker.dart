@@ -7,6 +7,7 @@ export 'locker/locker_transaction.dart';
 export 'locker/mfa_locker.dart';
 export 'locker/models/biometric_state.dart';
 export 'locker/models/exceptions/locker_exception.dart';
+export 'security/biometric_platform_support.dart';
 export 'security/models/bio_cipher_func.dart';
 export 'security/models/biometric_config.dart';
 export 'security/models/cipher_func.dart';
