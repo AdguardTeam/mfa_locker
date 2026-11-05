@@ -15,10 +15,11 @@ request that shipped them.
 
 - Removed `BiometricConfig.windowsAuthData`. Callers that passed it no longer compile, and the
   plugin no longer receives `windowsDataToSign`.
-- Dropped Windows from `biometric_cipher`. Windows apps keep password-only storage, but biometric
-  setup is unavailable there: `MFALocker.setupBiometry` throws
-  `BiometricException(notAvailable)`, `configureBiometricCipher` becomes a no-op and
-  `determineBiometricState` reports `BiometricState.tpmUnsupported`.
+- Dropped Windows from `biometric_cipher`. Windows apps keep password-only storage, but every call
+  that needs the plugin now throws `BiometricException(notAvailable)`: `configureBiometricCipher`,
+  `setupBiometry` and `BioCipherFunc.encrypt`/`decrypt`. Guard the startup call with
+  `isBiometricCipherSupported` or catch the exception; `determineBiometricState` reports
+  `BiometricState.tpmUnsupported` instead of throwing.
 - Raised the minimum deployment targets to iOS 15.0 and macOS 12.0 in the plugin's shared Darwin
   podspec and both example apps; apps below them can no longer resolve the pod.
 
@@ -30,8 +31,9 @@ request that shipped them.
 
 ### Changed
 
-- `BioCipherFunc.encrypt`/`decrypt` throw `BiometricExceptionType.notAvailable` on a platform
-  without a plugin implementation, instead of failing on the missing method-channel handler.
+- `MFALocker.configureBiometricCipher` and `BioCipherFunc.encrypt`/`decrypt` throw
+  `BiometricExceptionType.notAvailable` on a platform without a plugin implementation, instead of
+  failing on the missing method-channel handler.
 - `MFALocker.determineBiometricState` answers `BiometricState.tpmUnsupported` there instead of
   querying the native side.
 - `biometric_cipher` 0.0.1 → 0.1.0 (pre-1.0, where a minor bump carries the breaking signal).

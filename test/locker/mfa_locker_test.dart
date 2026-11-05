@@ -2372,7 +2372,7 @@ void main() {
         debugDefaultTargetPlatformOverride = null;
       });
 
-      test('configureBiometricCipher is a no-op instead of throwing', () async {
+      test('configureBiometricCipher throws a typed notAvailable error', () async {
         // Arrange
         const config = BiometricConfig(
           promptTitle: 'title',
@@ -2381,10 +2381,13 @@ void main() {
           androidPromptDescription: 'description',
         );
 
-        // Act
-        await platformLocker.configureBiometricCipher(config);
-
-        // Assert
+        // Act & Assert
+        await expectLater(
+          platformLocker.configureBiometricCipher(config),
+          throwsA(
+            isA<BiometricException>().having((e) => e.type, 'type', BiometricExceptionType.notAvailable),
+          ),
+        );
         verifyNever(() => platformProvider.configure(config));
       });
 

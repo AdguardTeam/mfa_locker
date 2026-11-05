@@ -174,20 +174,22 @@ Values returned by `txn.readValue` are owned by the caller: erase them with `val
 
 ### 4. Configure Biometric Authentication
 
-Biometric authentication is available on Android, iOS and macOS only. On other platforms these calls need no guard: `configureBiometricCipher` is a no-op and `determineBiometricState` returns `BiometricState.tpmUnsupported`.
+Biometric authentication is available on Android, iOS and macOS only. Elsewhere the calls that need the plugin throw `BiometricException` with `notAvailable` — `configureBiometricCipher`, `setupBiometry` and `BioCipherFunc.encrypt`/`decrypt`; guard the call with `isBiometricCipherSupported` or catch it. `determineBiometricState` does not throw: it returns `BiometricState.tpmUnsupported`, which is the cheapest way to decide whether to show biometric UI.
 
 ```dart
 import 'package:locker/locker.dart';
 
 // Configure biometrics (call once at app startup)
-await locker.configureBiometricCipher(
-  BiometricConfig(
-    promptTitle: 'Authenticate',
-    promptSubtitle: 'Use biometrics to unlock your vault',
-    androidCancelButtonText: 'Cancel',
-    androidPromptDescription: 'Authenticate to access your secure storage',
-  ),
-);
+if (isBiometricCipherSupported) {
+  await locker.configureBiometricCipher(
+    BiometricConfig(
+      promptTitle: 'Authenticate',
+      promptSubtitle: 'Use biometrics to unlock your vault',
+      androidCancelButtonText: 'Cancel',
+      androidPromptDescription: 'Authenticate to access your secure storage',
+    ),
+  );
+}
 
 // Check biometric availability
 final biometricState = await locker.determineBiometricState();

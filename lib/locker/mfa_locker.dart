@@ -220,7 +220,10 @@ class MFALocker implements Locker {
   @override
   Future<void> configureBiometricCipher(BiometricConfig config) async {
     if (!isBiometricCipherSupported) {
-      return;
+      throw const BiometricException(
+        BiometricExceptionType.notAvailable,
+        message: 'Biometric authentication is not supported on this platform',
+      );
     }
 
     await _secureProvider.configure(config);
