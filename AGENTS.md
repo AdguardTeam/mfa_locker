@@ -39,6 +39,7 @@ The repo contains:
 ```
 mfa_locker/
 ├── lib/
+│   ├── locker.dart                        # Public barrel — the single import surface for consumers
 │   ├── locker/
 │   │   ├── locker.dart                     # Locker abstract interface (public API)
 │   │   ├── locker_transaction.dart         # LockerTransaction — operations available inside withTransaction
@@ -52,10 +53,11 @@ mfa_locker/
 │   │       ├── biometric_state.dart        # BiometricState enum (9 states: includes keyInvalidated)
 │   │       ├── transaction_result.dart     # TransactionResult — uncommitted overlay handed to the locker on commit
 │   │       └── exceptions/
-│   │           └── locker_exception.dart   # LockerException + LockerExceptionType (locked, insideTransaction, transactionClosed)
+│   │           └── locker_exception.dart   # LockerException + LockerExceptionType (locked, notUnlocked, insideTransaction, transactionClosed, invalidArgument)
 │   ├── security/
 │   │   ├── security_provider.dart          # SecurityProvider — password/biometric auth factory
 │   │   ├── biometric_cipher_provider.dart  # BiometricCipherProvider — keystore ops (includes isKeyValid)
+│   │   ├── biometric_platform_support.dart # Re-export of biometric_cipher's platform-support predicate
 │   │   └── models/
 │   │       ├── cipher_func.dart            # Abstract CipherFunc (encrypt/decrypt + Erasable)
 │   │       ├── password_cipher_func.dart   # Argon2id-derived AES-GCM cipher
@@ -84,7 +86,7 @@ mfa_locker/
 │   │       │   ├── entry_add_input.dart   # Input for creating entries
 │   │       │   └── entry_update_input.dart # Input for updating entries
 │   │       └── exceptions/
-│   │           ├── storage_exception.dart        # Typed storage errors (6 types)
+│   │           ├── storage_exception.dart        # Typed storage errors (7 types)
 │   │           └── decrypt_failed_exception.dart # AES-GCM auth tag failure
 │   ├── erasable/
 │   │   ├── erasable.dart              # Erasable interface (isErased, erase)
@@ -96,26 +98,27 @@ mfa_locker/
 ├── packages/
 │   └── biometric_cipher/             # Native Flutter plugin
 │       ├── lib/                      # Platform interface + method channel
-│       ├── android/                  # Kotlin: AuthenticationRepository, SecureService
-│       ├── ios/                      # Shared Darwin source (Secure Enclave)
-│       └── macos/                    # Shared Darwin source (Secure Enclave)
+│       ├── android/                  # Kotlin: plugin, repositories, services, config storage
+│       ├── darwin/                   # Shared Swift source (Secure Enclave, keychain, LAContext)
+│       ├── ios/                      # iOS podspec + resources
+│       └── macos/                    # macOS podspec
 ├── example/
 │   ├── lib/
 │   │   ├── features/
 │   │   │   ├── locker/              # Core vault feature (unlock, entries CRUD, biometric)
 │   │   │   ├── settings/            # Settings feature (auto-lock timeout)
 │   │   │   └── tpm_test/            # TPM/biometric testing feature
-│   │   ├── core/                    # Shared widgets, constants, extensions
+│   │   ├── core/                    # Shared constants, data, services, extensions, mixins, utils
 │   │   └── di/                      # DependencyScope, RepositoryFactory, BlocFactory
 │   ├── packages/
 │   │   ├── action_bloc/             # Custom flutter_bloc extension adding side-effect Actions
 │   │   └── package_info_plus/       # Platform integration
 │   └── Makefile                     # Build targets for example app
 ├── test/
-│   ├── locker/                      # MFALocker tests
-│   ├── security/                    # CipherFunc tests
-│   ├── storage/                     # EncryptedStorage tests
-│   ├── utils/                       # Utility tests
+│   ├── locker/                      # MFALocker, transaction, lane and zone tests (models/, utils/ nested; *_helpers.dart stubs)
+│   ├── security/                    # CipherFunc and provider tests
+│   ├── storage/                     # EncryptedStorage, HMAC and one-shot storage tests
+│   ├── utils/                       # Cryptography and ErasableByteArray tests
 │   └── mocks/                       # Mock classes (mocktail)
 ├── pubspec.yaml
 ├── analysis_options.yaml
@@ -231,9 +234,9 @@ Layered architecture: **Locker (API) → Security (auth) → Storage (persistenc
 Architecture: **UI → BLoC → Repository → MFALocker**
 
 State management uses `action_bloc` (local package in `example/packages/`) + Freezed:
-- **Events** (past tense): `UnlockRequested`, `EntryAdded`
+- **Events** (past tense): `LockerEvent.unlockRequested`, `LockerEvent.addEntryRequested`
 - **States**: immutable data via Freezed
-- **Actions** (one-off side effects): `ShowErrorAction`, `NavigateAction`
+- **Actions** (one-off side effects): `LockerAction.showError`, `LockerAction.navigateBack`
 
 The **Repository** layer creates `CipherFunc` objects and wraps all MFALocker exceptions. BLoCs receive plain types (e.g., `String password`) and never interact with `CipherFunc` directly.
 
@@ -242,8 +245,8 @@ The **Repository** layer creates `CipherFunc` objects and wraps all MFALocker ex
 - **Interfaces**: no prefix (`LockerRepository`, `EncryptedStorage`)
 - **Implementations**: `Impl` suffix (`EncryptedStorageImpl`, `LockerRepositoryImpl`)
 - **Private**: underscore prefix (`_metaCache`, `_finishTransaction`)
-- **Events**: past tense (`UnlockRequested`, `EntryAdded`, `BiometricSetupCompleted`)
-- **Actions**: descriptive (`ShowErrorAction`, `BiometricAuthenticationCancelledAction`)
+- **Events**: past tense, namespaced in the feature's union (`LockerEvent.unlockRequested`, `LockerEvent.biometricSetupCompleted`)
+- **Actions**: descriptive union variants (`LockerAction.showError`, `LockerAction.biometricAuthenticationCancelled`)
 - **Files**: snake_case, must match primary type name
 - **Extensions**: file name must match extension name (`LockerBlocBiometricStream` → `locker_bloc_biometric_stream.dart`)
 - **TODOs**: `// TODO(f.lastname): Description`
@@ -281,7 +284,7 @@ The **Repository** layer creates `CipherFunc` objects and wraps all MFALocker ex
 ### BLoC Conventions (example app)
 
 - **Structure order**: Final fields → constructor with handler registration → private fields → event handlers
-- **Events**: Named as past actions (`ThemeChanged`, `ButtonPressed`)
+- **Events**: Named as past actions (`LockerEvent.lockRequested`, `LockerEvent.addEntryRequested`)
 - **State**: Use enums instead of multiple boolean fields
 - **ActionBloc**: For one-time events (navigation, dialogs, snackbars) via `package:action_bloc`
 - **No cubits** — BLoC only
@@ -337,6 +340,7 @@ All mock classes in `test/mocks/`:
 | `MockPasswordCipherFunc` | `PasswordCipherFunc` |
 | `MockBioCipherFunc` | `BioCipherFunc` |
 | `MockEncryptedStorage` | `EncryptedStorage` |
+| `MockStorageTransaction` | `StorageTransaction` |
 | `MockFile` | `File` |
 
 ### Test Injection
@@ -401,5 +405,5 @@ formatter:
 | `uuid` | 4.5.1 | UUID v4 generation |
 | `biometric_cipher` | local path | Hardware-backed biometric operations |
 | `collection` | 1.19.1 | Collection utilities |
-| `meta` | 1.16.0 | Annotations (`@visibleForTesting`) |
+| `meta` | 1.17.0 | Annotations (`@visibleForTesting`) |
 | `path` | 1.9.1 | File path utilities |
