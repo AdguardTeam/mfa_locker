@@ -1,0 +1,43 @@
+{
+  "review_round": 1,
+  "base": "e1edcfe",
+  "head": "bd4ea9fc85a575694ab23a6e758732fee28de3aa",
+  "checks": [
+    {
+      "kind": "command",
+      "command": "dart MCP analyze_files, root example/",
+      "result": "No errors"
+    },
+    {
+      "kind": "command",
+      "cwd": "example",
+      "command": "fvm dart analyze --fatal-warnings --fatal-infos lib/features/locker/views/auth/locked_screen.dart lib/features/locker/views/storage/add_entry_screen.dart lib/features/locker/views/storage/unlocked_screen.dart lib/features/locker/views/widgets/authentication_bottom_sheet.dart lib/features/locker/views/widgets/authentication_bottom_sheet_content.dart lib/features/settings/views/settings_screen.dart",
+      "result": "exit 0; No issues found!"
+    },
+    {
+      "kind": "command",
+      "cwd": "example",
+      "command": "fvm dart format --output=none --set-exit-if-changed lib/features/locker/views/auth/locked_screen.dart lib/features/locker/views/storage/add_entry_screen.dart lib/features/locker/views/storage/unlocked_screen.dart lib/features/locker/views/widgets/authentication_bottom_sheet.dart lib/features/locker/views/widgets/authentication_bottom_sheet_content.dart lib/features/settings/views/settings_screen.dart",
+      "result": "exit 0; Formatted 6 files (0 changed)"
+    },
+    {
+      "kind": "evidence",
+      "path": "specs/.current/AW-2452/verify/iteration-1.json",
+      "result": "fast skipped: no surface path in scope; test skipped: no test command"
+    },
+    {
+      "kind": "evidence",
+      "path": "specs/.current/AW-2452/verify/iteration-2.json",
+      "result": "fast skipped: no surface path in scope; test skipped: no test command"
+    },
+    {
+      "kind": "command",
+      "command": "validate_findings.py specs/.current/AW-2452/review/findings.json --range e1edcfe..bd4ea9fc85a575694ab23a6e758732fee28de3aa",
+      "result": "exit 0; 2 findings, 0 failed"
+    },
+    {
+      "kind": "manual",
+      "result": "Not run: native biometric prompt, fallback, retry and navigation scenarios need a configured device and the example app; no automated UI evidence was supplied."
+    }
+  ]
+}
