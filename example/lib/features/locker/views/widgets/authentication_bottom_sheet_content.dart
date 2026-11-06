@@ -6,9 +6,8 @@ import 'package:mfa_demo/features/locker/data/models/authentication_result.dart'
 
 /// Unified authentication bottom sheet content with password + optional biometric.
 ///
-/// This widget does NOT auto-trigger biometric authentication. The parent is responsible
-/// for calling [onBiometricPressed] at the appropriate time (e.g., after bottom sheet
-/// animation completes). Use [AnimationAwareBottomSheet] to detect animation completion.
+/// This widget never auto-triggers biometric authentication: the fingerprint button calls
+/// [onBiometricPressed] when the user taps it.
 class AuthenticationBottomSheetContent extends StatefulWidget {
   final String? title;
   final bool showBiometricButton;
