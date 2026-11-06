@@ -141,24 +141,19 @@ class UnlockedScreen extends StatelessWidget {
     final bloc = context.read<LockerBloc>();
     final isBiometricEnabled = bloc.state.canUseBiometric;
 
-    final result = await showModalBottomSheet<AuthenticationResult?>(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: false,
-      enableDrag: false,
-      builder: (context) => AuthenticationBottomSheet(
-        title: 'Authenticate to view entry',
-        showBiometricButton: isBiometricEnabled,
-        biometricResultStream: bloc.biometricResultStream,
-        onBiometricPressed: isBiometricEnabled
-            ? () => bloc.add(
-                LockerEvent.readEntryWithBiometricRequested(
-                  id: entryId,
-                  name: entryName,
-                ),
-              )
-            : null,
-      ),
+    final result = await showAuthenticationBottomSheet(
+      context,
+      title: 'Authenticate to view entry',
+      showBiometricButton: isBiometricEnabled,
+      onBiometricPressed: isBiometricEnabled
+          ? () => bloc.add(
+              LockerEvent.readEntryWithBiometricRequested(
+                id: entryId,
+                name: entryName,
+              ),
+            )
+          : null,
+      biometricResultStream: bloc.biometricResultStream,
     );
 
     if (!context.mounted || result == null) {
@@ -191,23 +186,18 @@ class UnlockedScreen extends StatelessWidget {
     final bloc = context.read<LockerBloc>();
     final showBiometric = bloc.state.canUseBiometric;
 
-    final result = await showModalBottomSheet<AuthenticationResult?>(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: false,
-      enableDrag: false,
-      builder: (context) => AuthenticationBottomSheet(
-        title: 'Unlock Storage',
-        showBiometricButton: showBiometric,
-        biometricResultStream: bloc.biometricResultStream,
-        onBiometricPressed: showBiometric
-            ? () => bloc.add(
-                LockerEvent.deleteEntryWithBiometricRequested(
-                  id: entryId,
-                ),
-              )
-            : null,
-      ),
+    final result = await showAuthenticationBottomSheet(
+      context,
+      title: 'Unlock Storage',
+      showBiometricButton: showBiometric,
+      onBiometricPressed: showBiometric
+          ? () => bloc.add(
+              LockerEvent.deleteEntryWithBiometricRequested(
+                id: entryId,
+              ),
+            )
+          : null,
+      biometricResultStream: bloc.biometricResultStream,
     );
 
     if (!context.mounted) {

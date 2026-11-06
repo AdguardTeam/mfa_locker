@@ -120,24 +120,19 @@ class _AddEntryScreenState extends State<AddEntryScreen> with SingleTickerProvid
     final bloc = context.read<LockerBloc>();
     final showBiometric = bloc.state.canUseBiometric;
 
-    final result = await showModalBottomSheet<AuthenticationResult?>(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: false,
-      enableDrag: false,
-      builder: (context) => AuthenticationBottomSheet(
-        title: 'Unlock Storage',
-        showBiometricButton: showBiometric,
-        biometricResultStream: bloc.biometricResultStream,
-        onBiometricPressed: showBiometric
-            ? () => bloc.add(
-                LockerEvent.addEntryWithBiometricRequested(
-                  name: _nameController.text,
-                  value: _valueController.text,
-                ),
-              )
-            : null,
-      ),
+    final result = await showAuthenticationBottomSheet(
+      context,
+      title: 'Unlock Storage',
+      showBiometricButton: showBiometric,
+      onBiometricPressed: showBiometric
+          ? () => bloc.add(
+              LockerEvent.addEntryWithBiometricRequested(
+                name: _nameController.text,
+                value: _valueController.text,
+              ),
+            )
+          : null,
+      biometricResultStream: bloc.biometricResultStream,
     );
 
     if (!context.mounted) {
