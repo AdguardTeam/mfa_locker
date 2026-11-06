@@ -76,6 +76,20 @@ sealed class LockerEvent with _$LockerEvent {
     required String newName,
   }) = _DuplicateEntryTransactionWithBiometricRequested;
 
+  /// Request to duplicate an entry using two separate password authentications
+  const factory LockerEvent.duplicateEntryNaiveWithPasswordRequested({
+    required EntryId sourceId,
+    required String newName,
+    required String password,
+  }) = _DuplicateEntryNaiveWithPasswordRequested;
+
+  /// Request to duplicate an entry within a single password transaction
+  const factory LockerEvent.duplicateEntryTransactionWithPasswordRequested({
+    required EntryId sourceId,
+    required String newName,
+    required String password,
+  }) = _DuplicateEntryTransactionWithPasswordRequested;
+
   /// Request to read entry using biometric authentication
   const factory LockerEvent.readEntryWithBiometricRequested({
     required EntryId id,

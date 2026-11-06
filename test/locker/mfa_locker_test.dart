@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:biometric_cipher/data/biometric_status.dart';
 import 'package:biometric_cipher/data/tpm_status.dart';
+import 'package:flutter/foundation.dart';
 import 'package:locker/erasable/erasable.dart';
 import 'package:locker/locker/locker.dart';
 import 'package:locker/locker/locker_transaction.dart';
@@ -2354,6 +2354,64 @@ void main() {
 
         // Assert
         verify(() => provider.configure(config)).called(1);
+      });
+    });
+
+    group('unsupported platform', () {
+      late MockBiometricCipherProvider platformProvider;
+      late MFALocker platformLocker;
+
+      setUp(() {
+        debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+        platformProvider = MockBiometricCipherProvider();
+        platformLocker = MFALocker(file: MockFile(), storage: storage, secureProvider: platformProvider);
+        addTearDown(platformLocker.dispose);
+      });
+
+      tearDown(() {
+        debugDefaultTargetPlatformOverride = null;
+      });
+
+      test('configureBiometricCipher throws a typed notAvailable error', () async {
+        // Arrange
+        const config = BiometricConfig(
+          promptTitle: 'title',
+          promptSubtitle: 'subtitle',
+          androidCancelButtonText: 'cancel',
+          androidPromptDescription: 'description',
+        );
+
+        // Act & Assert
+        await expectLater(
+          platformLocker.configureBiometricCipher(config),
+          throwsA(
+            isA<BiometricException>().having((e) => e.type, 'type', BiometricExceptionType.notAvailable),
+          ),
+        );
+        verifyNever(() => platformProvider.configure(config));
+      });
+
+      test('determineBiometricState reports tpmUnsupported without asking the plugin', () async {
+        // Act
+        final result = await platformLocker.determineBiometricState();
+
+        // Assert
+        expect(result, BiometricState.tpmUnsupported);
+        verifyNever(() => platformProvider.getTPMStatus());
+      });
+
+      test('setupBiometry throws a typed notAvailable error', () async {
+        // Act & Assert
+        await expectLater(
+          platformLocker.setupBiometry(
+            bioCipherFunc: MockBioCipherFunc(),
+            passwordCipherFunc: MockPasswordCipherFunc(),
+          ),
+          throwsA(
+            isA<BiometricException>().having((e) => e.type, 'type', BiometricExceptionType.notAvailable),
+          ),
+        );
+        verifyNever(() => platformProvider.getTPMStatus());
       });
     });
 

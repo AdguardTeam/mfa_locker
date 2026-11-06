@@ -6,12 +6,12 @@ structure, build commands, contribution rules, and code guidelines.
 ## Project Overview
 
 `locker` is a Dart/Flutter library providing AES-GCM encrypted key-value storage
-with multi-factor authentication (password + biometrics via TPM/Secure Enclave).
-It targets iOS, macOS, Android, and Windows.
+with multi-factor authentication (password + biometrics via the platform keystore).
+It targets iOS, macOS and Android with biometrics, and Windows for password-only storage (no biometric implementation).
 
 The repo contains:
 - **`lib/`** — the `locker` library itself (core encryption, storage, authentication)
-- **`packages/biometric_cipher/`** — native Flutter plugin wrapping TPM/Secure Enclave
+- **`packages/biometric_cipher/`** — native Flutter plugin wrapping Secure Enclave / Android Keystore
 - **`example/`** — `mfa_demo` Flutter app demonstrating the library
 - **`test/`** — unit tests with `mocktail` mocks
 
@@ -26,11 +26,11 @@ The repo contains:
 | **Key Derivation** | Argon2id (OWASP recommended: 19 MiB memory, 1 parallelism, 2 iterations) |
 | **Integrity** | HMAC-SHA256 over entire storage structure with constant-time comparison |
 | **Storage** | JSON file-backed with atomic writes (temp file + rename), `chmod 600` on macOS |
-| **Biometrics** | `biometric_cipher` (local plugin) — TPM/Secure Enclave key generation, encryption, validation |
+| **Biometrics** | `biometric_cipher` (local plugin) — keystore-backed key generation, encryption, validation |
 | **Testing** | `flutter_test`, `mocktail` 1.0.3, Arrange-Act-Assert pattern |
 | **Code Generation** | `build_runner`, `freezed` (example app only) |
 | **Linting** | `lints` 3.0.0 + 90+ rules, `strict-casts: true`, `strict-raw-types: true` |
-| **Target Platforms** | iOS, Android, macOS, Windows |
+| **Target Platforms** | iOS, Android, macOS (biometrics); Windows (password-only storage) |
 | **DI** | Manual constructor-based injection with factory classes (example app) |
 | **Project Type** | Flutter library with local plugin package and example app |
 
@@ -55,11 +55,11 @@ mfa_locker/
 │   │           └── locker_exception.dart   # LockerException + LockerExceptionType (locked, insideTransaction, transactionClosed)
 │   ├── security/
 │   │   ├── security_provider.dart          # SecurityProvider — password/biometric auth factory
-│   │   ├── biometric_cipher_provider.dart  # BiometricCipherProvider — TPM/Secure Enclave ops (includes isKeyValid)
+│   │   ├── biometric_cipher_provider.dart  # BiometricCipherProvider — keystore ops (includes isKeyValid)
 │   │   └── models/
 │   │       ├── cipher_func.dart            # Abstract CipherFunc (encrypt/decrypt + Erasable)
 │   │       ├── password_cipher_func.dart   # Argon2id-derived AES-GCM cipher
-│   │       ├── bio_cipher_func.dart        # TPM-backed biometric cipher (includes key validity checking)
+│   │       ├── bio_cipher_func.dart        # Keystore-backed biometric cipher (includes key validity checking)
 │   │       ├── biometric_config.dart       # Platform-specific biometric prompt config
 │   │       ├── key_validity_status.dart    # KeyValidityStatus enum (valid, invalid, unknown)
 │   │       └── exceptions/
@@ -98,8 +98,7 @@ mfa_locker/
 │       ├── lib/                      # Platform interface + method channel
 │       ├── android/                  # Kotlin: AuthenticationRepository, SecureService
 │       ├── ios/                      # Shared Darwin source (Secure Enclave)
-│       ├── macos/                    # Shared Darwin source (Secure Enclave)
-│       └── windows/                  # C++: Windows Hello + TPM
+│       └── macos/                    # Shared Darwin source (Secure Enclave)
 ├── example/
 │   ├── lib/
 │   │   ├── features/
@@ -214,7 +213,7 @@ Layered architecture: **Locker (API) → Security (auth) → Storage (persistenc
 **Key design decisions:**
 
 - **Master key wrapping**: A random master key encrypts all entries. The master key itself is encrypted ("wrapped") per authentication method (password or biometric), stored as `WrappedKey` with multiple `KeyWrap` entries identified by `Origin` (`pwd` or `bio`).
-- **`CipherFunc`**: Abstraction over an authentication method. `PasswordCipherFunc` derives a key via Argon2id on every encrypt/decrypt call (intentional — minimizes derived key lifetime in memory). `BioCipherFunc` delegates to the TPM/Secure Enclave and performs key validity checks before decrypt operations via `_checkKeyValidity`, translating TPM key-invalidated errors to `BiometricExceptionType.keyInvalidated`.
+- **`CipherFunc`**: Abstraction over an authentication method. `PasswordCipherFunc` derives a key via Argon2id on every encrypt/decrypt call (intentional — minimizes derived key lifetime in memory). `BioCipherFunc` delegates to the platform keystore and performs key validity checks before decrypt operations via `_checkKeyValidity`, translating key-invalidated errors to `BiometricExceptionType.keyInvalidated`.
 - **`ErasableByteArray`**: Overwrites bytes to zero on `erase()`. All sensitive data implements `Erasable`. Every `MFALocker` operation calls `erase()` on its arguments in `finally` via `MFALockerUtils.eraseAfter` (`lib/locker/utils/mfa_locker_utils.dart`), applied once per API boundary.
 - **Typed errors**: each layer throws its own typed exception — `StorageException` (storage state, including a missing wrap for the requested origin), `BiometricException`/`DecryptFailedException` (security), `LockerException` (session and API misuse: `locked`, `notUnlocked`, `insideTransaction`, `transactionClosed`, `invalidArgument`). A storage-state condition keeps the storage error type even when the locker detects it early (`init` on an initialized storage throws `StorageException.alreadyInitialized`); an invalid locker-method argument throws `LockerException.invalidArgument` before any storage call. `ArgumentError` is used only by the crypto primitives, `StateError` only for violated memory invariants (`ErasableByteArray` after `erase()`).
 - **`Sync`**: Reentrant `synchronized` lock wrapping every call of `EncryptedStorageImpl` — the storage layer serializes itself (e.g. `erase` waits for an in-flight commit). `MFALocker` no longer uses it: `OperationLane` serializes all locker operations, so no locker-held lock is ever awaited.
@@ -388,7 +387,7 @@ formatter:
 
 | Package | Location | Purpose |
 |---------|----------|---------|
-| `biometric_cipher` | `packages/biometric_cipher/` | Native Flutter plugin wrapping TPM/Secure Enclave for biometric key operations (generate, encrypt, decrypt, validate, delete). Supports Android (Kotlin), iOS/macOS (Swift, Secure Enclave), Windows (C++, Windows Hello). |
+| `biometric_cipher` | `packages/biometric_cipher/` | Native Flutter plugin wrapping Secure Enclave / Android Keystore for biometric key operations (generate, encrypt, decrypt, validate, delete). Supports Android (Kotlin), iOS/macOS (Swift, Secure Enclave). |
 | `action_bloc` | `example/packages/action_bloc/` | Custom `flutter_bloc` extension. `ActionBloc<E, S, A>` emits both state updates and one-off side-effect actions via separate streams. Provides `BlocActionConsumer`, `BlocActionListener`, `BlocActionStateConsumer` widgets. |
 | `package_info_plus` | `example/packages/package_info_plus/` | Platform integration for app package info. |
 

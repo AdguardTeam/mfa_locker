@@ -8,6 +8,7 @@ import 'package:biometric_cipher/biometric_cipher_platform_interface.dart';
 
 export 'package:biometric_cipher/data/biometric_cipher_exception.dart';
 export 'package:biometric_cipher/data/biometric_cipher_exception_code.dart';
+export 'package:biometric_cipher/data/platform_support.dart';
 
 class BiometricCipher {
   final BiometricCipherPlatform _instance;

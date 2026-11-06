@@ -88,6 +88,9 @@ abstract interface class Locker {
   });
 
   /// Call once at application startup.
+  ///
+  /// Throws `BiometricException` with `notAvailable` where the biometric plugin
+  /// has no implementation: guard with `isBiometricCipherSupported` or catch it.
   Future<void> configureBiometricCipher(BiometricConfig config);
 
   /// Enables biometric authentication (requires password confirmation).

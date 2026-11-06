@@ -112,6 +112,20 @@ abstract class LockerRepository {
     required String newName,
   });
 
+  /// Duplicate an entry with two separate password authentications (naive).
+  Future<void> duplicateEntryWithPassword({
+    required EntryId sourceId,
+    required String newName,
+    required String password,
+  });
+
+  /// Duplicate an entry within one transaction authenticated by password.
+  Future<void> duplicateEntryInTransactionWithPassword({
+    required EntryId sourceId,
+    required String newName,
+    required String password,
+  });
+
   /// Delete entry using biometric authentication
   Future<void> deleteEntryWithBiometric({required EntryId id});
 
@@ -425,6 +439,40 @@ class LockerRepositoryImpl implements LockerRepository {
     // One authentication; read + write reuse the same unwrapped master key.
     final bioCipherFunc = await _securityProvider.authenticateBiometric();
     await _locker.withTransaction(bioCipherFunc, (transaction) async {
+      final value = await transaction.readValue(sourceId);
+      final valueEntry = _createEntryValue(_entryValueToString(value));
+      value.erase();
+
+      await transaction.write(
+        EntryAddInput(meta: _createEntryMeta(newName), value: valueEntry),
+      );
+    });
+  }
+
+  @override
+  Future<void> duplicateEntryWithPassword({
+    required EntryId sourceId,
+    required String newName,
+    required String password,
+  }) async {
+    await _ensureLockerInstance();
+
+    // Two separate password derivations (one per locker operation).
+    final value = await readEntry(id: sourceId, password: password);
+    await addEntry(password: password, name: newName, value: value);
+  }
+
+  @override
+  Future<void> duplicateEntryInTransactionWithPassword({
+    required EntryId sourceId,
+    required String newName,
+    required String password,
+  }) async {
+    await _ensureLockerInstance();
+
+    // One authentication; read + write reuse the same unwrapped master key.
+    final passwordCipherFunc = await _securityProvider.authenticatePassword(password: password);
+    await _locker.withTransaction(passwordCipherFunc, (transaction) async {
       final value = await transaction.readValue(sourceId);
       final valueEntry = _createEntryValue(_entryValueToString(value));
       value.erase();

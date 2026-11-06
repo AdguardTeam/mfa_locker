@@ -41,6 +41,10 @@ class RepositoryFactoryImpl implements RepositoryFactory {
   Future<void> init() async {
     _timerService = TimerServiceImpl(lockerRepository: lockerRepository);
 
+    if (!isBiometricCipherSupported) {
+      return;
+    }
+
     // Configure biometric cipher provider once at app startup
     // This must be done before any biometric operations
     await lockerRepository.configureBiometricCipher(
