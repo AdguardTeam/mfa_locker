@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mfa_demo/features/locker/bloc/locker_bloc.dart';
-import 'package:mfa_demo/features/locker/data/models/authentication_result.dart';
 import 'package:mfa_demo/features/locker/views/widgets/authentication_bottom_sheet.dart';
 import 'package:mfa_demo/features/locker/views/widgets/loading_overlay.dart';
 import 'package:mfa_demo/features/locker/views/widgets/locker_bloc_biometric_stream.dart';
@@ -61,19 +60,13 @@ class LockedScreen extends StatelessWidget {
 
   Future<void> _showAuthenticationSheet(BuildContext context, LockerState state) async {
     final bloc = context.read<LockerBloc>();
-    final showBiometric = state.canUseBiometric;
 
-    final result = await showModalBottomSheet<AuthenticationResult?>(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: false,
-      enableDrag: false,
-      builder: (context) => AuthenticationBottomSheet(
-        title: 'Unlock Storage',
-        showBiometricButton: showBiometric,
-        biometricResultStream: bloc.biometricResultStream,
-        onBiometricPressed: showBiometric ? () => bloc.add(const LockerEvent.unlockWithBiometricRequested()) : null,
-      ),
+    final result = await showAuthenticationBottomSheet(
+      context,
+      title: 'Unlock Storage',
+      biometricState: state.biometricState,
+      onBiometricPressed: () => bloc.add(const LockerEvent.unlockWithBiometricRequested()),
+      biometricResultStream: bloc.biometricResultStream,
     );
 
     if (!context.mounted) {
