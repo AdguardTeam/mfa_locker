@@ -1,3 +1,4 @@
+import 'package:mfa_demo/core/constants/app_constants.dart';
 import 'package:mfa_demo/features/locker/bloc/locker_bloc.dart';
 import 'package:mfa_demo/features/locker/views/widgets/biometric_auth_result.dart';
 
@@ -9,8 +10,9 @@ extension LockerBlocBiometricStream on LockerBloc {
           biometricAuthenticationSucceeded: (_) => const BiometricSuccess(),
           biometricAuthenticationCancelled: (_) => const BiometricCancelled(),
           biometricAuthenticationFailed: (a) => BiometricFailed(a.message),
-          biometricKeyInvalidated: (_) =>
-              const BiometricKeyInvalidated('Biometrics have changed. Please use your password.'),
+          biometricKeyInvalidated: (_) => const BiometricKeyInvalidated(
+            AppConstants.biometricKeyInvalidatedMessage,
+          ),
           biometricNotAvailable: (_) => const BiometricNotAvailable(),
         ),
       )

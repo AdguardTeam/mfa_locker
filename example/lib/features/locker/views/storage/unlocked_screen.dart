@@ -7,6 +7,7 @@ import 'package:locker/locker.dart' hide LockerState;
 import 'package:mfa_demo/core/extensions/context_extensions.dart';
 import 'package:mfa_demo/features/locker/bloc/locker_bloc.dart';
 import 'package:mfa_demo/features/locker/data/models/authentication_result.dart';
+import 'package:mfa_demo/features/locker/data/models/duplicate_entry_auth_method.dart';
 import 'package:mfa_demo/features/locker/data/models/duplicate_entry_result.dart';
 import 'package:mfa_demo/features/locker/views/storage/add_entry_screen.dart';
 import 'package:mfa_demo/features/locker/views/widgets/authentication_bottom_sheet.dart';
@@ -94,52 +95,63 @@ class UnlockedScreen extends StatelessWidget {
     final bloc = context.read<LockerBloc>();
     final result = await showDialog<DuplicateEntryResult>(
       context: context,
-      builder: (context) => DuplicateEntryDialog(sourceName: entryName),
+      builder: (context) => DuplicateEntryDialog(
+        sourceName: entryName,
+        biometricAvailable: bloc.state.canUseBiometric,
+      ),
     );
 
     if (result == null || !context.mounted) {
       return;
     }
 
-    if (result.useTransaction) {
+    final password = result.password;
+    final isBiometric = result.authMethod == DuplicateEntryAuthMethod.biometric;
+
+    if (isBiometric) {
       bloc.add(
-        LockerEvent.duplicateEntryTransactionWithBiometricRequested(
-          sourceId: entryId,
-          newName: result.newName,
-        ),
+        result.useTransaction
+            ? LockerEvent.duplicateEntryTransactionWithBiometricRequested(
+                sourceId: entryId,
+                newName: result.newName,
+              )
+            : LockerEvent.duplicateEntryNaiveWithBiometricRequested(
+                sourceId: entryId,
+                newName: result.newName,
+              ),
       );
-    } else {
+    } else if (password != null) {
       bloc.add(
-        LockerEvent.duplicateEntryNaiveWithBiometricRequested(
-          sourceId: entryId,
-          newName: result.newName,
-        ),
+        result.useTransaction
+            ? LockerEvent.duplicateEntryTransactionWithPasswordRequested(
+                sourceId: entryId,
+                newName: result.newName,
+                password: password,
+              )
+            : LockerEvent.duplicateEntryNaiveWithPasswordRequested(
+                sourceId: entryId,
+                newName: result.newName,
+                password: password,
+              ),
       );
     }
   }
 
   Future<void> _viewEntry(BuildContext context, EntryId entryId, String entryName) async {
     final bloc = context.read<LockerBloc>();
-    final isBiometricEnabled = bloc.state.canUseBiometric;
+    final lockerState = bloc.state;
 
-    final result = await showModalBottomSheet<AuthenticationResult?>(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: false,
-      enableDrag: false,
-      builder: (context) => AuthenticationBottomSheet(
-        title: 'Authenticate to view entry',
-        showBiometricButton: isBiometricEnabled,
-        biometricResultStream: bloc.biometricResultStream,
-        onBiometricPressed: isBiometricEnabled
-            ? () => bloc.add(
-                LockerEvent.readEntryWithBiometricRequested(
-                  id: entryId,
-                  name: entryName,
-                ),
-              )
-            : null,
+    final result = await showAuthenticationBottomSheet(
+      context,
+      title: 'Authenticate to view entry',
+      biometricState: lockerState.biometricState,
+      onBiometricPressed: () => bloc.add(
+        LockerEvent.readEntryWithBiometricRequested(
+          id: entryId,
+          name: entryName,
+        ),
       ),
+      biometricResultStream: bloc.biometricResultStream,
     );
 
     if (!context.mounted || result == null) {
@@ -170,25 +182,18 @@ class UnlockedScreen extends StatelessWidget {
     }
 
     final bloc = context.read<LockerBloc>();
-    final showBiometric = bloc.state.canUseBiometric;
+    final lockerState = bloc.state;
 
-    final result = await showModalBottomSheet<AuthenticationResult?>(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: false,
-      enableDrag: false,
-      builder: (context) => AuthenticationBottomSheet(
-        title: 'Unlock Storage',
-        showBiometricButton: showBiometric,
-        biometricResultStream: bloc.biometricResultStream,
-        onBiometricPressed: showBiometric
-            ? () => bloc.add(
-                LockerEvent.deleteEntryWithBiometricRequested(
-                  id: entryId,
-                ),
-              )
-            : null,
+    final result = await showAuthenticationBottomSheet(
+      context,
+      title: 'Unlock Storage',
+      biometricState: lockerState.biometricState,
+      onBiometricPressed: () => bloc.add(
+        LockerEvent.deleteEntryWithBiometricRequested(
+          id: entryId,
+        ),
       ),
+      biometricResultStream: bloc.biometricResultStream,
     );
 
     if (!context.mounted) {

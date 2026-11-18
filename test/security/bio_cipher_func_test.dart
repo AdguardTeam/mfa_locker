@@ -1,5 +1,4 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/security/models/bio_cipher_func.dart';
 import 'package:locker/security/models/exceptions/biometric_exception.dart';
@@ -23,6 +22,42 @@ void main() {
   });
 
   group('BioCipherFunc', () {
+    group('unsupported platform', () {
+      setUp(() {
+        // Windows is the platform the plugin lost its implementation on.
+        debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      });
+
+      tearDown(() {
+        debugDefaultTargetPlatformOverride = null;
+      });
+
+      test('encrypt reports notAvailable without asking the plugin', () async {
+        // Arrange
+        final data = ErasableByteArray(Uint8List.fromList([1, 2, 3]));
+
+        // Act & Assert
+        await expectLater(
+          sut.encrypt(data),
+          throwsA(
+            isA<BiometricException>().having((e) => e.type, 'type', BiometricExceptionType.notAvailable),
+          ),
+        );
+        verifyNever(() => mockProvider.encrypt(tag: any(named: 'tag'), data: any(named: 'data')));
+      });
+
+      test('decrypt reports notAvailable without asking the plugin', () async {
+        // Act & Assert
+        await expectLater(
+          sut.decrypt(Uint8List.fromList([1, 2, 3])),
+          throwsA(
+            isA<BiometricException>().having((e) => e.type, 'type', BiometricExceptionType.notAvailable),
+          ),
+        );
+        verifyNever(() => mockProvider.decrypt(tag: any(named: 'tag'), data: any(named: 'data')));
+      });
+    });
+
     group('constructor and properties', () {
       test('throws AssertionError when keyTag is empty', () {
         expect(

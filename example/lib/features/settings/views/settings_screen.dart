@@ -213,7 +213,8 @@ class _AutoLockTimeoutTile extends StatelessWidget {
     }
 
     final lockerBloc = context.read<LockerBloc>();
-    final isBiometricEnabled = lockerBloc.state.canUseBiometric;
+    final lockerState = lockerBloc.state;
+    final isBiometricEnabled = lockerState.canUseBiometric;
 
     if (isBiometricEnabled) {
       lockerBloc.add(
@@ -225,21 +226,14 @@ class _AutoLockTimeoutTile extends StatelessWidget {
 
     final settingsBloc = context.read<SettingsBloc>();
 
-    final result = await showModalBottomSheet<AuthenticationResult?>(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: false,
-      enableDrag: false,
-      builder: (context) => AuthenticationBottomSheet(
-        title: 'Set Auto-Lock Timeout',
-        showBiometricButton: isBiometricEnabled,
-        biometricResultStream: settingsBloc.biometricResultStream,
-        onBiometricPressed: isBiometricEnabled
-            ? () => settingsBloc.add(
-                SettingsEvent.autoLockTimeoutSelectedWithBiometric(timeout),
-              )
-            : null,
+    final result = await showAuthenticationBottomSheet(
+      context,
+      title: 'Set Auto-Lock Timeout',
+      biometricState: lockerState.biometricState,
+      onBiometricPressed: () => settingsBloc.add(
+        SettingsEvent.autoLockTimeoutSelectedWithBiometric(timeout),
       ),
+      biometricResultStream: settingsBloc.biometricResultStream,
     );
 
     if (isBiometricEnabled) {

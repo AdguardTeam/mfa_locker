@@ -67,3 +67,6 @@ lib/common/localization/generated/
 *.keystore
 secrets/
 credentials/
+
+# Artel plugin files
+.artel

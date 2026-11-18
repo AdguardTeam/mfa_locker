@@ -19,15 +19,11 @@ class BiometricConfig {
   /// Description displayed under the main biometric prompt subtitle (Android only).
   final String androidPromptDescription;
 
-  /// Optional payload used on Windows to authenticate the request.
-  final String? windowsAuthData;
-
   const BiometricConfig({
     required this.promptTitle,
     required this.promptSubtitle,
     required this.androidCancelButtonText,
     required this.androidPromptDescription,
-    this.windowsAuthData,
   });
 
   /// Converts the wrapper into the plugin's [ConfigData] representation.
@@ -38,13 +34,11 @@ class BiometricConfig {
       promptSubtitle: promptSubtitle,
       promptDescription: androidPromptDescription,
     );
-    final windowsDataToSign = windowsAuthData ?? 'locker_authentication_request';
 
     return ConfigData(
       biometricPromptTitle: promptTitle,
       biometricPromptSubtitle: promptSubtitle,
       androidConfig: androidConfig,
-      windowsDataToSign: windowsDataToSign,
     );
   }
 }

@@ -1,5 +1,6 @@
-# Uncomment this line to define a global platform for your project
-# platform :ios, '13.0'
+IOS_DEPLOYMENT_TARGET = '15.0'
+
+platform :ios, IOS_DEPLOYMENT_TARGET
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -40,5 +41,14 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+
+    # Xcode 27 rejects iOS deployment targets below 15.0.
+    target.build_configurations.each do |config|
+      pod_target = config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+      next if pod_target.nil? || !Gem::Version.correct?(pod_target)
+      next if Gem::Version.new(pod_target) >= Gem::Version.new(IOS_DEPLOYMENT_TARGET)
+
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = IOS_DEPLOYMENT_TARGET
+    end
   end
 end

@@ -41,7 +41,6 @@ class _TPMScreenState extends State<TPMScreen> {
     );
     const config = ConfigData(
       biometricPromptTitle: 'Authentication for data signing',
-      windowsDataToSign: 'Data block for signature in Windows plugin',
       androidConfig: androidConfig,
     );
 

@@ -15,9 +15,9 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral
 
 SPEC CHECKSUMS:
-  biometric_cipher: c4deca3d229fb9dec79cc0ad464a05a77e52c848
+  biometric_cipher: 6a3fcd19ead2e0bc9bf0e90959228321d725fb51
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
 
-PODFILE CHECKSUM: 9ebaf0ce3d369aaa26a9ea0e159195ed94724cf3
+PODFILE CHECKSUM: ccb4b34b17711a8bb9cca64ee2e910e587ed3614
 
-COCOAPODS: 1.16.2
+COCOAPODS: 1.17.0

@@ -1,0 +1,9 @@
+{
+  "id" : "eaf743d7-e561-4941-ba6e-7df4be2c9ad0",
+  "targets" : [
+    {
+      "id" : "34E5A731-C3FD-4686-8BE7-9B0CBBFE0AE2",
+      "name" : "mfa_demo"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mfa_demo/core/extensions/context_extensions.dart';
+import 'package:mfa_demo/core/utils/biometric_support.dart';
 import 'package:mfa_demo/features/locker/bloc/locker_bloc.dart';
 import 'package:mfa_demo/features/locker/views/auth/change_password_screen.dart';
 import 'package:mfa_demo/features/settings/views/settings_screen.dart';
@@ -56,16 +57,17 @@ class UnlockedScreenActions extends StatelessWidget {
               ],
             ),
           ),
-          const PopupMenuItem(
-            value: 'tpm_test',
-            child: Row(
-              children: [
-                Icon(Icons.security),
-                SizedBox(width: 8),
-                Text('TPM Test'),
-              ],
+          if (isBiometricCipherSupported)
+            const PopupMenuItem(
+              value: 'tpm_test',
+              child: Row(
+                children: [
+                  Icon(Icons.security),
+                  SizedBox(width: 8),
+                  Text('TPM Test'),
+                ],
+              ),
             ),
-          ),
           const PopupMenuItem(
             value: 'clear_all',
             child: Row(

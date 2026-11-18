@@ -41,6 +41,8 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     on<_AddEntryWithBiometricRequested>(_onAddEntryWithBiometricRequested);
     on<_DuplicateEntryNaiveWithBiometricRequested>(_onDuplicateEntryNaiveWithBiometricRequested);
     on<_DuplicateEntryTransactionWithBiometricRequested>(_onDuplicateEntryTransactionWithBiometricRequested);
+    on<_DuplicateEntryNaiveWithPasswordRequested>(_onDuplicateEntryNaiveWithPasswordRequested);
+    on<_DuplicateEntryTransactionWithPasswordRequested>(_onDuplicateEntryTransactionWithPasswordRequested);
     on<_ReadEntryWithBiometricRequested>(_onReadEntryWithBiometricRequested);
     on<_DeleteEntryWithBiometricRequested>(_onDeleteEntryWithBiometricRequested);
     on<_ViewEntryRequested>(_onViewEntryRequested);
@@ -536,6 +538,71 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
     }
   }
 
+  Future<void> _onDuplicateEntryNaiveWithPasswordRequested(
+    _DuplicateEntryNaiveWithPasswordRequested event,
+    Emitter<LockerState> emit,
+  ) => _handlePasswordDuplication(
+    emit: emit,
+    duplicate: () => _lockerRepository.duplicateEntryWithPassword(
+      sourceId: event.sourceId,
+      newName: event.newName,
+      password: event.password,
+    ),
+    successMessage: 'Duplicated (standard: 2 password checks)',
+    operationDescription: 'duplicate entry (naive) with password',
+  );
+
+  Future<void> _onDuplicateEntryTransactionWithPasswordRequested(
+    _DuplicateEntryTransactionWithPasswordRequested event,
+    Emitter<LockerState> emit,
+  ) => _handlePasswordDuplication(
+    emit: emit,
+    duplicate: () => _lockerRepository.duplicateEntryInTransactionWithPassword(
+      sourceId: event.sourceId,
+      newName: event.newName,
+      password: event.password,
+    ),
+    successMessage: 'Duplicated (transaction: 1 password check)',
+    operationDescription: 'duplicate entry (transaction) with password',
+  );
+
+  Future<void> _handlePasswordDuplication({
+    required Emitter<LockerState> emit,
+    required Future<void> Function() duplicate,
+    required String successMessage,
+    required String operationDescription,
+  }) async {
+    emit(state.copyWith(loadState: LoadState.loading));
+
+    await _handleVaultOperation(
+      operation: () async {
+        await duplicate();
+
+        final entries = await _lockerRepository.getAllEntries();
+        if (isClosed) {
+          return;
+        }
+
+        emit(
+          state.copyWith(
+            entries: entries,
+            loadState: LoadState.none,
+          ),
+        );
+        action(LockerAction.showSuccess(message: successMessage));
+      },
+      onDecryptFailed: (error) => _handleDecryptFailure(
+        emit,
+        LockerAction.showError(message: 'Incorrect password: $error'),
+      ),
+      onError: (error) => _handleGenericFailure(
+        emit,
+        LockerAction.showError(message: 'Failed to duplicate entry: $error'),
+      ),
+      operationDescription: operationDescription,
+    );
+  }
+
   Future<void> _onDuplicateEntryNaiveWithBiometricRequested(
     _DuplicateEntryNaiveWithBiometricRequested event,
     Emitter<LockerState> emit,
@@ -1018,7 +1085,13 @@ class LockerBloc extends ActionBloc<LockerEvent, LockerState, LockerAction> {
       if (isClosed) {
         return;
       }
-      onDecryptFailed?.call(error);
+      final decryptFailedHandler = onDecryptFailed;
+      if (decryptFailedHandler != null) {
+        decryptFailedHandler(error);
+
+        return;
+      }
+      await onError?.call(error);
     } catch (error, stackTrace) {
       logger.logError(
         'LockerBloc: Operation failed$description',

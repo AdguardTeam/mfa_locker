@@ -22,5 +22,8 @@ class AppConstants {
   /// Key tag used for biometric-protected entries.
   static const biometricKeyTag = 'mfa_demo_bio_key';
 
+  /// Explanation shown when the biometric key is known to be invalidated.
+  static const biometricKeyInvalidatedMessage = 'Biometrics have changed. Please use your password.';
+
   AppConstants._();
 }

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:locker/erasable/erasable_byte_array.dart';
 import 'package:locker/security/biometric_cipher_provider.dart';
+import 'package:locker/security/biometric_platform_support.dart';
 import 'package:locker/security/models/cipher_func.dart';
 import 'package:locker/security/models/exceptions/biometric_exception.dart';
 import 'package:locker/security/models/key_validity_status.dart';
@@ -26,6 +27,13 @@ class BioCipherFunc extends CipherFunc {
       throw ArgumentError('Data must not be erased or empty');
     }
 
+    if (!isBiometricCipherSupported) {
+      throw const BiometricException(
+        BiometricExceptionType.notAvailable,
+        message: 'Biometric authentication is not supported on this platform',
+      );
+    }
+
     return _secureProvider.encrypt(tag: keyTag, data: data.bytes);
   }
 
@@ -33,6 +41,13 @@ class BioCipherFunc extends CipherFunc {
   Future<ErasableByteArray> decrypt(Uint8List data) async {
     if (data.isEmpty) {
       throw ArgumentError('Encrypted data must not be empty');
+    }
+
+    if (!isBiometricCipherSupported) {
+      throw const BiometricException(
+        BiometricExceptionType.notAvailable,
+        message: 'Biometric authentication is not supported on this platform',
+      );
     }
 
     try {
